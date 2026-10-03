@@ -33,6 +33,10 @@ concurrency:
 env:
   UPSTREAM: https://github.com/yetone/magpie.git
   DEV_BRANCH: queqiao
+  # gh picks its repository from the git remotes and prefers one named
+  # "upstream": without this, every gh call below (pr create, label, issue)
+  # would go to yetone/magpie.
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   sync:
@@ -139,7 +143,7 @@ jobs:
         run: |
           log=$(git log --no-merges --format='- %h %s' "${RANGE%%..*}..upstream/main" | cut -c1-200)
           body=$(printf 'Weekly upstream sync: %s commits from yetone/magpie (%s).\n\nMerge with **Create a merge commit**; never squash or rebase this PR.\n\n%s\n' "$COUNT" "$RANGE" "$log")
-          hint="SYNC_TOKEN needs Pull requests: Read and write (and Issues: Read and write for the label) on weiping/queqiao."
+          hint="gh works on $GH_REPO; SYNC_TOKEN needs Pull requests and Issues read/write there."
 
           gh label create sync --color BFD4F2 --force >/dev/null \
             || echo "::warning::could not create the sync label. $hint"
