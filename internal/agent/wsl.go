@@ -389,6 +389,7 @@ func wslAgent(k wslKind, d distro) *Agent {
 	id := k.id + "@wsl:" + d.Name
 	a := k.in(d.place(id))
 	a.ID, a.Name, a.Aliases, a.Bin, a.UA, a.WSL = id, k.name+" · WSL "+d.Name, nil, "", nil, d.Name
+	a.Gateway = d.base
 	if d.Running {
 		a.Home = d.local(d.Home)
 	}

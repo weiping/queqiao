@@ -221,7 +221,7 @@ func init() {
 	// the plugin reads cursor-agent's token as the built-in does.
 	movers["cursor"] = &mover{
 		pkg:    "@magpie-community/opencode-cursor-auth",
-		min:    "0.1.7", // a failure's status and its sign-in mark as the built-in's; Max Mode models retried in Max Mode; glm-5.3 listed
+		min:    "0.1.8", // a failure's status and its sign-in mark as the built-in's; Max Mode models retried in Max Mode; glm-5.3 listed; catalog entries written as CallDynamicTool calls, an empty turn retried (plugins #11)
 		agents: []string{"cursor"},
 		out: func() ([]Moving, error) {
 			if CursorExecutable() == "" || cursorSignedOut() {

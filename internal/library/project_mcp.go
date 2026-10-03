@@ -12,6 +12,8 @@ import (
 
 	toml "github.com/pelletier/go-toml/v2"
 	"github.com/tidwall/jsonc"
+
+	"github.com/yetone/magpie/internal/gateway"
 )
 
 // projectMCPFiles is the file, in a project, each agent reads the project's
@@ -105,8 +107,8 @@ func (l *Library) syncProjectMCP(p *Project, fail func(what string, err error)) 
 				fail("mcp:"+name, err)
 				continue
 			}
-			if !slices.Contains(want[rel], s) {
-				want[rel] = append(want[rel], s)
+			if !slices.ContainsFunc(want[rel], func(x *Server) bool { return x.Name == s.Name }) {
+				want[rel] = append(want[rel], through(s, gateway.URL()))
 			}
 		}
 	}
