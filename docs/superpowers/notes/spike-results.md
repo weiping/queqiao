@@ -14,7 +14,7 @@
 | S7 | （待填） | （待填） | （待填） | （待填） | （待填） |
 | S8 | （待填） | （待填） | （待填） | （待填） | （待填） |
 | S9 | （待填） | （待填） | （待填） | （待填） | （待填） |
-| S10 | （待填） | （待填） | （待填） | （待填） | （待填） |
+| S10 | claude-code 2.1.288（会话中自动升级至 2.1.289）· 2026-10-03/04 | 四种实际运行的模式 mod 均加载（session.start 探针在场，race_winner 均为 timer，localhost 可达）：① 交互 REPL（session cbaf0fa6，interactive 模式）② REPL 中 /fork 的派生会话（c9f95c88，session.start 在场）③ claude -p（194d0e3f）④ Agent SDK：**spawn 失败**——@anthropic-ai/claude-agent-sdk 0.3.289 的 query() 在发起任何请求前抛 `spawn Unknown system error -88`（macOS EFTYPE），有/无 plugins、设/不设 CLAUDE_CODE_ENTRYPOINT 均复现；直接 child_process.spawn(claude 二进制) 正常，问题出在 SDK 的 spawnLocalProcess（经 bun/node 拉起 CLI）；SDK 模式下 CC 根本没启动 → mod 自然不加载 | 成立（主方案） | 主方案；README 需把 SDK 模式列为「无法本地 spawn（errno -88）待查」，比「回退网关模式」更强 | `docs/superpowers/spikes/logs/s10.jsonl`；SDK 版本 0.3.289，claude 二进制 2.1.289；附注：fork 派生会话的 22 个请求仍带父会话 x-claude-code-session-id（见 S11） |
 | S11 | （待填） | （待填） | （待填） | （待填） | （待填） |
 | S12 | （待填） | （待填） | （待填） | （待填） | （待填） |
 | S13 | （待填） | （待填） | （待填） | （待填） | （待填） |

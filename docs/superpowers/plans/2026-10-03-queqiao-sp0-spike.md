@@ -198,15 +198,15 @@ Rule: alias ignored → 备选（drop selection in `agent.spawn`, pin in `turn.s
 
 **Files:** results file only.
 
-- [ ] **Step 1: Run each mode [human]**, one prompt each, log `logs/s10.jsonl`: interactive REPL; `claude -p "say hi" --plugin-dir ...`; an Agent SDK script (`@anthropic-ai/claude-agent-sdk` `query()` with `plugins: [{type:"local", path}]`); `/fork` from the REPL then one prompt in the forked session; `claude --version`.
+- [x] **Step 1: Run each mode [human]**, one prompt each, log `logs/s10.jsonl`: interactive REPL; `claude -p "say hi" --plugin-dir ...`; an Agent SDK script (`@anthropic-ai/claude-agent-sdk` `query()` with `plugins: [{type:"local", path}]`); `/fork` from the REPL then one prompt in the forked session; `claude --version`.
 
-- [ ] **Step 2: Read the log**
+- [x] **Step 2: Read the log**
 
 Expected to decide, per mode: mod loaded (`session.start` line present) · `$.http.fetch` to `127.0.0.1` reached the recorder · `race_winner == "timer"` (the 1500 ms race gives up on a 3000 ms reply).
 
 Rule: a mode without the mod → 主方案 holds, README lists it under "falls back to gateway mode"; localhost refused → 备选（`socketPath`）; `race_winner` not `timer` → 备选（no race; G5 exception in README）. Record the Claude Code version as the minimum tested.
 
-- [ ] **Step 3: Record S10 and commit** (`git commit -m "spike: S10 result"`)
+- [x] **Step 3: Record S10 and commit** (`git commit -m "spike: S10 result"`)
 
 ### Task 7: Derived Claude Code sessions (S11)
 
