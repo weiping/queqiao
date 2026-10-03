@@ -1,6 +1,6 @@
 # 鹊桥（queqiao）总体设计：Agent Harness 模型路由器
 
-- 日期：2026-10-02（2026-10-03 修订：增加 Codex harness 支持；增加 fork 子代理与派生会话的档位继承；确定仓库与分支策略。同日二次修订：Claude Code 集成由命令型 hook 加网关提示改为 Claude Code mods，由 mod 在 `turn.step` 逐请求改写模型，见第 2、3.1、5.5、6.7 节）
+- 日期：2026-10-02（2026-10-03 修订：增加 Codex harness 支持；增加 fork 子代理与派生会话的档位继承；确定仓库与分支策略。同日二次修订：Claude Code 集成由命令型 hook 加网关提示改为 Claude Code mods，由 mod 在 `turn.step` 逐请求改写模型，见第 2、3.1、5.5、6.7 节。写 SP1 计划时三次修订：Provider 名不改、配置目录改由 `appdir.SetName` 决定，依据见第 6.1 节）
 - 状态：待审批（审批后按第 11 节交给 `superpowers:writing-plans`）
 - 仓库：[weiping/queqiao](https://github.com/weiping/queqiao)，fork 自 [yetone/magpie](https://github.com/yetone/magpie)，MIT 协议
 - 分支：`main` 只与上游同步；queqiao 的全部开发在 `queqiao` 分支上进行（第 6.1 节）。本规格以 `main` 的 commit `49ee7d8`（2026-10-03）为基线，规格中引用的上游代码均已在该 commit 上核对
@@ -263,13 +263,13 @@ queqiao group add queqiao        models=group/qq-balanced,group/qq-perf,group/qq
 | | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `group/qq-balanced` |
 | | `ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_DEFAULT_FABLE_MODEL` | `group/qq-perf` |
 | | `CLAUDE_CODE_SUBAGENT_MODEL` | 不设置，由 mod 在 `agent.spawn` 时选档 |
-| Codex | `model_provider` | `queqiao`（magpie 原来写的 `[model_providers.magpie]` 改名，`wire_api = "responses"`） |
+| Codex | `model_provider` | `magpie`（沿用 magpie 写的 `[model_providers.magpie]`，`wire_api = "responses"`；不改名的原因见第 6.1 节） |
 | | `model` | `group/queqiao` |
 | | `model_catalog_json` | 由 `router init` 重写，包含 `group/queqiao` 与三个档位组；写完提示用户重启 Codex |
 | | `model_reasoning_effort` | 不改。档位成员用 `:<effort>` 后缀固定推理强度，覆盖 Codex 自己请求的强度 |
 | | 子代理 | 不写 `[agents]` 默认模型，由插件在 `spawn_agent` 时选档 |
-| Pi | Provider | `queqiao`（magpie 原来写的 `magpie` Provider 改名） |
-| | 默认模型 | `queqiao/group/qq-balanced`，扩展每轮调用 `setModel` 切换 |
+| Pi | Provider | `magpie`（沿用 magpie 写的 Provider） |
+| | 默认模型 | `magpie/group/qq-balanced`，扩展每轮调用 `setModel` 切换 |
 
 这样映射后，用户在 Claude Code 里用 `/model opus` 手动换模型，`turn.step` 收到的 `model` 会变成 `group/qq-perf`，不再是 `group/queqiao`；mod 只改写 `model` 为路由组的请求，于是不再介入，相当于用户手动把档位钉住了。`/model` 选回默认模型，路由就恢复。Codex 同理：`/model` 选了 `group/qq-perf`，请求就不再经过路由组；Codex 的 hook 输入自带当前的 `model`，插件据此识别用户已手动钉住档位（第 6.9 节）。
 
@@ -435,11 +435,11 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 | 文件 | 改动 |
 | --- | --- |
 | `go.mod` 及全部 import | **不改**，保留 `github.com/yetone/magpie`。仓库里有 770 个 Go 文件 import 这个路径，改名会让每次从 `main` 合并上游都在这些文件上冲突。代价是不支持 `go install github.com/weiping/queqiao@...`，只通过 Release 二进制和 `make` 构建分发 |
-| `main.go`、`Makefile` | 二进制名改为 `queqiao` |
-| `internal/appdir/appdir.go` | 配置目录改为 `~/.config/queqiao`，缓存目录改为 `~/.cache/queqiao` |
-| `internal/update/update.go` | 关闭自动更新：`queqiao update` 只打印“请从 `weiping/queqiao` Releases 下载”，后台检查不再运行 |
-| `internal/stats` | 关闭上游的用户计数上报（fork 不能向上游的 PostHog 发数据） |
-| `internal/agent` 中写 Pi、OpenCode、Codex 配置的代码 | Provider 名由 `magpie` 改为 `queqiao`（Codex 为 `[model_providers.queqiao]`，模型目录文件改为 `~/.codex/queqiao-models.json`） |
+| `main.go`、`Makefile` | 二进制名改为 `queqiao`（`Makefile` 用 `BIN ?= queqiao`，只改 `build`、`cli`、`app`、`release`、`release-cli`、`clean`）；`main()` 第一行调用 `appdir.SetName("queqiao")` |
+| `internal/appdir/appdir.go` | 新增 `SetName(name string)`：配置目录、缓存目录里的应用名由它决定，包内默认仍是 `magpie`；在第一次给出路径之后再调用会 panic，防止有代码在改名前就记下了旧路径。`main()` 第一行调用 `appdir.SetName("queqiao")`，于是运行时配置在 `~/.config/queqiao`、缓存在 `~/.cache/queqiao`。不直接改默认值，是因为 7 个包里约 20 个上游测试写死了 `.config/magpie`，改默认值就得改这些测试文件，每次合并上游都可能冲突 |
+| `internal/update/update.go`、`update_cli.go` | 关闭自动更新：没有设 `MAGPIE_UPDATE_FEED` 时 `Feed()` 为空，`LatestIn` 不发请求、直接返回 `ErrNoFeed`；`Site` 改为 `https://github.com/weiping/queqiao/releases`。`queqiao update` 遇到 `ErrNoFeed` 打印“queqiao 不自动更新，请从 https://github.com/weiping/queqiao/releases 下载”并以 0 退出。上游测试都通过 `MAGPIE_UPDATE_FEED` 指向本地服务器，不受影响 |
+| `internal/stats/stats.go` | 关闭上游的用户计数上报（fork 不能向上游的 PostHog 发数据）：`Run` 在没有设 `MAGPIE_STATS_HOST` 时直接返回 |
+| `internal/agent` | **不改**。Provider 名、Codex 的 `[model_providers.magpie]` 与 `~/.codex/magpie-models.json` 都沿用 `magpie`。Provider ID 是 `route.go` 里的一个常量，被 200 多处代码共用；实测把它改成 `queqiao` 会让 `internal/agent` 里约 50 个测试失败、涉及 40 多个测试文件。queqiao 与 magpie 本来就占用同一个端口 3425，不能同时运行，改名换不来共存，只会增加合并冲突 |
 | `README.md` | 只在顶部加 queqiao 的说明，下面原样保留上游正文，并注明那部分属于上游。上游改 README 时，合并只在开头几行可能冲突 |
 | 其余 | `MAGPIE_*` 环境变量、`X-Magpie-*` 请求头、`/v1/magpie/*` 端点保持原名，尽量减小与上游的差异 |
 
@@ -655,10 +655,10 @@ clients/pi/
 | --- | --- |
 | `session_start` | 确定会话 ID（第 10 节 S4 验证 Pi 提供的会话标识；拿不到时用 `crypto.randomUUID()` 生成，在扩展内存中保留到会话结束）。`reason` 为 `fork` 时记下父会话 ID（S12）；读不到父会话 ID 时调用 `/lineage` 标记 |
 | `before_provider_headers` | 给每个请求加 `X-Magpie-Session: <会话 ID>`，让网关能统计本会话的工具失败次数和请求间隔 |
-| `before_agent_start` | 调用 `/turn`（`store_hint:false`，`agent:"main"`，`prompt` 取 `event.prompt`），超时 1500 ms；拿到档位后，若档位变了，`pi.setModel(<queqiao/group/qq-*>)`。失败时不改模型 |
+| `before_agent_start` | 调用 `/turn`（`store_hint:false`，`agent:"main"`，`prompt` 取 `event.prompt`），超时 1500 ms；拿到档位后，若档位变了，`pi.setModel(<magpie/group/qq-*>)`。失败时不改模型 |
 | `model_select` | `source` 表示用户手动切换时，发送 `manual_model_switch`，并在本会话剩余时间里不再自动切换（与 Claude Code 中 `/model` 的效果一致） |
 | `tool_result` | 匹配 PR 链接，发送 `pr_created` |
-| `tool_call` | 只在装了 pi-subagents 时生效（工具名为 `Agent`，参数结构在 S12 中确认）。参数里已有 `model` 的不改；`inherit_context` 为 true 的按第 5.8 节钉在父会话当前的档位组；其余的以任务描述调用 `/turn`（`store_hint:false`），把 `event.input.model` 改为 `queqiao/group/qq-<档位>` |
+| `tool_call` | 只在装了 pi-subagents 时生效（工具名为 `Agent`，参数结构在 S12 中确认）。参数里已有 `model` 的不改；`inherit_context` 为 true 的按第 5.8 节钉在父会话当前的档位组；其余的以任务描述调用 `/turn`（`store_hint:false`），把 `event.input.model` 改为 `magpie/group/qq-<档位>` |
 | `before_agent_start`（补充） | 本会话是派生会话的第一轮时，`/turn` 请求带上 `parent_session` |
 
 运行时依赖只用 Node 内置的 `fetch` 和 `crypto`，`dependencies` 为空。Pi 自带的包放进 `peerDependencies`，版本写 `"*"`。
