@@ -44,7 +44,7 @@
 - `tool_errors`/`tool_results`: Anthropic `tool_result` blocks with `is_error: true` / all; Responses `function_call_output` items (errors counted when the output text starts with `Exit code: ` followed by a non-zero number, otherwise 0 — S8 checks whether anything better exists).
 - `setup-groups.sh <fast> <balanced> <perf>` runs the four `magpie group add` commands of spec §4.4 with the given `provider/model` ids.
 
-- [ ] **Step 1: Write the failing tests** (`unittest`; a fake upstream `http.server` in a thread)
+- [x] **Step 1: Write the failing tests** (`unittest`; a fake upstream `http.server` in a thread)
 
 ```python
 def test_logs_session_headers_lowercased(self)      # sends X-Claude-Code-Session-Id: S1 → log headers["x-claude-code-session-id"] == "S1"
@@ -55,14 +55,14 @@ def test_probe_log_not_forwarded(self)              # POST /spike/log → 204, u
 def test_slow_endpoint(self)                        # GET /spike/slow?ms=300 → 200 after ≥ 0.3 s
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cd docs/superpowers/spikes/recorder && python3 -m unittest -v test_rec`
 Expected: FAIL, `ModuleNotFoundError: No module named 'rec'`
 
-- [ ] **Step 3: Implement `rec.py`** with `http.server.ThreadingHTTPServer` and `http.client`, copying the response body to the client in 4 KiB reads with a flush after each; never decode the response.
+- [x] **Step 3: Implement `rec.py`** with `http.server.ThreadingHTTPServer` and `http.client`, copying the response body to the client in 4 KiB reads with a flush after each; never decode the response.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `python3 -m unittest -v test_rec`
 Expected: 6 tests OK
@@ -72,7 +72,7 @@ Expected: 6 tests OK
 Run (human partner, once): build upstream magpie from `main` (`git -C <main worktree> pull && make cli`), start `./magpie serve`, add their API-key provider, then `bash setup-groups.sh <fast> <balanced> <perf>`; start `python3 rec.py ... --log logs/rig.jsonl`; `curl -s -H 'Authorization: Bearer magpie' http://127.0.0.1:3500/v1/models | grep -c qq-` 
 Expected: `curl` prints ≥ 3; `logs/rig.jsonl` has one `req` line for `/v1/models`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/superpowers/spikes/.gitignore docs/superpowers/spikes/recorder
@@ -88,7 +88,7 @@ git commit -m "spike: recording proxy for SP0"
 **Interfaces:**
 - Produces: `python3 latency.py -n 100` reads `TYPESAFE_API_KEY`, posts the §5.3 request body (`jev-latest`, questions `tier` + `dissatisfied`, a 200-character `message`) to `https://api.typesafe.ai/v1/systemone` sequentially, prints `p50_ms p95_ms errors` on one line. `def percentile(xs: list[float], p: float) -> float` (nearest-rank).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_percentile(self):
@@ -97,12 +97,12 @@ def test_percentile(self):
     self.assertEqual(percentile(xs, 95), 95.0)
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `cd docs/superpowers/spikes/jev && python3 -m unittest -v test_latency`
 Expected: FAIL, `No module named 'latency'`
 
-- [ ] **Step 3: Implement `latency.py`**
+- [x] **Step 3: Implement `latency.py`**
 
 - [ ] **Step 4: Run the test, then measure [human supplies the key]**
 
@@ -138,21 +138,21 @@ git commit -m "spike: S5 Jev latency"
   - `classic.PostModelSwitch` — logs `from_model, to_model, source`.
   - `turn.complete` — on the session's first completed turn, writes `$.store` `spike:first:<hash of first user message>` = `{session, at}`.
 
-- [ ] **Step 1: Write the failing test** (`claude-code/testing`): mock `$.http.fetch`; drive a `turn.step` with `model: "group/queqiao"` and no `agentId` → the step that reaches the engine names `group/qq-fast`; with `agentId: "a1"` → `group/qq-balanced`; with `model: "group/qq-perf"` → unchanged.
+- [x] **Step 1: Write the failing test** (`claude-code/testing`): mock `$.http.fetch`; drive a `turn.step` with `model: "group/queqiao"` and no `agentId` → the step that reaches the engine names `group/qq-fast`; with `agentId: "a1"` → `group/qq-balanced`; with `model: "group/qq-perf"` → unchanged.
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `claude plugin test docs/superpowers/spikes/cc-mod`
 Expected: FAIL (module has no `turn.step` hook yet)
 
-- [ ] **Step 3: Implement `register.ts`**
+- [x] **Step 3: Implement `register.ts`**
 
-- [ ] **Step 4: Validate and test**
+- [x] **Step 4: Validate and test**
 
 Run: `claude plugin validate docs/superpowers/spikes/cc-mod && claude plugin test docs/superpowers/spikes/cc-mod`
 Expected: validate reports no refusals; tests pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/spikes/cc-mod
@@ -242,14 +242,14 @@ def test_spawn_with_model_untouched(self)          # tool_input has model → st
 def test_recorder_down_still_exits_zero(self)      # log_url points at a closed port → exit 0 within 1.5 s
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cd docs/superpowers/spikes/codex-plugin/hooks && python3 -m unittest -v test_hook`
 Expected: FAIL, `No module named 'hook'`
 
 - [ ] **Step 3: Implement `hook.py`**
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Expected: 4 tests OK
 
