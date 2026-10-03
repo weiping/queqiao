@@ -233,7 +233,7 @@ Rule (spec §10): `/branch` without `SessionStart` → `/branch` treated as a ne
 **Interfaces:**
 - Produces: `hook.py` reads stdin JSON, posts `{"probe":"codex","event":hook_event_name, "session_id","turn_id","model","permission_mode","tool_input"}` to the recorder (1 s timeout, errors ignored), records `time.time()` at start and end in the same line; for `PreToolUse` whose `tool_input` has no `model`, prints `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{...tool_input,"model":"group/qq-fast"}}}`; otherwise prints nothing; always exits 0.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_prompt_submit_prints_nothing(self)        # stdin UserPromptSubmit sample → stdout "" and exit 0
@@ -247,13 +247,13 @@ def test_recorder_down_still_exits_zero(self)      # log_url points at a closed 
 Run: `cd docs/superpowers/spikes/codex-plugin/hooks && python3 -m unittest -v test_hook`
 Expected: FAIL, `No module named 'hook'`
 
-- [ ] **Step 3: Implement `hook.py`**
+- [x] **Step 3: Implement `hook.py`**
 
 - [x] **Step 4: Run the tests**
 
 Expected: 4 tests OK
 
-- [ ] **Step 5: Commit** (`git commit -m "spike: Codex probe plugin"`)
+- [x] **Step 5: Commit** (`git commit -m "spike: Codex probe plugin"`)
 
 ### Task 9: Codex hooks, ids, plan mode, subagents (S6, S7, S8, S9, S13)
 
