@@ -1889,6 +1889,7 @@ const I18N = {
     "{who} answered {status}: the vendor wants the account verified before it serves it again, and nobody is left to try, so {agent} gets the error with how to verify it. For a minute {agent}'s retries get the same answer without asking the vendor.": "{who} 回复 {status}：服务商要求先验证账号才继续服务，且没有其他可试的，所以 {agent} 收到这个错误和验证方法。一分钟内 {agent} 的重试会直接得到同样的回复，不再请求服务商。",
     "Verify the account ↗": "去验证账号 ↗",
     "It's verified — try it again": "已验证，重新使用",
+    "{who} turned away the reasoning effort changed mid-conversation as an update that keeps its cache, so it is asked again at the new effort the usual way, before any of the reply reaches {agent}.": "{who} 不接受对话中途以「更新」方式切换推理强度（这种方式能保住缓存），所以按普通方式用新的推理强度再问一次，{agent} 收到回复前就处理好了。",
     "{who} takes no request for a reply as short as this one asked for, so it is asked again for the shortest it gives, before any of the reply reaches {agent}.": "{who} 不接受这么短的回复长度（max_tokens），所以按它允许的最小值再问一次，{agent} 收到回复前就处理好了。",
     "{who} couldn't read the reasoning another account wrote earlier in this conversation, so it is asked again without it, before any of the reply reaches {agent}.": "{who} 读不了这个会话里之前由另一个账号写下的推理，所以去掉这部分后再问一次，{agent} 收到回复前就处理好了。",
     "{agent} canceled the request while {who} was answering: nobody failed, so nobody rests and nobody else is asked.": "{who} 还在回答时，{agent} 取消了请求：不是谁出了错，所以谁也不用休息，也不再问别人。",
