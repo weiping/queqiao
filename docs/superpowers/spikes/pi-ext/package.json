@@ -1,0 +1,9 @@
+{
+  "name": "queqiao-spike-pi",
+  "version": "0.1.0",
+  "description": "SP0 spike probe extension for Pi: records session/provider/tool facts and pins models. Test rig only.",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./spike.ts"]
+  }
+}
