@@ -67,7 +67,7 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'rec'`
 Run: `python3 -m unittest -v test_rec`
 Expected: 6 tests OK
 
-- [ ] **Step 5: Prepare the shared rig [human]**
+- [x] **Step 5: Prepare the shared rig [human]**
 
 Run (human partner, once): build upstream magpie from `main` (`git -C <main worktree> pull && make cli`), start `./magpie serve`, add their API-key provider, then `bash setup-groups.sh <fast> <balanced> <perf>`; start `python3 rec.py ... --log logs/rig.jsonl`; `curl -s -H 'Authorization: Bearer magpie' http://127.0.0.1:3500/v1/models | grep -c qq-` 
 Expected: `curl` prints ≥ 3; `logs/rig.jsonl` has one `req` line for `/v1/models`
@@ -163,11 +163,11 @@ git commit -m "spike: Claude Code probe mod"
 
 **Files:** results file only.
 
-- [ ] **Step 1: Run the session [human]**
+- [x] **Step 1: Run the session [human]**
 
 `ANTHROPIC_BASE_URL=http://127.0.0.1:3500 ANTHROPIC_AUTH_TOKEN=magpie claude --plugin-dir docs/superpowers/spikes/cc-mod --model group/queqiao` with `python3 rec.py ... --log logs/s1.jsonl`; do 20 turns: 10 plain questions, 5 that make Claude run tools (one failing `ls /nope`), 1 with `@file`, 1 with a pasted image, 1 after `/model opus` then `/model default`, 2 in plan mode (Shift+Tab).
 
-- [ ] **Step 2: Read the log**
+- [x] **Step 2: Read the log**
 
 Run: `jq -c 'select(.kind=="req" and .path=="/v1/messages") | [.model, .headers["x-claude-code-session-id"]]' logs/s1.jsonl | sort | uniq -c` and `jq -c 'select(.event=="turn.step") | [.model, .agentId]' logs/s1.jsonl | sort | uniq -c`
 Expected to decide:
@@ -186,13 +186,13 @@ Rule: names rejected → 备选 1 (aliases); aliases also fail → 备选 2 (com
 
 - [x] **Step 1: Run the session [human]** with the probe mod (log `logs/s3.jsonl`): ask Claude to "use the Explore agent to list the Go packages", then "use a general-purpose agent to summarise README.md", then `/subtask summarise the last answer in one line`, then ask for a fork via the Agent tool with `subagent_type: "fork"`.
 
-- [ ] **Step 2: Read the log**
+- [x] **Step 2: Read the log**
 
 Expected to decide S3 holds when: `agent.spawn` for the general-purpose agent logged `model: "haiku"` back with an `agentId`, and that agent's requests reached the recorder as `group/qq-fast`; the fork's `agent.spawn` showed `fork: true`; its `turn.step` lines carry an `agentId` with `model == "group/queqiao"`; its requests reached the recorder as `group/qq-balanced` (the rewrite was accepted); its first request's `usage` shows a cache read close to the main session's prompt size.
 
 Rule: alias ignored → 备选（drop selection in `agent.spawn`, pin in `turn.step`）; fork rewrite rejected → 备选（restore the gateway-side fork heuristic）.
 
-- [ ] **Step 3: Record S3 and commit** (`git commit -m "spike: S3 result"`)
+- [x] **Step 3: Record S3 and commit** (`git commit -m "spike: S3 result"`)
 
 ### Task 6: Where the mod runs (S10)
 
