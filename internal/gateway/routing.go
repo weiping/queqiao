@@ -130,6 +130,10 @@ const (
 	// failFloor: the request asked for a shorter reply than the provider
 	// gives, and is sent again asking for the least it takes
 	failFloor = "floor"
+	// failUpdate: the upstream turned away the configuration_update items
+	// a changed effort went as (#617), and the request is sent again
+	// without them
+	failUpdate = "update"
 	// failVerify: the account must be verified with its vendor (Google's
 	// VALIDATION_REQUIRED) before it is served again
 	failVerify = "verify"

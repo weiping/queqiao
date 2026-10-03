@@ -1050,6 +1050,17 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 	// before any image is taken out of the request: one may be for images
 	g, ms, isGroup := provider.FindGroup(asked)
 	g = g.Live() // a manual group's rules wait
+	// a Codex subagent's task its lead sealed — the lead answered by a
+	// ChatGPT account, the group's own or Codex's — goes only to a ChatGPT
+	// account, the lead's first (#619); with none, it is turned away
+	// before anyone is asked
+	sealedTask := from == provider.Responses && hasSealedAgentMessage(body)
+	if sealedTask && !(isGroup && slices.ContainsFunc(ms, func(m provider.Member) bool { return sealedReader(m.Provider) }) || !isGroup && sealedReader(p)) {
+		call.Status, call.Error = 400, "sealed subagent task"
+		writeError(w, from, 400, sealedTaskError(call.Model))
+		turnedAway()
+		return
+	}
 	var hit *RuleHit
 	var ruled []provider.Member
 	var ruleAt, words string
@@ -1133,11 +1144,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 	// own, and an agent's side requests (a title, a summary) to a smaller
 	// model leave the conversation where it is
 	scope, mode, rotate := p.ID+"/"+model, p.Affinity, p.Routing == provider.Rotate
+	leadScope := scope // where the lead of a subagent is kept
 	if isGroup {
 		// a routing group: every member's keys or accounts weighed together
 		cands, pl = s.planGroup(g, ms, from)
 		group = groupRef(g, ms)
 		scope, mode, rotate = provider.GroupPrefix+g.ID, g.Affinity, g.Routing == provider.Rotate
+		leadScope = scope
 		if words != "" {
 			// a subagent a rule sends elsewhere mustn't take its agent's
 			// conversation with it: each keeps where it is on its own
@@ -1145,6 +1158,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 		}
 	} else {
 		cands, pl = s.plan(p, model, from)
+	}
+	if sealedTask {
+		cands, pl = sealedReaders(cands, pl)
 	}
 	if len(cands) == 0 && len(pl.left) > 0 && !slices.ContainsFunc(pl.left, func(w Weighed) bool { return !w.Barred }) {
 		// every account or key there is was set not to serve the model
@@ -1166,6 +1182,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 	// (#63): its reasoning, sealed by the account that wrote it, is refused
 	// by another.
 	cands, pl, aff, stuck := affine(scope, mode, rotate, r.Header, from, body, cands, pl)
+	if sealedTask && !aff.Kept {
+		parent := metadata.Parent
+		if parent == "" {
+			parent = r.Header.Get("x-codex-parent-thread-id")
+		}
+		cands, pl = leadFirst(leadScope, parent, cands, pl)
+	}
 	if hit != nil && hit.Use != "" && !(hit.Held && aff.Kept) {
 		// the rule's member first, over whoever answered last, as a turn
 		// begins; within it, whoever answered last stays — the rule's
@@ -1256,6 +1279,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 	again := 0       // times the last one left has been tried again
 	resealed := 0    // what of the conversation another account sealed was taken out: its reasoning, then its compaction
 	floored := false // the reply's length raised to what the provider takes
+	plainFor := ""   // the account and model asked again without effort updates (#617)
 	// the key or subscription account the last try went to (#557)
 	providerKeyID, providerKeyName, providerAccount := "", "", ""
 	var other *Try     // the first failure that wasn't an allowance run out
@@ -1341,6 +1365,14 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 				cands = slices.Insert(slices.Delete(cs, i, i+1), j, c)
 				i--
 				continue
+			}
+		}
+		// an effort changed mid-thread goes as an update in the history,
+		// which keeps the prompt the upstream cached (#617)
+		updated := false
+		if from == provider.Responses && plainFor != c.who()+"|"+c.model && takesEffortUpdates(c.p, c.model) {
+			if b, ok := withEffortUpdates(stuck, c.who(), c.model, sent, attemptBody); ok {
+				attemptBody, updated = b, true
 			}
 		}
 		s.trace.update(tr, func(t *Route) {
@@ -1431,6 +1463,18 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 				i--
 				continue
 			}
+		}
+		if updated && !hw.passing && hw.code() == 400 {
+			// the upstream turned the update items away: asked again as
+			// the agent sent it, and if that goes, never sent them again
+			plainFor = c.who() + "|" + c.model
+			try.Fail = failUpdate
+			s.trace.update(tr, func(t *Route) { t.Tries[len(t.Tries)-1] = try })
+			i--
+			continue
+		}
+		if plainFor == c.who()+"|"+c.model && call.Status > 0 && call.Status < 400 {
+			effortUpdatesRefused(c.who(), c.model)
 		}
 		if !floored && !hw.passing && hw.code() == 400 {
 			// asked for fewer tokens than this provider answers with (#64)

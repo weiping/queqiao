@@ -88,10 +88,8 @@ func (s *Server) codexBackend(w http.ResponseWriter, r *http.Request) {
 				writeError(w, provider.Responses, 400, "/responses/compact is not supported for Magpie models; use a compaction_trigger on /responses")
 				return
 			}
-			if hasSealedAgentMessage(body) {
-				writeError(w, provider.Responses, 400, "An OpenAI lead sent a sealed subagent task that a Magpie-served model cannot read. Use a Magpie-served model for the lead, or choose an OpenAI subagent.")
-				return
-			}
+			// a sealed subagent task goes to a ChatGPT account the model
+			// or group has, or is turned away (serve, sealedReader)
 			body, compact := codexInput(body, true)
 			if compact {
 				s.codexCompact(w, r, body)
@@ -116,6 +114,69 @@ func (s *Server) codexBackend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.codexUpstream(w, r, rest, body)
+}
+
+// sealedTaskError is what a subagent is told whose task its lead sealed
+// when nothing model names can read it.
+func sealedTaskError(model string) string {
+	return fmt.Sprintf("An OpenAI lead sent a sealed subagent task that only a ChatGPT account can read, and %s has none. Use a Magpie-served model for the lead, or choose an OpenAI subagent (or a group with a Codex account in it).", model)
+}
+
+// sealedReader is who can read a subagent's task its lead sealed: a
+// ChatGPT account (#619). The ChatGPT backend seals spawn_agent's message
+// for a lead it answers as it came (passthrough, a Codex account a group
+// has as well), and only it opens it again.
+func sealedReader(p provider.Provider) bool {
+	return p.Account != nil && p.Account.Agent == "codex"
+}
+
+// sealedReaders keeps of cands those that can read a sealed subagent task,
+// pl's order with them.
+func sealedReaders(cands []candidate, pl planned) ([]candidate, planned) {
+	var kept []candidate
+	var order []Weighed
+	for i, c := range cands {
+		if sealedReader(c.p) {
+			kept = append(kept, c)
+			order = append(order, pl.order[i])
+		}
+	}
+	cands, pl.order = kept, order
+	return cands, pl
+}
+
+// leadFirst puts first the account that answered the lead, the thread
+// parent names, in scope: the one that sealed its subagent's task, which
+// another account may not open, as it doesn't another's reasoning.
+func leadFirst(scope, parent string, cands []candidate, pl planned) ([]candidate, planned) {
+	parent = strings.TrimSpace(parent)
+	if parent == "" {
+		return cands, pl
+	}
+	sticks.Lock()
+	st, had := stickOf(scope + "|" + parent)
+	if !had {
+		// a group with rules keeps the lead's conversation under its
+		// first words too
+		for k, v := range sticks.m {
+			if strings.HasPrefix(k, scope+"|") && strings.HasSuffix(k, "|"+parent) {
+				st, had = v, true
+				break
+			}
+		}
+	}
+	sticks.Unlock()
+	if !had || time.Since(st.at) > stickKeep {
+		return cands, pl
+	}
+	for i, c := range cands {
+		if i > 0 && c.who() == st.who {
+			cands = append(append([]candidate{c}, cands[:i]...), cands[i+1:]...)
+			pl.order = append(append([]Weighed{pl.order[i]}, pl.order[:i]...), pl.order[i+1:]...)
+			break
+		}
+	}
+	return cands, pl
 }
 
 // Only native sealed agent tasks need this guidance. Other encrypted_content
