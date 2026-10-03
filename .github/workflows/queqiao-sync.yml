@@ -125,7 +125,9 @@ jobs:
             echo "::error::merge conflicts"
             exit 1
           fi
-          git push origin "$branch"
+          # The sync branch belongs to this workflow: a rerun rebuilds the merge
+          # (a new commit), so it replaces whatever an earlier run pushed.
+          git push --force origin "$branch"
 
       - name: Open the pull request
         if: steps.need.outputs.merge == 'true'
@@ -137,10 +139,20 @@ jobs:
         run: |
           log=$(git log --no-merges --format='- %h %s' "${RANGE%%..*}..upstream/main" | cut -c1-200)
           body=$(printf 'Weekly upstream sync: %s commits from yetone/magpie (%s).\n\nMerge with **Create a merge commit**; never squash or rebase this PR.\n\n%s\n' "$COUNT" "$RANGE" "$log")
-          url=$(gh pr create --base "$DEV_BRANCH" --head "$BRANCH" \
-                  --title "merge main (upstream $RANGE)" --label sync --body "$body" 2>/dev/null \
-                || gh pr create --base "$DEV_BRANCH" --head "$BRANCH" \
-                  --title "merge main (upstream $RANGE)" --body "$body")
+          hint="SYNC_TOKEN needs Pull requests: Read and write (and Issues: Read and write for the label) on weiping/queqiao."
+
+          gh label create sync --color BFD4F2 --force >/dev/null \
+            || echo "::warning::could not create the sync label. $hint"
+
+          url=$(gh pr list --base "$DEV_BRANCH" --head "$BRANCH" --state open --json url --jq '.[0].url // empty')
+          if [ -n "$url" ]; then
+            echo "Reusing the open pull request $url"
+          elif ! url=$(gh pr create --base "$DEV_BRANCH" --head "$BRANCH" \
+                         --title "merge main (upstream $RANGE)" --body "$body"); then
+            echo "::error::could not open the pull request. $hint"
+            exit 1
+          fi
+          gh pr edit "$url" --add-label sync >/dev/null || true
           echo "Pull request: $url" >> "$GITHUB_STEP_SUMMARY"
           if gh pr merge "$url" --merge --auto --delete-branch; then
             echo "Auto-merge enabled: merges once the required checks pass." >> "$GITHUB_STEP_SUMMARY"
