@@ -104,12 +104,12 @@ Expected: FAIL, `No module named 'latency'`
 
 - [x] **Step 3: Implement `latency.py`**
 
-- [ ] **Step 4: Run the test, then measure [human supplies the key]**
+- [x] **Step 4: Run the test, then measure [human supplies the key]**
 
 Run: `python3 -m unittest -v test_latency && TYPESAFE_API_KEY=... python3 latency.py -n 100`
 Expected: test OK; one result line
 
-- [ ] **Step 5: Record S5 and commit**
+- [x] **Step 5: Record S5 and commit**
 
 Rule (spec §10): `p95 > 1000 ms` → 备选（`classify_timeout_ms` 1500，默认分类器改为本地小模型）; otherwise 主方案.
 
