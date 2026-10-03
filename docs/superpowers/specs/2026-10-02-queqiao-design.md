@@ -432,6 +432,8 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 | `qq/sp<N>-<名字>` | superpowers 子项目的功能分支，如 `qq/sp2-router-core` | 从 `queqiao` 切出，在独立的 git worktree 里实施，完成后以 PR 合回 `queqiao` |
 
 - 建议把 GitHub 仓库的**默认分支设为 `queqiao`**：Claude Code 与 Codex 的插件市场文件都在 `queqiao` 分支上，默认分支是 `queqiao` 时，`claude plugin marketplace add weiping/queqiao` 和 `codex plugin marketplace add weiping/queqiao` 不用另外指定分支。默认分支保持 `main` 时，Codex 用 `--ref queqiao`，Claude Code 的指定方式在 SP3 中按当时的文档确认。
+- **自动同步**：`.github/workflows/queqiao-sync.yml` 每周一 01:17 UTC 运行（也可手动触发）。先把 `main` 快进到上游；再从 `queqiao` 切出 `sync/upstream-<日期>-<提交>` 分支合并 `main`，开 PR 合回 `queqiao`，由上游自带的 Test 工作流（三个系统的完整测试）把关，通过后以合并提交自动合并。`main` 出现上游没有的提交或合并冲突时，不做改动，开一个带 `sync` 标签的 issue。需要仓库 secret `SYNC_TOKEN`（只授权本仓库的 fine-grained token，Contents、Pull requests、Issues、Workflows 读写）；自动合并另需开启 Allow auto-merge，并在 `queqiao` 上把 Test 的各项检查设为必需。
+- 上游自带的工作流中，`Docker`（`main` 更新时向 `ghcr.io/weiping/magpie` 推镜像）与 `UI preview`（需要上游专用的密钥）在 Actions 页面停用，不删文件，以免合并上游时冲突；`Release` 只响应 `v*` 标签，与本仓库的 `queqiao-v*` 标签不冲突。
 - 版本标签用 `queqiao-v<主>.<次>.<修订>`，从 `queqiao` 分支打，避免与上游的标签混淆。
 - 新代码全部放在 `internal/router/`、`internal/harness/`、`clients/` 三个新目录里；对上游文件的改动只限于本节表格、第 6.3 节的两处挂钩和 `usage.Record` 新增的字段。合并 `main` 时出现冲突，只可能出在这几处。
 

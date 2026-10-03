@@ -1,0 +1,149 @@
+name: queqiao sync upstream
+
+# Weekly: fast-forward main to yetone/magpie, then merge main into queqiao
+# through a pull request that the upstream Test workflow checks.
+#
+#   main     mirror of upstream, fast-forward only; never committed to
+#   queqiao  development; main is merged in (merge, never rebase)
+#
+# Needs the SYNC_TOKEN secret: a fine-grained token for weiping/queqiao with
+# Contents, Pull requests, Issues and Workflows read/write. GITHUB_TOKEN can't
+# push commits that touch .github/workflows (upstream changes them), and a
+# pull request it opens doesn't start the Test workflow.
+#
+# Outcomes:
+#   nothing new             no-op
+#   main diverged           fails, opens an issue (labelled sync)
+#   merge conflicts         fails, opens an issue listing the files
+#   clean merge             opens a PR and enables auto-merge (merge commit);
+#                           without auto-merge allowed, the PR waits for you
+
+on:
+  schedule:
+    - cron: '17 1 * * 1' # Monday 01:17 UTC (09:17 Beijing)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: queqiao-sync
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: https://github.com/yetone/magpie.git
+  DEV_BRANCH: queqiao
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the token
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::Secret SYNC_TOKEN is not set; see the comment at the top of this workflow."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEV_BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Fetch upstream
+        run: |
+          git config user.name  "queqiao-sync"
+          git config user.email "queqiao-sync@users.noreply.github.com"
+          git remote add upstream "$UPSTREAM"
+          git fetch --no-tags upstream main
+          git fetch --no-tags origin main
+
+      - name: Fast-forward main
+        id: ff
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          old=$(git rev-parse origin/main)
+          new=$(git rev-parse upstream/main)
+          echo "old=$old" >> "$GITHUB_OUTPUT"
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+          if [ "$old" = "$new" ]; then
+            echo "main is already at upstream ${new:0:7}"
+          elif git merge-base --is-ancestor "$old" "$new"; then
+            git push origin "$new:refs/heads/main"
+            echo "main fast-forwarded ${old:0:7}..${new:0:7}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            body=$(printf 'main (%s) has commits that upstream main (%s) does not. main must only mirror upstream; move those commits to a branch off queqiao, then reset main to upstream.\n\nRun: %s' \
+              "${old:0:7}" "${new:0:7}" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
+            gh label create sync --color BFD4F2 --force >/dev/null
+            gh issue create --title "Upstream sync: main has diverged from yetone/magpie" --label sync --body "$body"
+            echo "::error::main has diverged from upstream"
+            exit 1
+          fi
+
+      - name: Check whether queqiao already has it
+        id: need
+        run: |
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "merge=false" >> "$GITHUB_OUTPUT"
+            echo "queqiao already contains upstream ${{ steps.ff.outputs.new }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "merge=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge main into a sync branch
+        id: merge
+        if: steps.need.outputs.merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          base=$(git merge-base HEAD upstream/main)
+          to=$(git rev-parse --short upstream/main)
+          from=$(git rev-parse --short "$base")
+          count=$(git rev-list --count "$base..upstream/main")
+          branch="sync/upstream-$(date -u +%Y%m%d)-$to"
+          {
+            echo "branch=$branch"
+            echo "range=$from..$to"
+            echo "count=$count"
+          } >> "$GITHUB_OUTPUT"
+
+          git switch -c "$branch"
+          if ! git merge --no-ff --no-edit upstream/main \
+               -m "merge main (upstream $from..$to, $count commits)"; then
+            # shellcheck disable=SC2016 # Markdown backticks, not shell
+            files=$(git diff --name-only --diff-filter=U | sed 's/^/- `/; s/$/`/')
+            git merge --abort
+            # shellcheck disable=SC2016 # Markdown backticks, not shell
+            body=$(printf 'Merging upstream %s..%s (%s commits) into queqiao conflicts in:\n\n%s\n\nResolve by hand:\n\n```sh\ngit switch queqiao && git pull\ngit fetch origin main\ngit merge --no-ff origin/main\n# resolve, then\ngit push origin queqiao\n```\n\nOnly the upstream files listed in the spec (section 6.1) should ever conflict.\n\nRun: %s' \
+              "$from" "$to" "$count" "$files" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
+            gh label create sync --color BFD4F2 --force >/dev/null
+            gh issue create --title "Upstream sync: merge conflicts ($from..$to)" --label sync --body "$body"
+            echo "::error::merge conflicts"
+            exit 1
+          fi
+          git push origin "$branch"
+
+      - name: Open the pull request
+        if: steps.need.outputs.merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          RANGE: ${{ steps.merge.outputs.range }}
+          COUNT: ${{ steps.merge.outputs.count }}
+        run: |
+          log=$(git log --no-merges --format='- %h %s' "${RANGE%%..*}..upstream/main" | cut -c1-200)
+          body=$(printf 'Weekly upstream sync: %s commits from yetone/magpie (%s).\n\nMerge with **Create a merge commit**; never squash or rebase this PR.\n\n%s\n' "$COUNT" "$RANGE" "$log")
+          url=$(gh pr create --base "$DEV_BRANCH" --head "$BRANCH" \
+                  --title "merge main (upstream $RANGE)" --label sync --body "$body" 2>/dev/null \
+                || gh pr create --base "$DEV_BRANCH" --head "$BRANCH" \
+                  --title "merge main (upstream $RANGE)" --body "$body")
+          echo "Pull request: $url" >> "$GITHUB_STEP_SUMMARY"
+          if gh pr merge "$url" --merge --auto --delete-branch; then
+            echo "Auto-merge enabled: merges once the required checks pass." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Auto-merge isn't available (Settings → General → Allow auto-merge, plus required checks on queqiao); merge the PR by hand." >> "$GITHUB_STEP_SUMMARY"
+          fi
