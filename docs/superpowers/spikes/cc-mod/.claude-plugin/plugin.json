@@ -1,0 +1,26 @@
+{
+  "name": "queqiao-spike",
+  "version": "0.1.0",
+  "author": { "name": "weiping" },
+  "description": "SP0 spike probe: records what the engine shows a mod and rewrites group/queqiao steps. Test rig only, never install for real work.",
+  "userConfig": {
+    "log_url": {
+      "type": "string",
+      "title": "Recorder log URL",
+      "description": "Where probe lines are POSTed (the recorder's /spike/log).",
+      "default": "http://127.0.0.1:3500/spike/log"
+    },
+    "main_to": {
+      "type": "string",
+      "title": "Main rewrite target",
+      "description": "Model a main-loop group/queqiao step is rewritten to.",
+      "default": "group/qq-fast"
+    },
+    "sub_to": {
+      "type": "string",
+      "title": "Subagent rewrite target",
+      "description": "Model a subagent group/queqiao step is rewritten to.",
+      "default": "group/qq-balanced"
+    }
+  }
+}
