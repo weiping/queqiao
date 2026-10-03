@@ -1202,7 +1202,10 @@
   function serverRow(s, all) {
     const row = el("div", "row lib-row click");
     const who = el("div", "who");
-    who.append(el("div", "name mono", s.name));
+    const nm = el("div", "name mono", s.name);
+    if (s.signIn?.dead) nm.append(tag(t("Sign-in ran out"), "warn", t("Open it to sign in again")));
+    else if (s.signIn?.signedIn) nm.append(tag(t("Signed in"), "lib-signed", t("The agents given it use magpie's sign-in")));
+    who.append(nm);
     const sub = el("div", "sub mono", serverLine(s));
     sub.title = serverLine(s);
     who.append(sub);
@@ -1211,6 +1214,76 @@
     row.onclick = () => editServer(s);
     row.title = t("Edit {name}", { name: s.name });
     return row;
+  }
+
+  // magpie's sign-in to a remote server (#615): signed in once here, and
+  // every agent given the server reaches it through magpie, with it
+  let mcpSigning = null; // { name, id, state, error } while one is under way
+  function signInBox(s) {
+    const box = el("div", "lib-signin");
+    const draw = () => {
+      box.replaceChildren();
+      const cur = lib.servers.find((x) => x.name === s.name)?.signIn || {};
+      const sg = mcpSigning?.name === s.name ? mcpSigning : null;
+      const line = el("div", "lib-signin-line");
+      if (sg && (sg.state === "starting" || sg.state === "waiting")) {
+        line.append(el("span", "note", sg.state === "starting" ? t("Opening the sign-in…") : t("Finish signing in in your browser…")),
+          button(t("Cancel"), "", async () => {
+            if (sg.id) await api("library/mcp-signin/" + sg.id + "/cancel", {}).catch(() => {});
+            mcpSigning = null;
+            draw();
+          }));
+      } else if (cur.signedIn && !cur.dead) {
+        line.append(tag(t("Signed in"), "lib-signed"), el("span", "note", t("The agents given it use magpie's sign-in")), el("span", "grow"), button(t("Sign out"), "", signOut));
+      } else {
+        if (cur.dead) line.append(tag(t("Sign-in ran out"), "warn"));
+        line.append(button(cur.dead ? t("Sign in again") : t("Sign in"), "action", start));
+      }
+      box.append(line);
+      if (sg?.state === "failed") box.append(el("div", "lib-signin-err", sg.error));
+    };
+    async function start() {
+      mcpSigning = { name: s.name, state: "starting" };
+      draw();
+      try {
+        const st = await api("library/mcp-signin", { name: s.name });
+        if (web && st.url) api("open", { url: st.url }).catch(() => {});
+        mcpSigning = { ...st, name: s.name };
+        draw();
+        follow(st.id);
+      } catch (e) {
+        mcpSigning = { name: s.name, state: "failed", error: e.message };
+        draw();
+      }
+    }
+    // followed with the dialog closed too, for the row to say it's signed in
+    async function follow(id) {
+      while (mcpSigning?.id === id) {
+        await new Promise((r) => setTimeout(r, 800));
+        let st;
+        try { st = await api("library/mcp-signin/" + id); } catch { continue; }
+        if (mcpSigning?.id !== id) return;
+        if (st.state === "waiting") continue;
+        if (st.state === "done") {
+          mcpSigning = null;
+          await api("library").then(take, () => {});
+          status(t("Signed in to {name} — the agents given it use magpie's sign-in", { name: s.name }), "ok");
+          render();
+        } else mcpSigning = st.state === "canceled" ? null : { ...st, name: s.name };
+        draw();
+        return;
+      }
+    }
+    async function signOut() {
+      try {
+        take(await api("library/mcp-signout", { name: s.name }));
+        status(t("Signed out of {name} — the agents are given the server's own address again", { name: s.name }), "ok");
+        render();
+        draw();
+      } catch (e) { status(e.message, "err", 6000); }
+    }
+    draw();
+    return box;
   }
 
   function foundServerRow(f) {
@@ -1359,6 +1432,9 @@
         url.classList.add("mono");
         g.append(...field("URL", url));
         g.append(...field(t("Headers"), pairs(d.headers, "Authorization", "Bearer …", (v) => { d.headers = v; })));
+        // the server as saved: one being added or turned into another is
+        // signed in to once it is saved
+        if (s?.transport === "http" && d.transport === "http") g.append(...field(t("Sign-in"), signInBox(s), t("For a server that asks you to sign in (OAuth): magpie signs in once, and every agent given it uses that sign-in")));
       }
       slot.append(g);
       // its own icon while it runs as it did; another way of running is another server

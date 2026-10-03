@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"slices"
+
+	"github.com/yetone/magpie/internal/mcpauth"
 )
 
 // Result is what a change did to the agents.
@@ -121,10 +123,12 @@ func (l *Library) syncMCP(t *Target, b *backups, res *Result) {
 			mine = append(mine, name)
 		}
 	}
+	base := gatewayOf(t)
 	for _, s := range l.MCP {
 		if !slices.Contains(s.Agents, id) {
 			continue
 		}
+		s := through(s, base)
 		if err := t.MCP.supports(s); err != nil {
 			res.fail(id, "mcp:"+s.Name, err)
 			continue
@@ -172,6 +176,9 @@ type ServerView struct {
 	Icon string `json:"icon,omitempty"`
 	// Problems are the agents it couldn't be given to, and why
 	Problems map[string]string `json:"problems,omitempty"`
+	// SignIn is magpie's sign-in to a streamable HTTP server, which the
+	// agents then use (#615)
+	SignIn *mcpauth.Status `json:"signIn,omitempty"`
 }
 
 // SkillView is a library skill as the page shows it.
@@ -250,6 +257,10 @@ func Read(problems []Problem) (*View, error) {
 			s = &c
 		}
 		sv := ServerView{Server: s, Icon: serverIcon(l, s), Problems: of("mcp:" + s.Name)}
+		if s.Transport == "http" {
+			st := mcpauth.StatusOf(s.Name, s.URL)
+			sv.SignIn = &st
+		}
 		for _, t := range targets {
 			if t.MCP != nil && slices.Contains(s.Agents, t.Agent.ID) {
 				if err := t.MCP.supports(s); err != nil {
@@ -312,6 +323,11 @@ func Read(problems []Problem) (*View, error) {
 func SaveServer(old string, s Server) (*Result, error) {
 	if err := s.check(); err != nil {
 		return nil, err
+	}
+	// magpie's sign-in goes with a renamed server, before the agents are
+	// given it under its new name
+	if old != "" && old != s.Name {
+		_ = mcpauth.Rename(old, s.Name)
 	}
 	return change(func(l *Library) error {
 		if s.Name != old && l.server(s.Name) != nil {
@@ -382,7 +398,7 @@ func EveryServerAgents(agents []string, on bool) (*Result, error) {
 // RemoveServer takes a server out of the library and out of every agent
 // magpie gave it to.
 func RemoveServer(name string) (*Result, error) {
-	return change(func(l *Library) error {
+	res, err := change(func(l *Library) error {
 		i := slices.IndexFunc(l.MCP, func(x *Server) bool { return x.Name == name })
 		if i < 0 {
 			return fmt.Errorf("no server called %s", name)
@@ -398,6 +414,11 @@ func RemoveServer(name string) (*Result, error) {
 		}
 		return nil
 	})
+	if err == nil {
+		// its sign-in goes with it
+		_ = mcpauth.Forget(name)
+	}
+	return res, err
 }
 
 // ImportServer takes a server the agents have into the library: the agents

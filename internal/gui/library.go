@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/yetone/magpie/internal/library"
+	"github.com/yetone/magpie/internal/mcpauth"
 )
 
 // The problems of the last change to the library stay on the page until the
@@ -257,6 +258,50 @@ func libraryRoutes(mux *http.ServeMux, w Windows) {
 			return
 		}
 		rw.WriteHeader(http.StatusNoContent)
+	})
+	// magpie signs in to a remote server once, for every agent given it (#615)
+	mux.HandleFunc("POST /api/library/mcp-signin", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct{ Name string }
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
+			http.Error(rw, "no server", http.StatusBadRequest)
+			return
+		}
+		st, err := library.SignInServer(r.Context(), in.Name)
+		if err != nil {
+			fail(rw, err)
+			return
+		}
+		w.OpenURL(st.URL)
+		writeJSON(rw, st)
+	})
+	mux.HandleFunc("GET /api/library/mcp-signin/{id}", func(rw http.ResponseWriter, r *http.Request) {
+		st, ok := mcpauth.Progress(r.PathValue("id"))
+		if !ok {
+			http.NotFound(rw, r)
+			return
+		}
+		writeJSON(rw, st)
+	})
+	mux.HandleFunc("POST /api/library/mcp-signin/{id}/cancel", func(rw http.ResponseWriter, r *http.Request) {
+		mcpauth.Cancel(r.PathValue("id"))
+		rw.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /api/library/mcp-signout", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct{ Name string }
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
+			http.Error(rw, "no server", http.StatusBadRequest)
+			return
+		}
+		if err := library.SignOutServer(in.Name); err != nil {
+			fail(rw, err)
+			return
+		}
+		v, err := libraryView(nil)
+		if err != nil {
+			fail(rw, err)
+			return
+		}
+		writeJSON(rw, v)
 	})
 	// every change answers with the page as it is after it, and what it did
 	mux.HandleFunc("POST /api/library/{what}/{action}", func(rw http.ResponseWriter, r *http.Request) {
