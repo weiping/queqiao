@@ -943,8 +943,11 @@ function setAgentHidden(a, hide) {
   // the rows that change go on the panel's edge, as the fold does
   agentsGlide = hide ? ROLLUP : UNROLL;
   saveArrangement(all.map((x) => x.id), hidden, []);
-  // hidden, it says where it went, since the row goes out of sight
-  status(t(hide ? "{agent} hidden · find it under Hidden at the bottom" : "{agent} shown", { agent: a.name }), "ok", hide ? 4000 : 1800);
+  // hidden, it says where it went, since the row goes out of sight; shown
+  // with nothing set on it, it stays folded under Not set up, and says why
+  const still = !hide && arrangeAgents().folded.includes(a);
+  status(t(hide ? "{agent} hidden · find it under Hidden at the bottom"
+    : still ? "{agent} is no longer hidden · it stays under Not set up until a model is picked for it" : "{agent} shown", { agent: a.name }), "ok", hide || still ? 4000 : 1800);
 }
 
 const ALT = /^Mac/.test(navigator.platform) ? "⌥" : "Alt+";

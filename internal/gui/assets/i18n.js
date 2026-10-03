@@ -145,6 +145,7 @@ const I18N = {
     "{agent} {v} · magpie can't tell how it was installed — update it the way you installed it": "{agent} {v} · magpie 无法判断它的安装方式——请用你安装它的方式更新",
     "{agent} hidden": "已隐藏 {agent}",
     "{agent} shown": "已显示 {agent}",
+    "{agent} is no longer hidden · it stays under Not set up until a model is picked for it": "{agent} 已取消隐藏 · 给它选一个模型前，它会留在「未设置」里",
     "model": "模型",
     "effort": "推理强度",
     "thinking": "思考",

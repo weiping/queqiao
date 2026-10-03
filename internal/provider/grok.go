@@ -255,6 +255,11 @@ func grokBody(body []byte) []byte {
 			}
 			kept = append(kept, t)
 		}
+		for _, t := range kept {
+			if tm, ok := t.(map[string]any); ok && tm["type"] == "function" && objectRoot(tm) {
+				dirty = true
+			}
+		}
 		m["tools"] = kept
 		if tc, ok := m["tool_choice"].(map[string]any); ok {
 			if flatCall(tc) {
@@ -329,6 +334,96 @@ func grokFlat(ns map[string]any) []any {
 		out = append(out, nm)
 	}
 	return out
+}
+
+// objectRoot makes a function's parameters an object at the root, which
+// Grok's backend wants ("tool parameter root must be an object type"):
+// Codex's codex_app automation_update takes an anyOf of objects (Fate on
+// Discord). The object branches' properties are merged, a field each of
+// them requires stays required, and the other branches go. It reports
+// whether it changed anything.
+func objectRoot(fn map[string]any) bool {
+	ps, _ := fn["parameters"].(map[string]any)
+	if ps == nil {
+		return false
+	}
+	_, any1 := ps["anyOf"]
+	_, one := ps["oneOf"]
+	if ps["type"] == "object" && !any1 && !one {
+		return false
+	}
+	props, _ := ps["properties"].(map[string]any)
+	if props == nil {
+		props = map[string]any{}
+	}
+	var required []any
+	if r, ok := ps["required"].([]any); ok {
+		required = r
+	}
+	var branches []map[string]any
+	for _, k := range []string{"anyOf", "oneOf"} {
+		list, _ := ps[k].([]any)
+		for _, b := range list {
+			bm, _ := b.(map[string]any)
+			if bm = grokRef(ps, bm); bm == nil {
+				continue
+			}
+			if _, has := bm["properties"]; bm["type"] != "object" && !has {
+				continue
+			}
+			branches = append(branches, bm)
+		}
+		delete(ps, k)
+	}
+	for i, b := range branches {
+		bp, _ := b["properties"].(map[string]any)
+		for k, v := range bp {
+			if _, ok := props[k]; !ok {
+				props[k] = v
+			}
+		}
+		br, _ := b["required"].([]any)
+		if i == 0 {
+			required = append(required, br...)
+			continue
+		}
+		in := map[any]bool{}
+		for _, r := range br {
+			in[r] = true
+		}
+		kept := required[:0]
+		for _, r := range required {
+			if in[r] {
+				kept = append(kept, r)
+			}
+		}
+		required = kept
+	}
+	ps["type"] = "object"
+	ps["properties"] = props
+	if len(required) > 0 {
+		ps["required"] = required
+	} else {
+		delete(ps, "required")
+	}
+	return true
+}
+
+// grokRef is a branch of a schema, or what its local $ref names in the
+// schema's $defs or definitions.
+func grokRef(root, b map[string]any) map[string]any {
+	ref, _ := b["$ref"].(string)
+	if ref == "" {
+		return b
+	}
+	for _, k := range []string{"$defs", "definitions"} {
+		if name, ok := strings.CutPrefix(ref, "#/"+k+"/"); ok {
+			defs, _ := root[k].(map[string]any)
+			d, _ := defs[name].(map[string]any)
+			return d
+		}
+	}
+	return nil
 }
 
 // flatCall names a call to a namespaced tool, or a tool_choice of one, by
