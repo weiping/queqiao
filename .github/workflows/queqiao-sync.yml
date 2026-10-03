@@ -1,7 +1,8 @@
 name: queqiao sync upstream
 
 # Weekly: fast-forward main to yetone/magpie, then merge main into queqiao
-# through a pull request that the upstream Test workflow checks.
+# through a pull request that is merged only after the upstream Test
+# workflow passes on it.
 #
 #   main     mirror of upstream, fast-forward only; never committed to
 #   queqiao  development; main is merged in (merge, never rebase)
@@ -15,8 +16,9 @@ name: queqiao sync upstream
 #   nothing new             no-op
 #   main diverged           fails, opens an issue (labelled sync)
 #   merge conflicts         fails, opens an issue listing the files
-#   clean merge             opens a PR and enables auto-merge (merge commit);
-#                           without auto-merge allowed, the PR waits for you
+#   clean merge             opens a PR, waits for all its checks (the upstream
+#                           Test workflow), merges with a merge commit if they
+#                           pass, leaves it open with a comment if they don't
 
 on:
   schedule:
@@ -41,6 +43,8 @@ env:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # Waits for the pull request's checks (the macOS race tests take ~20 min).
+    timeout-minutes: 90
     steps:
       - name: Check the token
         env:
@@ -158,8 +162,19 @@ jobs:
           fi
           gh pr edit "$url" --add-label sync >/dev/null || true
           echo "Pull request: $url" >> "$GITHUB_STEP_SUMMARY"
-          if gh pr merge "$url" --merge --auto --delete-branch; then
-            echo "Auto-merge enabled: merges once the required checks pass." >> "$GITHUB_STEP_SUMMARY"
+          # Merge only after every check on the pull request has passed. This
+          # doesn't rely on branch protection (with no required checks,
+          # "gh pr merge --auto" merges at once, before any test has run).
+          for _ in $(seq 30); do
+            n=$(gh pr checks "$url" --json name --jq length 2>/dev/null || echo 0)
+            [ "$n" -gt 0 ] && break
+            sleep 10
+          done
+          if gh pr checks "$url" --watch --interval 30 --fail-fast; then
+            gh pr merge "$url" --merge --delete-branch
+            echo "Merged after all checks passed." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "Auto-merge isn't available (Settings → General → Allow auto-merge, plus required checks on queqiao); merge the PR by hand." >> "$GITHUB_STEP_SUMMARY"
+            gh pr comment "$url" --body "Checks failed or did not run; left open for a manual look. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "::error::checks failed on $url; the pull request is left open"
+            exit 1
           fi
