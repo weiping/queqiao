@@ -178,13 +178,13 @@ Expected to decide:
 
 Rule: names rejected → 备选 1 (aliases); aliases also fail → 备选 2 (command hook + hint path (b)), and stop to revise the spec §3.1/§6.7 before SP3.
 
-- [ ] **Step 4: Record S1, S2 and commit** (`git commit -m "spike: S1 S2 results"`)
+- [x] **Step 4: Record S1, S2 and commit** (`git commit -m "spike: S1 S2 results"`)
 
 ### Task 5: Claude Code subagents and forks (S3)
 
 **Files:** results file only.
 
-- [ ] **Step 1: Run the session [human]** with the probe mod (log `logs/s3.jsonl`): ask Claude to "use the Explore agent to list the Go packages", then "use a general-purpose agent to summarise README.md", then `/subtask summarise the last answer in one line`, then ask for a fork via the Agent tool with `subagent_type: "fork"`.
+- [x] **Step 1: Run the session [human]** with the probe mod (log `logs/s3.jsonl`): ask Claude to "use the Explore agent to list the Go packages", then "use a general-purpose agent to summarise README.md", then `/subtask summarise the last answer in one line`, then ask for a fork via the Agent tool with `subagent_type: "fork"`.
 
 - [ ] **Step 2: Read the log**
 
