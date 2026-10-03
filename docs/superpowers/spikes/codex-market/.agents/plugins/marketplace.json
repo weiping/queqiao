@@ -1,0 +1,13 @@
+{
+  "name": "queqiao-spike",
+  "plugins": [
+    {
+      "name": "queqiao-spike-codex",
+      "source": {
+        "source": "local",
+        "path": "../codex-plugin"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
