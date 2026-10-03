@@ -1,3 +1,67 @@
+# 鹊桥 queqiao
+
+给编码 Agent 用的模型路由器：在 Agent 的 harness 里判断每一轮任务有多难，在本地网关里把请求派给合适的模型档位。简单的提问交给便宜的快模型，跨文件改动和难查的 bug 交给最强的模型。
+
+queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magpie 的全部功能，在它的本地网关之上加一层路由。名字取自“鹊桥”：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。
+
+> **状态：设计阶段。** 目前还没有可用的版本。总体设计见 [`docs/superpowers/specs/2026-10-02-queqiao-design.md`](docs/superpowers/specs/2026-10-02-queqiao-design.md)，接下来按其中的子项目用 [superpowers](https://github.com/obra/superpowers) 逐个实施。
+
+## 要做什么
+
+- **事前选档**：每一轮用户发话时，插件把用户原话、计划模式、Agent 和子代理类型交给分类器（默认用 TypeSafe 的 [Jev](https://docs.typesafe.ai/introduction)），选出 `fast`、`balanced`、`performance` 三档之一。
+- **事后升档**：用户说上一轮不对，或者上一轮工具调用失败过半，下一轮自动升一档。
+- **子代理单独选档**：从零开始的子代理单独选档；继承父会话上下文的 fork 子代理跟随父会话的档位，保住 prompt cache。
+- **档位与模型解耦**：每一档是网关里的一个路由组，组内有跨厂商的失败转移成员。换模型只改配置。
+- **失败安全**：分类器、hook、网关任何一环出错，请求照常完成，只是少了路由。
+- **自带验收**：按会话分组做线上 A/B，统计成本、合并 PR 的比例和手动换模型的次数。
+
+## 计划提供的组件
+
+| 组件 | 用于 | 子项目 | 状态 |
+| --- | --- | --- | --- |
+| queqiao 网关与路由核心 | 所有 Agent | SP1、SP2 | 规划中 |
+| Claude Code 插件 `queqiao-router` | Claude Code | SP3 | 规划中 |
+| Pi 包 `pi-queqiao` | Pi | SP4 | 规划中 |
+| Codex 插件 `queqiao-router-codex` | Codex | SP6 | 规划中 |
+| 验收报表 `queqiao router report` | 所有 Agent | SP5 | 规划中 |
+
+没有插件的 Agent（如 OpenCode）也可以直接选用路由组，由网关自己分类，只是少了 harness 侧的上下文。
+
+## 分支
+
+| 分支 | 用途 |
+| --- | --- |
+| `queqiao`（默认分支） | queqiao 的开发主干，定期合并 `main` |
+| `main` | 上游 yetone/magpie 的镜像，只做快进同步，不直接提交 |
+| `qq/sp<N>-<名字>` | 各子项目的功能分支，完成后 PR 合回 `queqiao` |
+
+为了让合并上游尽量不冲突，queqiao 的代码放在 `internal/router/`、`internal/harness/`、`clients/` 这几个新目录里，对上游文件只做少量挂钩；Go 模块路径保留 `github.com/yetone/magpie` 不改。
+
+## 构建与测试
+
+和上游相同：
+
+```sh
+make cli                          # 纯终端版，不需要 cgo
+go test -tags nogui ./...
+```
+
+## 参考
+
+- LangChain：[How to Build a Model Router in the Harness](https://www.langchain.com/blog/how-to-build-a-model-router-in-the-harness)
+- OpenRouter：[Confidence Thresholds for Model Escalation Routing](https://openrouter.ai/blog/insights/confidence-thresholds-for-model-escalation-routing/)
+- TypeSafe：[Jev 文档](https://docs.typesafe.ai/introduction)
+
+## 许可
+
+MIT，与上游相同。上游的版权声明保留在 [LICENSE](LICENSE) 中。
+
+---
+
+**以下为上游 magpie 的原版 README。** 其中的安装、自动更新、官网和社区链接都指向上游 magpie，不适用于 queqiao。
+
+---
+
 # magpie
 
 One place to pick every agent's model: Codex on DeepSeek, Claude Code

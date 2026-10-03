@@ -420,6 +420,7 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 | `internal/update/update.go` | 关闭自动更新：`queqiao update` 只打印“请从 `weiping/queqiao` Releases 下载”，后台检查不再运行 |
 | `internal/stats` | 关闭上游的用户计数上报（fork 不能向上游的 PostHog 发数据） |
 | `internal/agent` 中写 Pi、OpenCode、Codex 配置的代码 | Provider 名由 `magpie` 改为 `queqiao`（Codex 为 `[model_providers.queqiao]`，模型目录文件改为 `~/.codex/queqiao-models.json`） |
+| `README.md` | 只在顶部加 queqiao 的说明，下面原样保留上游正文，并注明那部分属于上游。上游改 README 时，合并只在开头几行可能冲突 |
 | 其余 | `MAGPIE_*` 环境变量、`X-Magpie-*` 请求头、`/v1/magpie/*` 端点保持原名，尽量减小与上游的差异 |
 
 **分支与同步上游的策略**
