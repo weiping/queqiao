@@ -259,11 +259,11 @@ Expected: 4 tests OK
 
 **Files:** results file only.
 
-- [ ] **Step 1: Install and trust [human]**: `codex plugin marketplace add <abs path>/docs/superpowers/spikes/codex-market`; install `queqiao-spike-codex`; `/hooks` → trust; point Codex at the recorder (`magpie codex group/queqiao` on the upstream magpie, then set the `magpie` provider's `base_url` to `http://127.0.0.1:3500/v1`); `codex --version`.
+- [x] **Step 1: Install and trust [human]**: `codex plugin marketplace add <abs path>/docs/superpowers/spikes/codex-market`; install `queqiao-spike-codex`; `/hooks` → trust; point Codex at the recorder (`magpie codex group/queqiao` on the upstream magpie, then set the `magpie` provider's `base_url` to `http://127.0.0.1:3500/v1`); `codex --version`.
 
-- [ ] **Step 2: Run [human]**, log `logs/codex.jsonl`: 20 turns (S6); one turn in plan mode and one in default (S8); a turn with a failing shell command (S8); "spawn an explorer subagent to list files" (S9); "spawn a subagent with fork_context true to summarise this conversation" (S13).
+- [x] **Step 2: Run [human]**, log `logs/codex.jsonl`: 20 turns (S6); one turn in plan mode and one in default (S8); a turn with a failing shell command (S8); "spawn an explorer subagent to list files" (S9); "spawn a subagent with fork_context true to summarise this conversation" (S13).
 
-- [ ] **Step 3: Read the log**
+- [x] **Step 3: Read the log**
 
 Expected to decide:
 - S7: hook lines appear at all (plugin hooks run); `t_end - t_start` vs the 2 s limit tells nothing about units, so also run once with `hook.py` sleeping 3 s and see whether Codex cut it off (seconds) or not (milliseconds would cut at 2 ms — every call would fail); the marketplace listing shows only the Codex plugin.
@@ -274,7 +274,7 @@ Expected to decide:
 
 Rules: spec §10 rows S6–S9, S13 verbatim.
 
-- [ ] **Step 4: Record S6–S9, S13 and commit** (`git commit -m "spike: Codex results"`)
+- [x] **Step 4: Record S6–S9, S13 and commit** (`git commit -m "spike: Codex results"`)
 
 ### Task 10: Pi probe extension and spikes (S4, S12)
 
