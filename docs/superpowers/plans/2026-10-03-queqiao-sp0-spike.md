@@ -285,13 +285,13 @@ Rules: spec §10 rows S6–S9, S13 verbatim.
 **Interfaces:**
 - Produces: logs to the recorder `session_start` (`reason`, every field of the event and of the session object that looks like an id or parent), `before_agent_start` (then `const ok = await pi.setModel(<the magpie/group/qq-fast model object>)`, logs `ok` and how the model object was obtained), `before_provider_request` (model in the outgoing body), `before_provider_headers` (adds `X-Magpie-Session: spike-<session id or random>`), `tool_call` for tool `Agent` (full `event.input`; when `inherit_context` is true, sets `event.input.model = "magpie/group/qq-fast"`).
 
-- [ ] **Step 1: Write `spike.ts` and load it [human]**: `pi install <abs path>/docs/superpowers/spikes/pi-ext`, `pi install npm:<pi-subagents package>`, Pi's `magpie` provider `baseUrl` → `http://127.0.0.1:3500/v1`.
+- [x] **Step 1: Write `spike.ts` and load it [human]**: `pi install <abs path>/docs/superpowers/spikes/pi-ext`, `pi install npm:<pi-subagents package>`, Pi's `magpie` provider `baseUrl` → `http://127.0.0.1:3500/v1`.
 
 Expected: Pi starts with no extension error; first prompt produces a `before_agent_start` line in `logs/pi.jsonl`.
 
-- [ ] **Step 2: Run [human]**: 3 prompts; `/fork` and one prompt; `/tree` to a branch and one prompt; ask for an Agent subagent with `inherit_context: true`.
+- [x] **Step 2: Run [human]**: 3 prompts; `/fork` and one prompt; `/tree` to a branch and one prompt; ask for an Agent subagent with `inherit_context: true`.
 
-- [ ] **Step 3: Read the log**
+- [x] **Step 3: Read the log**
 
 Expected to decide:
 - S4: `setModel` returned true and the same turn's request reached the recorder as `group/qq-fast`; the session id source (a stable field, or none → `randomUUID`).
@@ -299,7 +299,7 @@ Expected to decide:
 
 Rules: spec §10 rows S4, S12 verbatim.
 
-- [ ] **Step 4: Record S4, S12 and commit** (`git add docs/superpowers/spikes/pi-ext && git commit -m "spike: Pi results"`)
+- [x] **Step 4: Record S4, S12 and commit** (`git add docs/superpowers/spikes/pi-ext && git commit -m "spike: Pi results"`)
 
 ### Task 11: Close SP0
 
