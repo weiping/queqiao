@@ -212,15 +212,15 @@ Rule: a mode without the mod → 主方案 holds, README lists it under "falls b
 
 **Files:** results file only.
 
-- [ ] **Step 1: Run [human]**, log `logs/s11.jsonl`: new session, two prompts; `/fork` and one prompt in the fork; back in the original, `/branch` and one prompt.
+- [x] **Step 1: Run [human]**, log `logs/s11.jsonl`: new session, two prompts; `/fork` and one prompt in the fork; back in the original, `/branch` and one prompt.
 
-- [ ] **Step 2: Read the log**
+- [x] **Step 2: Read the log**
 
 Expected to decide S11 holds when: `classic.SessionStart` fired in both new sessions with `source` recorded (expect `fork` for `/fork`; record whatever `/branch` gives, or that it did not fire); the first-message hash logged in each derived session equals the original's; the `$.store` lookup found the original session id.
 
 Rule (spec §10): `/branch` without `SessionStart` → `/branch` treated as a new session; hash differs or store unreadable → derived sessions treated as new sessions.
 
-- [ ] **Step 3: Record S11 and commit** (`git commit -m "spike: S11 result"`)
+- [x] **Step 3: Record S11 and commit** (`git commit -m "spike: S11 result"`)
 
 ### Task 8: Codex probe plugin
 

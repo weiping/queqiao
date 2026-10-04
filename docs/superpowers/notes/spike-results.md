@@ -15,6 +15,6 @@
 | S8 | （待填） | （待填） | （待填） | （待填） | （待填） |
 | S9 | （待填） | （待填） | （待填） | （待填） | （待填） |
 | S10 | claude-code 2.1.288（会话中自动升级至 2.1.289）· 2026-10-03/04 | 四种实际运行的模式 mod 均加载（session.start 探针在场，race_winner 均为 timer，localhost 可达）：① 交互 REPL（session cbaf0fa6，interactive 模式）② REPL 中 /fork 的派生会话（c9f95c88，session.start 在场）③ claude -p（194d0e3f）④ Agent SDK：**spawn 失败**——@anthropic-ai/claude-agent-sdk 0.3.289 的 query() 在发起任何请求前抛 `spawn Unknown system error -88`（macOS EFTYPE），有/无 plugins、设/不设 CLAUDE_CODE_ENTRYPOINT 均复现；直接 child_process.spawn(claude 二进制) 正常，问题出在 SDK 的 spawnLocalProcess（经 bun/node 拉起 CLI）；SDK 模式下 CC 根本没启动 → mod 自然不加载 | 成立（主方案） | 主方案；README 需把 SDK 模式列为「无法本地 spawn（errno -88）待查」，比「回退网关模式」更强 | `docs/superpowers/spikes/logs/s10.jsonl`；SDK 版本 0.3.289，claude 二进制 2.1.289；附注：fork 派生会话的 22 个请求仍带父会话 x-claude-code-session-id（见 S11） |
-| S11 | （待填） | （待填） | （待填） | （待填） | （待填） |
+| S11 | claude-code 2.1.289 · 2026-10-04 | 四个 classic.SessionStart 事件全部触发：原会话 startup（15590e6e）→ /fork 派生会话 source="fork"（8558f482）→ /branch 再次触发 source="fork"（仍报 15590e6e，**无独立 branch 字面量**）→ 一个 source="resume"（63aa1659）。所有派生会话 first_fnv1a 均为 f2f4946（与原会话首消息 hash 相等）；$.store 查找均命中原会话 15590e6e。附注：派生会话的请求仍带父会话的 x-claude-code-session-id（fork 的请求全部挂在 15590e6e 下） | 成立 | 主方案 | `docs/superpowers/spikes/logs/s11.jsonl`；两条实现事实：① /branch 无独立 source，报 "fork"（可另见 "resume"）→ mod 无法区分 fork/branch，但两者都正确映射到父会话；② fork/branch 请求复用父会话头 → 网关侧会话级缓存/亲和会把整个 fork 树视作同一会话 |
 | S12 | （待填） | （待填） | （待填） | （待填） | （待填） |
 | S13 | （待填） | （待填） | （待填） | （待填） | （待填） |
