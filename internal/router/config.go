@@ -142,27 +142,41 @@ func (c Config) validate() error {
 // mergeProjectCriteria applies <cwd>/.queqiao/router.json's tier criteria
 // over the global config, ignoring everything else the project file says.
 func (c *Config) mergeProjectCriteria(cwd string) {
+	for tier, criteria := range ProjectCriteria(cwd) {
+		if cur, ok := c.Tiers[tier]; ok {
+			cur.Criteria = criteria
+			c.Tiers[tier] = cur
+		}
+	}
+}
+
+// ProjectCriteria reads <cwd>/.queqiao/router.json's tier criteria, or
+// nil when there is nothing to apply (§4.6: criteria are the only key a
+// project file may touch).
+func ProjectCriteria(cwd string) map[Tier]string {
 	if cwd == "" {
-		return
+		return nil
 	}
 	b, err := os.ReadFile(filepath.Join(cwd, ".queqiao", "router.json"))
 	if err != nil {
-		return // no project override
+		return nil
 	}
 	var proj struct {
 		Tiers map[Tier]TierCfg `json:"tiers"`
 	}
 	if json.Unmarshal(b, &proj) != nil {
-		return // an unparseable project file is ignored
+		return nil
 	}
+	out := map[Tier]string{}
 	for tier, tc := range proj.Tiers {
 		if tc.Criteria != "" {
-			if cur, ok := c.Tiers[tier]; ok {
-				cur.Criteria = tc.Criteria
-				c.Tiers[tier] = cur
-			}
+			out[tier] = tc.Criteria
 		}
 	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // PolicyConfig projects the config onto what Choose takes.

@@ -23,13 +23,14 @@ type sessionState struct {
 // TurnState, the gateway's own count of tool calls and failures, and when
 // the session last made a request. Sessions idle for 24 hours are evicted.
 type Sessions struct {
-	mu sync.Mutex
-	m  map[string]*sessionState
+	mu    sync.Mutex
+	m     map[string]*sessionState
+	words map[string]string // firstWords → session, for derived-session fallback (§5.8)
 }
 
 // NewSessions returns an empty store.
 func NewSessions() *Sessions {
-	return &Sessions{m: map[string]*sessionState{}}
+	return &Sessions{m: map[string]*sessionState{}, words: map[string]string{}}
 }
 
 // state returns the session's state, creating it if needed.
@@ -92,6 +93,17 @@ func (s *Sessions) Observe(session string, req *gateway.Request) {
 	s.evictLocked(now)
 }
 
+// UpdatedAt reports when the session's state was last committed.
+func (s *Sessions) UpdatedAt(key string) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, ok := s.m[key]
+	if !ok || st.tier.Tier == "" {
+		return time.Time{}, false
+	}
+	return st.lastAt, true
+}
+
 // Stats returns the session's tool stats as of its last request.
 func (s *Sessions) Stats(session string) (calls, failures int) {
 	s.mu.Lock()
@@ -123,19 +135,37 @@ func (s *Sessions) MarkDerived(session, parent string) {
 	s.state(session).parent = parent
 }
 
-// ParentOf resolves the parent of a derived session: the explicitly marked
-// parent if there is one, else the session a marked firstWords points at.
+// NoteWords records that firstWords (the hash of a conversation's first
+// user message) belongs to session, so a session marked derived without a
+// known parent can find it (§5.8's fallback).
+func (s *Sessions) NoteWords(session, firstWords string) {
+	if firstWords == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.words[firstWords] = session
+}
+
+// ParentOf resolves the parent of a derived session: the explicitly
+// marked parent if there is one; for a session marked derived without one,
+// the session its firstWords point at — and nobody else's (unrelated
+// sessions may share first words, §5.8).
 func (s *Sessions) ParentOf(session, firstWords string) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if st, ok := s.m[session]; ok && st.parent != "" {
+	st, marked := s.m[session]
+	if !marked {
+		return "", false
+	}
+	if st.parent != "" {
 		return st.parent, true
 	}
 	if firstWords == "" {
 		return "", false
 	}
-	if p, ok := s.m[session+"|"+firstWords]; ok && p.parent != "" {
-		return p.parent, true
+	if p, ok := s.words[firstWords]; ok && p != session {
+		return p, true
 	}
 	return "", false
 }
