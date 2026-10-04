@@ -261,6 +261,8 @@ func run(args []string) error {
 		return quotaCmd(args)
 	case "update":
 		return updateCmd(args)
+	case "router":
+		return routerCmd(args[1:])
 	case "library", "lib":
 		return libraryCmd(args)
 	case "backup":
