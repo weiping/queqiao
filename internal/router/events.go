@@ -73,3 +73,14 @@ func Append(ev Event) error {
 	_, err = f.Write(append(b, '\n'))
 	return err
 }
+
+// configError is why the startup Load failed (nil while the router runs);
+// `queqiao router status` reports it when the gateway degraded to plain
+// magpie (spec §6.2/§7).
+var configError error
+
+// SetConfigError records why the router could not start.
+func SetConfigError(err error) { configError = err }
+
+// ConfigError is that reason, or nil.
+func ConfigError() error { return configError }

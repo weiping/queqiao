@@ -839,6 +839,7 @@ func advertisedURL() string {
 // serve: `magpie serve` — the gateway alone, in the foreground.
 func serve() error {
 	s := gateway.New()
+	wireRouter(s)
 	go stats.Run(version, "serve")
 	go catalog.KeepFresh() // new models' prices, in a gateway left running
 	public := advertisedURL()

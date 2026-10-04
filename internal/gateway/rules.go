@@ -50,6 +50,8 @@ type RuleHit struct {
 	// Classified: the group's classifier was asked which intent the
 	// turn's first message is
 	Classified *Classified `json:"classified,omitempty"`
+	// Router: the queqiao router decided this request's tier (SP2)
+	Router *RouterHit `json:"router,omitempty"`
 	// Pick: the reasoning the group's decision model picked for the turn,
 	// which its requests ask their model for (provider.EffortAuto)
 	Pick string `json:"pick,omitempty"`
