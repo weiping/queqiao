@@ -44,7 +44,7 @@
 - `tool_errors`/`tool_results`: Anthropic `tool_result` blocks with `is_error: true` / all; Responses `function_call_output` items (errors counted when the output text starts with `Exit code: ` followed by a non-zero number, otherwise 0 — S8 checks whether anything better exists).
 - `setup-groups.sh <fast> <balanced> <perf>` runs the four `magpie group add` commands of spec §4.4 with the given `provider/model` ids.
 
-- [ ] **Step 1: Write the failing tests** (`unittest`; a fake upstream `http.server` in a thread)
+- [x] **Step 1: Write the failing tests** (`unittest`; a fake upstream `http.server` in a thread)
 
 ```python
 def test_logs_session_headers_lowercased(self)      # sends X-Claude-Code-Session-Id: S1 → log headers["x-claude-code-session-id"] == "S1"
@@ -55,24 +55,24 @@ def test_probe_log_not_forwarded(self)              # POST /spike/log → 204, u
 def test_slow_endpoint(self)                        # GET /spike/slow?ms=300 → 200 after ≥ 0.3 s
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cd docs/superpowers/spikes/recorder && python3 -m unittest -v test_rec`
 Expected: FAIL, `ModuleNotFoundError: No module named 'rec'`
 
-- [ ] **Step 3: Implement `rec.py`** with `http.server.ThreadingHTTPServer` and `http.client`, copying the response body to the client in 4 KiB reads with a flush after each; never decode the response.
+- [x] **Step 3: Implement `rec.py`** with `http.server.ThreadingHTTPServer` and `http.client`, copying the response body to the client in 4 KiB reads with a flush after each; never decode the response.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `python3 -m unittest -v test_rec`
 Expected: 6 tests OK
 
-- [ ] **Step 5: Prepare the shared rig [human]**
+- [x] **Step 5: Prepare the shared rig [human]**
 
 Run (human partner, once): build upstream magpie from `main` (`git -C <main worktree> pull && make cli`), start `./magpie serve`, add their API-key provider, then `bash setup-groups.sh <fast> <balanced> <perf>`; start `python3 rec.py ... --log logs/rig.jsonl`; `curl -s -H 'Authorization: Bearer magpie' http://127.0.0.1:3500/v1/models | grep -c qq-` 
 Expected: `curl` prints ≥ 3; `logs/rig.jsonl` has one `req` line for `/v1/models`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/superpowers/spikes/.gitignore docs/superpowers/spikes/recorder
@@ -88,7 +88,7 @@ git commit -m "spike: recording proxy for SP0"
 **Interfaces:**
 - Produces: `python3 latency.py -n 100` reads `TYPESAFE_API_KEY`, posts the §5.3 request body (`jev-latest`, questions `tier` + `dissatisfied`, a 200-character `message`) to `https://api.typesafe.ai/v1/systemone` sequentially, prints `p50_ms p95_ms errors` on one line. `def percentile(xs: list[float], p: float) -> float` (nearest-rank).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_percentile(self):
@@ -97,19 +97,19 @@ def test_percentile(self):
     self.assertEqual(percentile(xs, 95), 95.0)
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `cd docs/superpowers/spikes/jev && python3 -m unittest -v test_latency`
 Expected: FAIL, `No module named 'latency'`
 
-- [ ] **Step 3: Implement `latency.py`**
+- [x] **Step 3: Implement `latency.py`**
 
-- [ ] **Step 4: Run the test, then measure [human supplies the key]**
+- [x] **Step 4: Run the test, then measure [human supplies the key]**
 
 Run: `python3 -m unittest -v test_latency && TYPESAFE_API_KEY=... python3 latency.py -n 100`
 Expected: test OK; one result line
 
-- [ ] **Step 5: Record S5 and commit**
+- [x] **Step 5: Record S5 and commit**
 
 Rule (spec §10): `p95 > 1000 ms` → 备选（`classify_timeout_ms` 1500，默认分类器改为本地小模型）; otherwise 主方案.
 
@@ -138,21 +138,21 @@ git commit -m "spike: S5 Jev latency"
   - `classic.PostModelSwitch` — logs `from_model, to_model, source`.
   - `turn.complete` — on the session's first completed turn, writes `$.store` `spike:first:<hash of first user message>` = `{session, at}`.
 
-- [ ] **Step 1: Write the failing test** (`claude-code/testing`): mock `$.http.fetch`; drive a `turn.step` with `model: "group/queqiao"` and no `agentId` → the step that reaches the engine names `group/qq-fast`; with `agentId: "a1"` → `group/qq-balanced`; with `model: "group/qq-perf"` → unchanged.
+- [x] **Step 1: Write the failing test** (`claude-code/testing`): mock `$.http.fetch`; drive a `turn.step` with `model: "group/queqiao"` and no `agentId` → the step that reaches the engine names `group/qq-fast`; with `agentId: "a1"` → `group/qq-balanced`; with `model: "group/qq-perf"` → unchanged.
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `claude plugin test docs/superpowers/spikes/cc-mod`
 Expected: FAIL (module has no `turn.step` hook yet)
 
-- [ ] **Step 3: Implement `register.ts`**
+- [x] **Step 3: Implement `register.ts`**
 
-- [ ] **Step 4: Validate and test**
+- [x] **Step 4: Validate and test**
 
 Run: `claude plugin validate docs/superpowers/spikes/cc-mod && claude plugin test docs/superpowers/spikes/cc-mod`
 Expected: validate reports no refusals; tests pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/spikes/cc-mod
@@ -163,11 +163,11 @@ git commit -m "spike: Claude Code probe mod"
 
 **Files:** results file only.
 
-- [ ] **Step 1: Run the session [human]**
+- [x] **Step 1: Run the session [human]**
 
 `ANTHROPIC_BASE_URL=http://127.0.0.1:3500 ANTHROPIC_AUTH_TOKEN=magpie claude --plugin-dir docs/superpowers/spikes/cc-mod --model group/queqiao` with `python3 rec.py ... --log logs/s1.jsonl`; do 20 turns: 10 plain questions, 5 that make Claude run tools (one failing `ls /nope`), 1 with `@file`, 1 with a pasted image, 1 after `/model opus` then `/model default`, 2 in plan mode (Shift+Tab).
 
-- [ ] **Step 2: Read the log**
+- [x] **Step 2: Read the log**
 
 Run: `jq -c 'select(.kind=="req" and .path=="/v1/messages") | [.model, .headers["x-claude-code-session-id"]]' logs/s1.jsonl | sort | uniq -c` and `jq -c 'select(.event=="turn.step") | [.model, .agentId]' logs/s1.jsonl | sort | uniq -c`
 Expected to decide:
@@ -178,49 +178,49 @@ Expected to decide:
 
 Rule: names rejected → 备选 1 (aliases); aliases also fail → 备选 2 (command hook + hint path (b)), and stop to revise the spec §3.1/§6.7 before SP3.
 
-- [ ] **Step 4: Record S1, S2 and commit** (`git commit -m "spike: S1 S2 results"`)
+- [x] **Step 4: Record S1, S2 and commit** (`git commit -m "spike: S1 S2 results"`)
 
 ### Task 5: Claude Code subagents and forks (S3)
 
 **Files:** results file only.
 
-- [ ] **Step 1: Run the session [human]** with the probe mod (log `logs/s3.jsonl`): ask Claude to "use the Explore agent to list the Go packages", then "use a general-purpose agent to summarise README.md", then `/subtask summarise the last answer in one line`, then ask for a fork via the Agent tool with `subagent_type: "fork"`.
+- [x] **Step 1: Run the session [human]** with the probe mod (log `logs/s3.jsonl`): ask Claude to "use the Explore agent to list the Go packages", then "use a general-purpose agent to summarise README.md", then `/subtask summarise the last answer in one line`, then ask for a fork via the Agent tool with `subagent_type: "fork"`.
 
-- [ ] **Step 2: Read the log**
+- [x] **Step 2: Read the log**
 
 Expected to decide S3 holds when: `agent.spawn` for the general-purpose agent logged `model: "haiku"` back with an `agentId`, and that agent's requests reached the recorder as `group/qq-fast`; the fork's `agent.spawn` showed `fork: true`; its `turn.step` lines carry an `agentId` with `model == "group/queqiao"`; its requests reached the recorder as `group/qq-balanced` (the rewrite was accepted); its first request's `usage` shows a cache read close to the main session's prompt size.
 
 Rule: alias ignored → 备选（drop selection in `agent.spawn`, pin in `turn.step`）; fork rewrite rejected → 备选（restore the gateway-side fork heuristic）.
 
-- [ ] **Step 3: Record S3 and commit** (`git commit -m "spike: S3 result"`)
+- [x] **Step 3: Record S3 and commit** (`git commit -m "spike: S3 result"`)
 
 ### Task 6: Where the mod runs (S10)
 
 **Files:** results file only.
 
-- [ ] **Step 1: Run each mode [human]**, one prompt each, log `logs/s10.jsonl`: interactive REPL; `claude -p "say hi" --plugin-dir ...`; an Agent SDK script (`@anthropic-ai/claude-agent-sdk` `query()` with `plugins: [{type:"local", path}]`); `/fork` from the REPL then one prompt in the forked session; `claude --version`.
+- [x] **Step 1: Run each mode [human]**, one prompt each, log `logs/s10.jsonl`: interactive REPL; `claude -p "say hi" --plugin-dir ...`; an Agent SDK script (`@anthropic-ai/claude-agent-sdk` `query()` with `plugins: [{type:"local", path}]`); `/fork` from the REPL then one prompt in the forked session; `claude --version`.
 
-- [ ] **Step 2: Read the log**
+- [x] **Step 2: Read the log**
 
 Expected to decide, per mode: mod loaded (`session.start` line present) · `$.http.fetch` to `127.0.0.1` reached the recorder · `race_winner == "timer"` (the 1500 ms race gives up on a 3000 ms reply).
 
 Rule: a mode without the mod → 主方案 holds, README lists it under "falls back to gateway mode"; localhost refused → 备选（`socketPath`）; `race_winner` not `timer` → 备选（no race; G5 exception in README）. Record the Claude Code version as the minimum tested.
 
-- [ ] **Step 3: Record S10 and commit** (`git commit -m "spike: S10 result"`)
+- [x] **Step 3: Record S10 and commit** (`git commit -m "spike: S10 result"`)
 
 ### Task 7: Derived Claude Code sessions (S11)
 
 **Files:** results file only.
 
-- [ ] **Step 1: Run [human]**, log `logs/s11.jsonl`: new session, two prompts; `/fork` and one prompt in the fork; back in the original, `/branch` and one prompt.
+- [x] **Step 1: Run [human]**, log `logs/s11.jsonl`: new session, two prompts; `/fork` and one prompt in the fork; back in the original, `/branch` and one prompt.
 
-- [ ] **Step 2: Read the log**
+- [x] **Step 2: Read the log**
 
 Expected to decide S11 holds when: `classic.SessionStart` fired in both new sessions with `source` recorded (expect `fork` for `/fork`; record whatever `/branch` gives, or that it did not fire); the first-message hash logged in each derived session equals the original's; the `$.store` lookup found the original session id.
 
 Rule (spec §10): `/branch` without `SessionStart` → `/branch` treated as a new session; hash differs or store unreadable → derived sessions treated as new sessions.
 
-- [ ] **Step 3: Record S11 and commit** (`git commit -m "spike: S11 result"`)
+- [x] **Step 3: Record S11 and commit** (`git commit -m "spike: S11 result"`)
 
 ### Task 8: Codex probe plugin
 
@@ -233,7 +233,7 @@ Rule (spec §10): `/branch` without `SessionStart` → `/branch` treated as a ne
 **Interfaces:**
 - Produces: `hook.py` reads stdin JSON, posts `{"probe":"codex","event":hook_event_name, "session_id","turn_id","model","permission_mode","tool_input"}` to the recorder (1 s timeout, errors ignored), records `time.time()` at start and end in the same line; for `PreToolUse` whose `tool_input` has no `model`, prints `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{...tool_input,"model":"group/qq-fast"}}}`; otherwise prints nothing; always exits 0.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_prompt_submit_prints_nothing(self)        # stdin UserPromptSubmit sample → stdout "" and exit 0
@@ -242,28 +242,28 @@ def test_spawn_with_model_untouched(self)          # tool_input has model → st
 def test_recorder_down_still_exits_zero(self)      # log_url points at a closed port → exit 0 within 1.5 s
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cd docs/superpowers/spikes/codex-plugin/hooks && python3 -m unittest -v test_hook`
 Expected: FAIL, `No module named 'hook'`
 
-- [ ] **Step 3: Implement `hook.py`**
+- [x] **Step 3: Implement `hook.py`**
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Expected: 4 tests OK
 
-- [ ] **Step 5: Commit** (`git commit -m "spike: Codex probe plugin"`)
+- [x] **Step 5: Commit** (`git commit -m "spike: Codex probe plugin"`)
 
 ### Task 9: Codex hooks, ids, plan mode, subagents (S6, S7, S8, S9, S13)
 
 **Files:** results file only.
 
-- [ ] **Step 1: Install and trust [human]**: `codex plugin marketplace add <abs path>/docs/superpowers/spikes/codex-market`; install `queqiao-spike-codex`; `/hooks` → trust; point Codex at the recorder (`magpie codex group/queqiao` on the upstream magpie, then set the `magpie` provider's `base_url` to `http://127.0.0.1:3500/v1`); `codex --version`.
+- [x] **Step 1: Install and trust [human]**: `codex plugin marketplace add <abs path>/docs/superpowers/spikes/codex-market`; install `queqiao-spike-codex`; `/hooks` → trust; point Codex at the recorder (`magpie codex group/queqiao` on the upstream magpie, then set the `magpie` provider's `base_url` to `http://127.0.0.1:3500/v1`); `codex --version`.
 
-- [ ] **Step 2: Run [human]**, log `logs/codex.jsonl`: 20 turns (S6); one turn in plan mode and one in default (S8); a turn with a failing shell command (S8); "spawn an explorer subagent to list files" (S9); "spawn a subagent with fork_context true to summarise this conversation" (S13).
+- [x] **Step 2: Run [human]**, log `logs/codex.jsonl`: 20 turns (S6); one turn in plan mode and one in default (S8); a turn with a failing shell command (S8); "spawn an explorer subagent to list files" (S9); "spawn a subagent with fork_context true to summarise this conversation" (S13).
 
-- [ ] **Step 3: Read the log**
+- [x] **Step 3: Read the log**
 
 Expected to decide:
 - S7: hook lines appear at all (plugin hooks run); `t_end - t_start` vs the 2 s limit tells nothing about units, so also run once with `hook.py` sleeping 3 s and see whether Codex cut it off (seconds) or not (milliseconds would cut at 2 ms — every call would fail); the marketplace listing shows only the Codex plugin.
@@ -274,7 +274,7 @@ Expected to decide:
 
 Rules: spec §10 rows S6–S9, S13 verbatim.
 
-- [ ] **Step 4: Record S6–S9, S13 and commit** (`git commit -m "spike: Codex results"`)
+- [x] **Step 4: Record S6–S9, S13 and commit** (`git commit -m "spike: Codex results"`)
 
 ### Task 10: Pi probe extension and spikes (S4, S12)
 
@@ -285,13 +285,13 @@ Rules: spec §10 rows S6–S9, S13 verbatim.
 **Interfaces:**
 - Produces: logs to the recorder `session_start` (`reason`, every field of the event and of the session object that looks like an id or parent), `before_agent_start` (then `const ok = await pi.setModel(<the magpie/group/qq-fast model object>)`, logs `ok` and how the model object was obtained), `before_provider_request` (model in the outgoing body), `before_provider_headers` (adds `X-Magpie-Session: spike-<session id or random>`), `tool_call` for tool `Agent` (full `event.input`; when `inherit_context` is true, sets `event.input.model = "magpie/group/qq-fast"`).
 
-- [ ] **Step 1: Write `spike.ts` and load it [human]**: `pi install <abs path>/docs/superpowers/spikes/pi-ext`, `pi install npm:<pi-subagents package>`, Pi's `magpie` provider `baseUrl` → `http://127.0.0.1:3500/v1`.
+- [x] **Step 1: Write `spike.ts` and load it [human]**: `pi install <abs path>/docs/superpowers/spikes/pi-ext`, `pi install npm:<pi-subagents package>`, Pi's `magpie` provider `baseUrl` → `http://127.0.0.1:3500/v1`.
 
 Expected: Pi starts with no extension error; first prompt produces a `before_agent_start` line in `logs/pi.jsonl`.
 
-- [ ] **Step 2: Run [human]**: 3 prompts; `/fork` and one prompt; `/tree` to a branch and one prompt; ask for an Agent subagent with `inherit_context: true`.
+- [x] **Step 2: Run [human]**: 3 prompts; `/fork` and one prompt; `/tree` to a branch and one prompt; ask for an Agent subagent with `inherit_context: true`.
 
-- [ ] **Step 3: Read the log**
+- [x] **Step 3: Read the log**
 
 Expected to decide:
 - S4: `setModel` returned true and the same turn's request reached the recorder as `group/qq-fast`; the session id source (a stable field, or none → `randomUUID`).
@@ -299,7 +299,7 @@ Expected to decide:
 
 Rules: spec §10 rows S4, S12 verbatim.
 
-- [ ] **Step 4: Record S4, S12 and commit** (`git add docs/superpowers/spikes/pi-ext && git commit -m "spike: Pi results"`)
+- [x] **Step 4: Record S4, S12 and commit** (`git add docs/superpowers/spikes/pi-ext && git commit -m "spike: Pi results"`)
 
 ### Task 11: Close SP0
 
@@ -307,16 +307,16 @@ Rules: spec §10 rows S4, S12 verbatim.
 - Modify: `docs/superpowers/notes/spike-results.md` (summary section)
 - Modify: `docs/superpowers/specs/2026-10-02-queqiao-design.md` (only where a spike took the fallback)
 
-- [ ] **Step 1: Check the results file is complete**
+- [x] **Step 1: Check the results file is complete**
 
 Run: `grep -cE '^\| S(1[0-3]|[1-9]) \|' docs/superpowers/notes/spike-results.md` and `grep -n '（待填）\|TBD' docs/superpowers/notes/spike-results.md`
 Expected: `13`, and no matches
 
-- [ ] **Step 2: Write the summary**: one line per later sub-project (SP2, SP3, SP4, SP6) saying which spec sections change because of a fallback, or "无变化".
+- [x] **Step 2: Write the summary**: one line per later sub-project (SP2, SP3, SP4, SP6) saying which spec sections change because of a fallback, or "无变化".
 
-- [ ] **Step 3: Apply each fallback to the spec** (spec §11 rule: revise the spec before the dependent plan is written), and add a revision note to the spec header naming the spikes.
+- [x] **Step 3: Apply each fallback to the spec** (spec §11 rule: revise the spec before the dependent plan is written), and add a revision note to the spec header naming the spikes.
 
-- [ ] **Step 4: PR**
+- [x] **Step 4: PR**
 
 ```bash
 git push -u origin qq/sp0-spike

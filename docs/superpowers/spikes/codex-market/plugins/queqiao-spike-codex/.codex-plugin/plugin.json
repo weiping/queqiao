@@ -1,0 +1,6 @@
+{
+  "name": "queqiao-spike-codex",
+  "version": "0.1.0",
+  "description": "SP0 spike probe: records Codex hook inputs and pins spawn_agent models. Test rig only, never install for real work.",
+  "hooks": "./hooks.json"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "queqiao-spike",
+  "owner": {
+    "name": "weiping"
+  },
+  "plugins": [
+    {
+      "name": "queqiao-spike",
+      "source": "../cc-mod",
+      "description": "SP0 spike probe mod for Claude Code: records and rewrites, nothing else.",
+      "version": "0.1.0",
+      "author": {
+        "name": "weiping"
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # 鹊桥（queqiao）总体设计：Agent Harness 模型路由器
 
-- 日期：2026-10-02（2026-10-03 修订：增加 Codex harness 支持；增加 fork 子代理与派生会话的档位继承；确定仓库与分支策略。同日二次修订：Claude Code 集成由命令型 hook 加网关提示改为 Claude Code mods，由 mod 在 `turn.step` 逐请求改写模型，见第 2、3.1、5.5、6.7 节。写 SP1 计划时三次修订：Provider 名不改、配置目录改由 `appdir.SetName` 决定，依据见第 6.1 节）
+- 日期：2026-10-02（2026-10-03 修订：增加 Codex harness 支持；增加 fork 子代理与派生会话的档位继承；确定仓库与分支策略。同日二次修订：Claude Code 集成由命令型 hook 加网关提示改为 Claude Code mods，由 mod 在 `turn.step` 逐请求改写模型，见第 2、3.1、5.5、6.7 节。写 SP1 计划时三次修订：Provider 名不改、配置目录改由 `appdir.SetName` 决定，依据见第 6.1 节。SP0-spike 完成后修订：按 `docs/superpowers/notes/spike-results.md` 的 S1–S13 结论，应用 S5、S8、S12、S13 的备选方案，并记录 S3、S7、S11 的实测差异）
 - 状态：待审批（审批后按第 11 节交给 `superpowers:writing-plans`）
 - 仓库：[weiping/queqiao](https://github.com/weiping/queqiao)，fork 自 [yetone/magpie](https://github.com/yetone/magpie)，MIT 协议
 - 分支：`main` 只与上游同步；queqiao 的全部开发在 `queqiao` 分支上进行（第 6.1 节）。本规格以 `main` 的 commit `49ee7d8`（2026-10-03）为基线，规格中引用的上游代码均已在该 commit 上核对
@@ -377,6 +377,8 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 
 分两处处理：mod 的 `agent.spawn` hook 为从零开始的子代理选档；`turn.step` 只改写模型仍是路由组的请求，fork 子代理和没选上档的子代理都落在这里。
 
+> **S3 实测**：Claude Code 2.1.288 没有注册 `fork` 子代理类型（`subagent_type: "fork"` 三次复现均报 `Agent type 'fork' not found`，可用类型为 claude/general-purpose/Explore/Plan 等）。因此下面 `e.fork` 分支与第 5.8 节的「Claude Code fork 子代理」在实施当日的版本上不会触发，属防御性死代码；若未来版本重新引入 fork 类型，再按原规则启用。
+
 `agent.spawn` 按以下顺序处理，命中即止：
 
 1. `e.fork` 为 true：不改。fork 的模型由 Claude Code 固定为父代理的模型，`model` 改了也无效；它的请求由 `turn.step` 按第 5.8 节处理。
@@ -396,7 +398,7 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 插件的 `PreToolUse` hook 匹配 `spawn_agent`（matcher 写 `^(spawn_agent|Agent)$`）：
 
 1. `tool_input` 里已经有 `model` 的，不改。
-2. `tool_input.fork_context` 为 true 的（fork 子代理），调用 `GET /v1/queqiao/session?id=<父会话>` 取父会话当前的档位，把 `model` 写成 `group/qq-<该档位>`，不分类。查不到父会话的档位时不改。这样子代理和父会话用同一个档位组，缓存能接上，网关也不会对它重新分类。
+2. ~~`tool_input.fork_context` 为 true 的（fork 子代理）……~~ **（S13 备选，已删）**：Codex 0.160 的 `spawn_agent` 没有 `fork_context` 参数（实际为 `subagent_kind`/`forked_from_thread_id`），此步删去；fork 子代理按网关模式路由，`parent_thread_id` 元数据可用于父线程溯源。
 3. 子代理类型（`tool_input.agent_type`，缺省为 `default`）命中 R1 的，直接取对应档位。
 4. 其余的，以 `tool_input.message` 为 `message`、子代理类型为 `agent` 调用 `/v1/queqiao/turn`（`store_hint:false`）。
 5. 输出 `updatedInput`：原参数加上 `"model": "group/qq-<档位>"`。不写 `reasoning_effort`，推理强度由档位成员的后缀决定。
@@ -413,9 +415,9 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 
 | 情形 | 识别方式 | 处理 |
 | --- | --- | --- |
-| Claude Code fork 子代理（`/subtask`、`subagent_type: "fork"`） | mod 的 `turn.step` 看到带 `agentId`、模型仍是 `group/queqiao` 的请求（第 5.5 节） | 第一次见到时钉在主会话此刻的档位，之后一直用这个档位组。不调用 `/turn`，不分类，也不写主会话的 `TurnState` |
-| Codex fork 子代理（`spawn_agent` 带 `fork_context: true`） | 插件的 `pre-agent` 看到 `fork_context: true` | 第 5.6 节第 2 步：把 `model` 钉在父会话当前的档位组 |
-| Pi 上 pi-subagents 的 `inherit_context` | 扩展的 `tool_call` 看到 `Agent` 工具带 `inherit_context: true` | 默认与 fork 子代理相同，把 `model` 钉在父会话当前的档位组。若 S12 证实父对话是以文本重新放入、本来就复用不了缓存，改为像普通子代理一样单独选档 |
+| Claude Code fork 子代理（`subagent_type: "fork"`） | （S3：本版本无此类型，不触发） | 若未来版本重新引入 fork 类型：`turn.step` 看到带 `agentId`、模型仍是 `group/queqiao` 的请求时钉在主会话此刻的档位 |
+| Codex fork 子代理 | （S13：`spawn_agent` 无 `fork_context`，按网关模式路由） | `parent_thread_id` 元数据可用于父线程溯源 |
+| Pi 上 pi-subagents 的 fork 子代理 | 扩展的 `tool_call` 看到 `subagent`/`dispatch_agent` 工具带 `context: "fork"` | （S12：`inherit_context` 不存在，fork 语义为 `context: "fork"`）默认按网关模式路由；父会话经 header 的 `parentSession` 字段溯源 |
 | Codex 线程分叉 | 新线程第一轮的元数据带 `forked_from_thread_id` | 父会话 = 该线程；子会话的 `Prev` 取父会话 `TurnState` 的副本 |
 | Claude Code `/fork`、`/branch` | mod 自己找父会话：每个会话第一轮时，mod 把“第一条用户消息的哈希 → 本会话 ID”写进跨会话的 `$.store`（只保留 24 小时内的条目）。`classic.SessionStart` 看到 `source` 为 `fork`（`/branch` 的取值在 S11 中确认）时，mod 记下“本会话是派生会话”；第一轮用 `$.session.messages()` 的第一条用户消息算出同一个哈希，查到的会话 ID 作为 `parent_session` 随 `/turn` 发送。查不到时按新会话处理。Claude Code 不再调用 `/lineage` | 同上 |
 | Pi `/fork`、`/tree` 分支 | 扩展的 `session_start` 看到 `reason` 为 `fork`，若能读到父会话 ID（S12）则随 `/turn` 的 `parent_session` 一起发送；读不到则调用 `/lineage` 标记，由网关按 `firstWords` 找父会话 | 同上 |
@@ -485,8 +487,8 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
     "performance": { "group": "qq-perf",     "claude_alias": "opus",   "criteria": "<4.1>" }
   },
   "default_tier": "balanced",
-  "classifier": "typesafe/jev-latest",
-  "classify_timeout_ms": 1000,
+  "classifier": "local",            // S5 备选：默认分类器换延迟更低的本地小模型（本机→Jev p95≈13.8s，超出 1000ms 预算）
+  "classify_timeout_ms": 1500,        // S5 备选：原 1000 → 1500
   "thresholds": { "tier_min": 0.4, "dissatisfied_min": 0.7 },
   "escalate_turns": 2,
   "cache_ttl_seconds": 300,
@@ -658,7 +660,7 @@ clients/pi/
 | `before_agent_start` | 调用 `/turn`（`store_hint:false`，`agent:"main"`，`prompt` 取 `event.prompt`），超时 1500 ms；拿到档位后，若档位变了，`pi.setModel(<magpie/group/qq-*>)`。失败时不改模型 |
 | `model_select` | `source` 表示用户手动切换时，发送 `manual_model_switch`，并在本会话剩余时间里不再自动切换（与 Claude Code 中 `/model` 的效果一致） |
 | `tool_result` | 匹配 PR 链接，发送 `pr_created` |
-| `tool_call` | 只在装了 pi-subagents 时生效（工具名为 `Agent`，参数结构在 S12 中确认）。参数里已有 `model` 的不改；`inherit_context` 为 true 的按第 5.8 节钉在父会话当前的档位组；其余的以任务描述调用 `/turn`（`store_hint:false`），把 `event.input.model` 改为 `magpie/group/qq-<档位>` |
+| `tool_call` | 只在装了 pi-subagents 时生效（工具名为 `subagent`/`dispatch_agent`，S12 确认；参数为 `context` 枚举 fresh/fork/profile，无 `inherit_context`）。参数里已有 `model` 的不改；其余以任务描述调用 `/turn`（`store_hint:false`），把 `event.input.model` 改为 `magpie/group/qq-<档位>` |
 | `before_agent_start`（补充） | 本会话是派生会话的第一轮时，`/turn` 请求带上 `parent_session` |
 
 运行时依赖只用 Node 内置的 `fetch` 和 `crypto`，`dependencies` 为空。Pi 自带的包放进 `peerDependencies`，版本写 `"*"`。
@@ -669,7 +671,7 @@ clients/pi/
 
 ```
 clients/codex/
-  plugin.json          // name: queqiao-router-codex；extensions.com.openai.interface 写显示名与简介
+  .codex-plugin/plugin.json   // S7：hooks 只能用 legacy 格式声明（AGENT 格式带 $schema 的 plugin.json 不支持 hooks 字段）
   hooks/hooks.json
   README.md            // 安装、信任 hook、重启 Codex 三步
 ```
@@ -692,19 +694,19 @@ clients/codex/
 }
 ```
 
-Codex 文档没有写明 hook 是否支持 `args` 数组形式，这里用整条命令字符串；`timeout` 的单位在 S7 中确认，默认按秒。
+Codex 文档没有写明 hook 是否支持 `args` 数组形式，这里用整条命令字符串；`timeout` 的单位 S7 已确认：**秒**（3s sleep 在 timeout=2 时被截断，~50ms 的 hook 正常完成）。
 
 各处理程序在 `--harness codex` 下的行为：
 
 | 处理程序 | 行为 | 输出 |
 | --- | --- | --- |
-| `user-prompt` | 输入的 `model` 不是 `group/queqiao` 时（用户已用 `/model` 钉住档位或换了模型），发送 `manual_model_switch`（每个会话只发一次），不调用 `/turn`。否则调用 `/turn`，参数为 `{harness:"codex", session: session_id, turn_id, prompt, agent:"main", plan_mode: <按 S8 结论>, cwd, store_hint:true}`，HTTP 超时 1500 ms | 一律退出码 0、stdout 为空，不写 `additionalContext` |
-| `pre-agent` | 按第 5.6 节处理（`fork_context: true` 时钉在父会话当前的档位组） | 需要改模型时输出 `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{...原参数, "model":"group/qq-<档位>"}}}`；否则不输出 |
+| `user-prompt` | 输入的 `model` 不是 `group/queqiao` 时（用户已用 `/model` 钉住档位或换了模型），发送 `manual_model_switch`（每个会话只发一次），不调用 `/turn`。否则调用 `/turn`，参数为 `{harness:"codex", session: session_id, turn_id, prompt, agent:"main", plan_mode: false, cwd, store_hint:true}`，HTTP 超时 1500 ms（S8：非交互 exec 下 `permission_mode` 恒为 `bypassPermissions`，plan mode 仅交互 TUI 可用，`plan_mode` 取 false） | 一律退出码 0、stdout 为空，不写 `additionalContext` |
+| `pre-agent` | 按第 5.6 节处理（`fork_context` 步骤 S13 已删） | 需要改模型时输出 `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{...原参数, "model":"group/qq-<档位>"}}}`；否则不输出 |
 | `post-bash` | 在整个 stdin JSON 文本里匹配 `https://github.com/<owner>/<repo>/pull/<n>`，找到就发送 `pr_created`。不依赖工具结果的字段名，字段名随 Codex 版本变化时也不受影响 | 不输出 |
 
 Codex 没有与 `PostModelSwitch` 对应的事件，所以手动换模型的信号由 `user-prompt` 根据输入里的 `model` 判断。
 
-**R3 在 Codex 下的信号来源**：Codex 的工具结果走 Responses 协议的 `function_call_output`，magpie 的中间表示里不一定标出 `IsError`。S8 一并确认网关能否从 Codex 的请求中统计出工具失败数；统计不出时，Codex 会话的 R3 只由 `dissatisfied` 触发，`router status` 中注明这一点。
+**R3 在 Codex 下的信号来源**：Codex 的工具结果走 Responses 协议的 `function_call_output`，magpie 的中间表示里不一定标出 `IsError`。**S8 结论：网关从 Codex 的 Responses 请求中统计不出工具失败数**（失败命令 `ls /nope` 记 `tool_results=1` 但 `tool_errors=0`，输出为括号形式/结构化，不匹配 Anthropic `^Exit code: N` 前缀）。因此 Codex 会话的 R3 只由 `dissatisfied` 触发，`router status` 中注明这一点。
 
 ---
 
@@ -724,7 +726,7 @@ Codex 没有与 `PostModelSwitch` 对应的事件，所以手动换模型的信�
 | `turn.step` 的改写被拒（`model` 不被接受，S1 不成立） | 请求仍以 `group/queqiao` 发出 | 网关模式；同时说明 mod 的主路径失效，SP3 改用第 10 节 S1 的备选方案 | 同上 |
 | `pre-agent` 输出了不合法的 JSON（Codex） | Codex 忽略这个 hook | 处理程序先在内部校验再输出 | 子代理用默认模型 |
 | Codex 的 hook 尚未被用户信任 | hook 不运行 | 路由走网关模式；`queqiao router status` 在近 1 小时有 Codex 请求、却没有收到过 Codex hook 调用时，提示用户在 Codex 里执行 `/hooks` 信任插件 | 少了 harness 上下文，路由照常工作 |
-| Codex 忽略 `spawn_agent` 的 `model` | 子代理仍用主会话的模型 | S9 不成立时删去 Codex 的 `pre-agent`；子代理请求若带的是 `group/queqiao`，按网关模式路由 | 子代理选档精度下降 |
+| Codex 忽略 `spawn_agent` 的 `model` | 子代理仍用主会话的模型 | **S9 成立：`model` 生效**（explorer 子代理 2 请求以 group/qq-fast 到达）；保留 `pre-agent`；失效时退回网关模式（§7） | 子代理选档精度下降 |
 | Pi 的 `setModel` 返回 false | 模型没切换 | 改用 `before_provider_request` 替换请求体里的 `model`（S4 结论决定哪一种为主路径） | 无 |
 | 派生会话找不到父会话 | `ParentOf` 返回 false | 按新会话处理，`Prev = nil` | 第一轮可能换档，缓存没接上 |
 | `GET /v1/queqiao/session` 查不到父会话（Codex、Pi 的 fork 子代理） | 返回 `404` | `pre-agent` / `tool_call` 不改参数，子代理继承父代理的模型，请求按网关逻辑处理 | 可能换档 |

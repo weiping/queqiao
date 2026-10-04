@@ -1,0 +1,20 @@
+{
+  "name": "queqiao-spike",
+  "interface": {
+    "displayName": "queqiao SP0 spike"
+  },
+  "plugins": [
+    {
+      "name": "queqiao-spike-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/queqiao-spike-codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
