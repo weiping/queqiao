@@ -307,14 +307,14 @@ Rules: spec §10 rows S4, S12 verbatim.
 - Modify: `docs/superpowers/notes/spike-results.md` (summary section)
 - Modify: `docs/superpowers/specs/2026-10-02-queqiao-design.md` (only where a spike took the fallback)
 
-- [ ] **Step 1: Check the results file is complete**
+- [x] **Step 1: Check the results file is complete**
 
 Run: `grep -cE '^\| S(1[0-3]|[1-9]) \|' docs/superpowers/notes/spike-results.md` and `grep -n '（待填）\|TBD' docs/superpowers/notes/spike-results.md`
 Expected: `13`, and no matches
 
-- [ ] **Step 2: Write the summary**: one line per later sub-project (SP2, SP3, SP4, SP6) saying which spec sections change because of a fallback, or "无变化".
+- [x] **Step 2: Write the summary**: one line per later sub-project (SP2, SP3, SP4, SP6) saying which spec sections change because of a fallback, or "无变化".
 
-- [ ] **Step 3: Apply each fallback to the spec** (spec §11 rule: revise the spec before the dependent plan is written), and add a revision note to the spec header naming the spikes.
+- [x] **Step 3: Apply each fallback to the spec** (spec §11 rule: revise the spec before the dependent plan is written), and add a revision note to the spec header naming the spikes.
 
 - [ ] **Step 4: PR**
 
