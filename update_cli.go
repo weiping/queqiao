@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -58,6 +59,10 @@ func updateCmd(args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	rel, err := update.Latest(ctx)
+	if errors.Is(err, update.ErrNoFeed) {
+		fmt.Println(err.Error())
+		return nil
+	}
 	if err != nil {
 		return err
 	}
