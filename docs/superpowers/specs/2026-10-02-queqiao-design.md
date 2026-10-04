@@ -503,7 +503,7 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 ### 6.3 对上游代码的两处挂钩
 
 1. **`internal/gateway/rules.go` 的 `ruleFor()`**：在函数开头、`g.Ruled()` 判断**之前**插入一个可选的回调 `routerHook`（包级变量，默认为 nil，`SP2` 在启动时注入）。路由组本身不配规则，挂在 `g.Ruled()` 之后会被提前返回。回调的参数包含请求头、IR 请求，以及 Responses 协议下的原始请求体（读 Codex 的 `turn_id` 要用）；如果 `ruleFor` 的调用处拿不到原始请求体，就只传请求头，`turnmeta.go` 退回只读请求头。回调在两种请求上调用：请求的组是三个档位组之一时（Claude Code 和 Pi 的请求都直接进档位组），回调只调用 `Sessions.Observe` 记下工具统计和请求时间，返回空，不改变成员顺序，R6 用到的 `SinceLast` 由此而来；请求的组是 `router_group`、而且这是一个新轮次的开始时，回调先 `Observe`，再选档。选档时回调返回要排在第一的成员（`group/qq-*`），由挂钩代码包装成一个 `RuleHit`，写入 `ruleFor` 现有的按轮记录表，这样同一轮里的后续请求沿用已有的“轮内保持”逻辑，不再调用回调。SP2 的计划必须先完整阅读 `ruleFor()` 及其轮次记录表，确认“新轮次”的判定方式和记录表的写入入口，再写这个挂钩；§8 集成测试的 (b) 用来证明轮内保持确实生效。
-2. **`internal/gateway/gateway.go` 的 mux 注册**：加一行 `router.Register(mux, deps)`。
+2. **mux 注册（无环接线，SP2 复审修正）**：`internal/gateway` 增加包级注册回调 `var MuxRegister []func(*http.ServeMux)`，`Handler()` 建好 mux 后依次调用；`main.go` 注入 `func(mux *http.ServeMux) { router.Register(mux, deps) }`。依赖方向只允许 router → gateway（`session.go` 的 `Observe` 等引用 gateway 的请求类型），gateway 若直接 import router 会成环，故注册行不能如原文放在 gateway.go；路由挂钩回调同理：回调类型定义在 gateway 包（引用 `Request`/`RuleHit`/`Group`），router 实现回调并经 `gateway.SetRouterHook` 注入，main 负责接线。
 
 另外：`RuleHit` 新增 `Router *RouterHit` 字段（包含 tier、reason、source 和是否命中提示），会出现在 `GET /v1/magpie/route` 的结果里；`usage.Record` 新增 `router_tier`、`router_arm` 两个字段，写入 `usage.jsonl` 和 OTLP 属性。
 
