@@ -2,6 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS  = -s -w -X main.version=$(VERSION)
 TAGS     = production
 TARGETS  = darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
+BIN      ?= queqiao
 
 # The GUI links the platform webview through cgo, so it is built natively.
 # `nogui` builds the terminal-only magpie, which cross-compiles anywhere.
@@ -19,10 +20,10 @@ endif
 .PHONY: build cli install test app icons release release-cli release-windows release-linux clean dev dev-once
 
 build:
-	go build -tags "$(TAGS)" -trimpath -ldflags="$(LDFLAGS)" -o magpie .
+	go build -tags "$(TAGS)" -trimpath -ldflags="$(LDFLAGS)" -o $(BIN) .
 
 cli:
-	CGO_ENABLED=0 go build -tags nogui -trimpath -ldflags="$(LDFLAGS)" -o magpie .
+	CGO_ENABLED=0 go build -tags nogui -trimpath -ldflags="$(LDFLAGS)" -o $(BIN) .
 
 install:
 	go install -tags "$(TAGS)" -trimpath -ldflags="$(LDFLAGS)" .
@@ -34,7 +35,7 @@ test:
 app: build
 	@rm -rf magpie.app
 	@mkdir -p magpie.app/Contents/MacOS magpie.app/Contents/Resources
-	@cp magpie magpie.app/Contents/MacOS/magpie
+	@cp $(BIN) magpie.app/Contents/MacOS/magpie
 	@cp build/darwin/magpie.icns magpie.app/Contents/Resources/magpie.icns
 	@cp build/darwin/Assets.car magpie.app/Contents/Resources/Assets.car
 	@sed 's/@VERSION@/$(VERSION)/' build/darwin/Info.plist > magpie.app/Contents/Info.plist
@@ -61,7 +62,7 @@ icons:
 
 release: clean build
 	@mkdir -p dist
-	@cp magpie dist/magpie-$(shell go env GOOS)-$(shell go env GOARCH)
+	@cp $(BIN) dist/$(BIN)-$(shell go env GOOS)-$(shell go env GOARCH)
 	@$(MAKE) --no-print-directory release-cli
 
 release-cli:
@@ -69,7 +70,7 @@ release-cli:
 	@for t in $(TARGETS); do \
 		os=$${t%/*}; arch=$${t#*/}; ext=""; [ $$os = windows ] && ext=.exe; \
 		echo "  $$os/$$arch (cli)"; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -tags nogui -trimpath -ldflags="$(LDFLAGS)" -o dist/magpie-cli-$$os-$$arch$$ext . ; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -tags nogui -trimpath -ldflags="$(LDFLAGS)" -o dist/$(BIN)-cli-$$os-$$arch$$ext . ; \
 	done
 
 # The desktop app for Windows: the system WebView2 needs no cgo, so both
@@ -93,7 +94,7 @@ release-linux:
 	@go build -tags "$(TAGS)" -trimpath -ldflags="$(LDFLAGS)" -o dist/magpie-linux-$(shell go env GOARCH) .
 
 clean:
-	rm -rf magpie magpie.exe magpie.app dist rsrc_windows_*.syso
+	rm -rf $(BIN) $(BIN).exe magpie.app dist rsrc_windows_*.syso
 
 # Development: the UI is served from internal/gui/assets and the window
 # reloads itself when a file there is saved. With fswatch installed, the
