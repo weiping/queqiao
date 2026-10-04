@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Branch `qq/sp2-router-core` cut from `queqiao`, in its own worktree (superpowers:using-git-worktrees); finish with a PR into `queqiao` merged with a merge commit.
-- New Go code only under `internal/router/`. Upstream-file changes are limited to: `internal/gateway/rules.go` (the `routerHook` var + its call), `internal/gateway/gateway.go` (one mux line), `internal/gateway/rules.go` `RuleHit` struct (one field), `internal/usage/usage.go` `Record` (two fields). Nothing else upstream.
+- New Go code only under `internal/router/`. Upstream-file changes are limited to: `internal/gateway/rules.go` (`RuleHit.Router` field + hook-related types), `internal/gateway/gateway.go` (hook call-site block + parse-gate extension + `MuxRegister` consulted in `Handler()`), `internal/gateway/otel.go` (two attributes), `internal/usage/usage.go` (`Record` two fields), and `main.go` (wiring only). Nothing else upstream.
 - Test command: `go test -tags nogui ./...` and `go vet -tags nogui ./...`.
 - The classifier default is `local` (a low-latency local model), `classify_timeout_ms` 1500 (spec §4.6, S5 fallback). Jev is selectable via `classifier: "typesafe/jev-latest"`.
 - Policy values (thresholds, escalate_turns, cache_ttl) are config, not code.
