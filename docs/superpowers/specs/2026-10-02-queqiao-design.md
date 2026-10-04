@@ -58,7 +58,7 @@ queqiao 是一个**放在 Agent Harness 里做决策、在本地网关里执行*
   - `turn.start`：输入 `{text, turnId}`，`text` 是 `prompt.submit` 和设置里的 `UserPromptSubmit` hook 处理之后的用户原话，`turnId` 由这里生成，同一轮的每个 `turn.step` 和 `turn.complete` 都带同一个值。
   - `turn.step`：**每一次模型请求发出前**触发，输入 `{turnId, index, model, effort?, messageCount, agentId?}`；主会话的请求没有 `agentId`，子代理的请求带子代理的 `agentId`。hook 用 `next({...e, model})` 改这一次请求的模型，`effort` 同样可改，其余字段不可改。`model` 是 Claude Code 为这一步解析出的模型（会话模型或回退模型），不是上一个 hook 改写后的值。这是流式事件，hook 写成异步生成器（`yield* next(e)`）。
   - `agent.spawn`：派生子代理时触发，输入含 `prompt`、`description`、`subagentType`、`model?`、`parentModel`、`fork`、`background`、`parentAgentId?`；hook 改写 `model`（别名或完整模型 ID）为子代理选模型，`next(e)` 返回 `{model, agentId}`。`fork` 为 true 时 `model` 被忽略，fork 永远继承父代理的模型。
-  - `tool.call`：`await next(e)` 得到工具结果，带 `isError` 和模型看到的文本 `text`；子代理里的调用带 `agentId`。
+  - `tool.call`：`await next(e)` 得到工具结果，带 `isError` 和模型看到的文本 `text`；子代理里的调用带 `agentId`。hook 可用 `on(event, { tool: 'Bash' }, handler)` 形式按工具名过滤。\n  - **状态**：`$.state` 推荐用 `atom`/`read`/`update`（从 `claude-code` 包导入）带类型地读写；状态类型在插件的 `types/index.d.ts` 里声明、经 plugin.json 的 `types` 字段关联，否则 `claude plugin validate` 报错。渲染 hook 对 `read` 自动订阅，`update` 后自动重画。\n  - **治理**：Team/Enterprise 机器上内置 `sec-default` mod 最先加载，限制用户 mod 的风险操作；`prependPlugins`/`appendPlugins` 由管理员固定 mod 顺序（自定义时须把 `sec-default` 写进列表）；`--safe-mode` 在单会话关闭已安装 mod——这是「mod 没有加载」的一种场景（第 7 节）。第三方 mod 先用 `claude plugin validate` 静态审查它挂了哪些事件、调了哪些 API。
   - `turn.complete`：一轮结束，带用量；子代理跑完时带它的 `agentId`。
   - `classic.<事件名>`：设置型 hook 的全部事件也能在 mod 里订阅，包括 `classic.SessionStart`（`source` 取值 `startup`、`resume`、`clear`、`compact`、`fork`）和 `classic.PostModelSwitch`（`from_model`、`to_model`、`source` 取值 `command`、`picker`、`sdk`、`auto`、`resume`）。
   - `$.http.fetch(url, init)`：经 Claude Code 主机发 HTTP 请求，组织的网络访问策略可以拒绝；`init` 没有超时参数。`$.session.id()` 取会话 ID；`$.store` 是跨会话的键值存储，`$.state` 是本会话的状态；`$.ui.status(text)` 在状态栏显示一段文字；`$.model.classify(text, labels)` 用模型做分类。
@@ -607,7 +607,7 @@ clients/claude-code/
 
 `plugin.json` 的要点：`name` 为 `queqiao-router`（不得以 `claude-` 开头，见插件命名规则）；`types` 为 `./types/index.d.ts`；`userConfig` 有一项 `gateway_url`（默认 `http://127.0.0.1:3425`），mod 从 `register` 的 `options` 读取。
 
-`$.state` 里保存的本会话状态（hot reload 时保留，模块变量会丢）：
+`$.state` 里保存的本会话状态（用 `atom`/`read`/`update` 读写，hot reload 时保留，模块变量会丢）：
 
 | 键 | 内容 |
 | --- | --- |
@@ -721,7 +721,7 @@ Codex 没有与 `PostModelSwitch` 对应的事件，所以手动换模型的信�
 | 提示没被消费（Codex 的会话 ID 或 `turn_id` 对不上） | 提示 120 秒后过期 | 网关走网关模式；`router status` 里统计提示命中率 | 少了 harness 上下文，路由照常工作 |
 | `router.json` 无效 | `Load` 返回错误 | 路由组退化为 magpie 原有的行为（按成员顺序，即 balanced 优先） | 不再路由，但可用 |
 | 某档整档失败 | 档位组的所有成员都失败 | 路由组把选中档排第一，其余按 §4.4 的成员顺序（balanced、perf、fast）转移：fast 失败依次到 balanced、perf；balanced 失败先到 perf；perf 失败先到 balanced，最后才到 fast | 可能多花钱，不会中断 |
-| Claude Code 的 mod 没有加载（低于 v2.1.287、托管设置 `allowManagedModsOnly` 或 `disableAllHooks`、`$.http.fetch` 被组织的网络策略拒绝） | 请求以 `group/queqiao` 发出；子代理按别名或继承父模型 | 网关模式（第 5.7 节）。`router status` 在近 1 小时有 Claude Code 请求（带 `x-claude-code-session-id`）、却没有收到过 `harness:"claude-code"` 的 `/turn` 时，提示检查 Claude Code 版本和托管设置 | 少了 harness 上下文，路由照常工作 |
+| Claude Code 的 mod 没有加载（低于 v2.1.287、托管设置 `allowManagedModsOnly` 或 `disableAllHooks`、`--safe-mode` 会话、`$.http.fetch` 被组织的网络策略拒绝） | 请求以 `group/queqiao` 发出；子代理按别名或继承父模型 | 网关模式（第 5.7 节）。`router status` 在近 1 小时有 Claude Code 请求（带 `x-claude-code-session-id`）、却没有收到过 `harness:"claude-code"` 的 `/turn` 时，提示检查 Claude Code 版本和托管设置 | 少了 harness 上下文，路由照常工作 |
 | Claude Code 的 `/turn` 超过 1500 ms | mod 放弃等待，本轮不改写模型 | 网关模式为这一轮再选一次档。网关上那次慢的 `/turn` 也已写回 `TurnState`，这一轮因此可能写两次，后写的覆盖先写的；`router.jsonl` 记 `double_decide` 事件，`router status` 统计其比例 | 这一轮的档位由网关模式决定 |
 | mod 的某个 hook 抛错或超过 10 秒 | Claude Code 跳过该 hook，在调试日志里记一行 | hook 内部全部 try/catch；只有 `turn.start` 发网络请求并自带 1500 ms 超时，不会碰到 10 秒上限 | 同上 |
 | `turn.step` 的改写被拒（`model` 不被接受，S1 不成立） | 请求仍以 `group/queqiao` 发出 | 网关模式；同时说明 mod 的主路径失效，SP3 改用第 10 节 S1 的备选方案 | 同上 |
