@@ -316,7 +316,7 @@ Expected: `13`, and no matches
 
 - [x] **Step 3: Apply each fallback to the spec** (spec §11 rule: revise the spec before the dependent plan is written), and add a revision note to the spec header naming the spikes.
 
-- [ ] **Step 4: PR**
+- [x] **Step 4: PR**
 
 ```bash
 git push -u origin qq/sp0-spike
