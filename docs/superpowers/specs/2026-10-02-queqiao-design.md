@@ -443,6 +443,7 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 | `internal/stats/stats.go` | 关闭上游的用户计数上报（fork 不能向上游的 PostHog 发数据）：`Run` 在没有设 `MAGPIE_STATS_HOST` 时直接返回 |
 | `internal/agent` | **不改**。Provider 名、Codex 的 `[model_providers.magpie]` 与 `~/.codex/magpie-models.json` 都沿用 `magpie`。Provider ID 是 `route.go` 里的一个常量，被 200 多处代码共用；实测把它改成 `queqiao` 会让 `internal/agent` 里约 50 个测试失败、涉及 40 多个测试文件。queqiao 与 magpie 本来就占用同一个端口 3425，不能同时运行，改名换不来共存，只会增加合并冲突 |
 | `README.md` | 只在顶部加 queqiao 的说明，下面原样保留上游正文，并注明那部分属于上游。上游改 README 时，合并只在开头几行可能冲突 |
+| `.gitignore` | 二进制改名后补 `/queqiao`、`/queqiao.exe`（SP1 实施时加的，防止 27MB 构建产物被误提交；计划原文未列，属必要小改动） |
 | 其余 | `MAGPIE_*` 环境变量、`X-Magpie-*` 请求头、`/v1/magpie/*` 端点保持原名，尽量减小与上游的差异 |
 
 **分支与同步上游的策略**

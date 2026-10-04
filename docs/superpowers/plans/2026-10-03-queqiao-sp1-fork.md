@@ -43,7 +43,7 @@
 - Produces: `func SetName(name string)` — sets the folder name; panics with `appdir: SetName("<name>") after a folder was handed out as "<old>"` if `Config`, `Cache` or `SystemCache` already returned a path. Default name `magpie`.
 - Internal: `func appName() string` — returns the name and marks it handed out; `Config`, `Cache`, `SystemCache` use it in place of the literal.
 
-- [ ] **Step 1: Write the failing tests** in `internal/appdir/name_test.go` (package `appdir`); each test restores `name` and the handed-out flag in `t.Cleanup` and calls `UseExecutable("")` so portable mode is off unless the test sets it.
+- [x] **Step 1: Write the failing tests** in `internal/appdir/name_test.go` (package `appdir`); each test restores `name` and the handed-out flag in `t.Cleanup` and calls `UseExecutable("")` so portable mode is off unless the test sets it.
 
 ```go
 func TestSetNameRenamesFolders(t *testing.T) {
@@ -74,21 +74,21 @@ func TestSetNameAfterUseRefuses(t *testing.T) {
 func TestSetNameKeepsPortable(t *testing.T) // UseExecutable(<dir with data/>/magpie); SetName("queqiao"); Config() == that data folder
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `go test -tags nogui ./internal/appdir/ -run SetName -v`
 Expected: FAIL, `undefined: SetName`
 
-- [ ] **Step 3: Implement `SetName` and `appName` in `internal/appdir/name.go`; replace the four `"magpie"` literals in `appdir.go` with `appName()`**
+- [x] **Step 3: Implement `SetName` and `appName` in `internal/appdir/name.go`; replace the four `"magpie"` literals in `appdir.go` with `appName()`**
 
 Guard the name and flag with a `sync.Mutex` (the gateway calls `Config` from many goroutines). The package doc comment in `appdir.go` stays as it is.
 
-- [ ] **Step 4: Run the package tests, old and new**
+- [x] **Step 4: Run the package tests, old and new**
 
 Run: `go test -tags nogui ./internal/appdir/ -v`
 Expected: PASS, including upstream `TestFolders`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/appdir/name.go internal/appdir/name_test.go internal/appdir/appdir.go
@@ -106,28 +106,28 @@ git commit -m "feat(appdir): SetName decides the config and cache folder name"
 - Consumes: `appdir.SetName` (Task 1).
 - Produces: `make cli` → `./queqiao`; `make build` → `./queqiao`; `release-cli` → `dist/queqiao-cli-<os>-<arch>[.exe]`; `release` → `dist/queqiao-<os>-<arch>`. The macOS bundle keeps its internal layout (`magpie.app/Contents/MacOS/magpie`), copied from `$(BIN)`.
 
-- [ ] **Step 1: Write the smoke test `build/queqiao-smoke.sh`** (bash, `set -euo pipefail`)
+- [x] **Step 1: Write the smoke test `build/queqiao-smoke.sh`** (bash, `set -euo pipefail`)
 
 It takes the binary path as `$1`, makes a temp dir `T`, runs `HOME=$T XDG_CONFIG_HOME=$T/config XDG_CACHE_HOME=$T/cache MAGPIE_ADDR=127.0.0.1:3525 "$1" serve` in the background, waits up to 20 s for `curl -fsS -H 'Authorization: Bearer magpie' http://127.0.0.1:3525/v1/models` to succeed, kills the server, then asserts:
 - `$T/config/queqiao` is a directory;
 - `$T/config/magpie` and `$T/cache/magpie` do not exist;
 - prints `smoke: ok` and exits 0; any failed assertion prints which one and exits 1.
 
-- [ ] **Step 2: Run it against the current build to see it fail**
+- [x] **Step 2: Run it against the current build to see it fail**
 
 Run: `make cli && bash build/queqiao-smoke.sh ./queqiao`
 Expected: FAIL — `make cli` still writes `./magpie`, so `./queqiao` is missing
 
-- [ ] **Step 3: Change `main.go` and `Makefile`**
+- [x] **Step 3: Change `main.go` and `Makefile`**
 
 `main()` begins with `appdir.SetName("queqiao")` (import `github.com/yetone/magpie/internal/appdir`). In `Makefile` add `BIN ?= queqiao` under `TARGETS` and use `$(BIN)` in place of the output name in the six targets listed under **Files**; leave `release-windows`, `release-linux`, `dev`, `dev-once` and `icons` unchanged.
 
-- [ ] **Step 4: Run the smoke test and the root package tests**
+- [x] **Step 4: Run the smoke test and the root package tests**
 
 Run: `make cli && bash build/queqiao-smoke.sh ./queqiao && go test -tags nogui . -count=1`
 Expected: `smoke: ok`, then `ok  github.com/yetone/magpie`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add main.go Makefile build/queqiao-smoke.sh
@@ -144,7 +144,7 @@ git commit -m "feat: build the queqiao binary, keeping its files in ~/.config/qu
 **Interfaces:**
 - Produces: `var ErrNoFeed = errors.New("queqiao 不自动更新，请从 https://github.com/weiping/queqiao/releases 下载")`; `Feed()` returns `""` unless `MAGPIE_UPDATE_FEED` is set; `LatestIn` returns `ErrNoFeed` without a request when `Feed()` is `""`; `const Site = "https://github.com/weiping/queqiao/releases"`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```go
 // internal/update/nofeed_test.go
@@ -171,21 +171,21 @@ func TestUpdateSaysReleases(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `go test -tags nogui ./internal/update/ -run NoFeed -v && go test -tags nogui . -run TestUpdateSaysReleases -v`
 Expected: FAIL, `undefined: ErrNoFeed`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `updateCmd`, when `errors.Is(err, update.ErrNoFeed)`, print `err.Error()` to stdout and return nil. The package comment of `update.go` is left alone.
 
-- [ ] **Step 4: Run the update package, the GUI package and the root package**
+- [x] **Step 4: Run the update package, the GUI package and the root package**
 
 Run: `go test -tags nogui ./internal/update/ ./internal/gui/ . -count=1`
 Expected: all `ok` (upstream tests set `MAGPIE_UPDATE_FEED` themselves)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/update/update.go internal/update/nofeed_test.go update_cli.go queqiao_update_cli_test.go
@@ -201,7 +201,7 @@ git commit -m "feat(update): queqiao has no update feed; point to its releases"
 **Interfaces:**
 - Produces: `Run(version, what string)` returns at once unless `MAGPIE_STATS_HOST` is set (released or not).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestRunNeedsStatsHost(t *testing.T) {
@@ -216,21 +216,21 @@ func TestRunNeedsStatsHost(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `go test -tags nogui ./internal/stats/ -run TestRunNeedsStatsHost -v`
 Expected: FAIL after 2 s with the message above (and no event leaves the sandbox: set `HOME`/`XDG_CONFIG_HOME` to `t.TempDir()` and `MAGPIE_NO_STATS=1` in the test before calling `Run`, so the upstream loop sends nothing while it fails)
 
-- [ ] **Step 3: Replace `Run`'s first condition with `if os.Getenv("MAGPIE_STATS_HOST") == "" { return }`**
+- [x] **Step 3: Replace `Run`'s first condition with `if os.Getenv("MAGPIE_STATS_HOST") == "" { return }`**
 
 Update `Run`'s doc comment to say queqiao sends nothing unless `MAGPIE_STATS_HOST` is set.
 
-- [ ] **Step 4: Run the package**
+- [x] **Step 4: Run the package**
 
 Run: `go test -tags nogui ./internal/stats/ -count=1`
 Expected: `ok`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/stats/stats.go internal/stats/norun_test.go
@@ -241,22 +241,22 @@ git commit -m "feat(stats): send no usage stats to upstream's PostHog"
 
 **Files:** none in the tree (GitHub settings and a PR).
 
-- [ ] **Step 1: Disable the two upstream workflows that must not run here**
+- [x] **Step 1: Disable the two upstream workflows that must not run here**
 
 Run: `gh workflow disable docker.yml -R weiping/queqiao && gh workflow disable ui-preview.yml -R weiping/queqiao && gh workflow list -R weiping/queqiao --all`
 Expected: `Docker` and `UI preview` listed as `disabled_manually`; `Test`, `Release`, `queqiao sync upstream` active. (If `gh` lacks the Actions permission, hand these two clicks to the human partner and record that in the PR description.)
 
-- [ ] **Step 2: Confirm the default branch**
+- [x] **Step 2: Confirm the default branch**
 
 Run: `gh repo view weiping/queqiao --json defaultBranchRef --jq .defaultBranchRef.name`
 Expected: `queqiao`
 
-- [ ] **Step 3: Full verification**
+- [x] **Step 3: Full verification**
 
 Run: `go vet -tags nogui ./... && go test -tags nogui ./... -count=1 && make cli && bash build/queqiao-smoke.sh ./queqiao`
 Expected: every package `ok` except the known environmental `TestBunThroughBridge`; `smoke: ok`
 
-- [ ] **Step 4: Push and open the PR**
+- [x] **Step 4: Push and open the PR**
 
 ```bash
 git push -u origin qq/sp1-fork
@@ -265,7 +265,7 @@ gh pr create -R weiping/queqiao --base queqiao --head qq/sp1-fork \
   --body "Implements §6.1 of docs/superpowers/specs/2026-10-02-queqiao-design.md (plan: docs/superpowers/plans/2026-10-03-queqiao-sp1-fork.md)."
 ```
 
-- [ ] **Step 5: Wait for the PR's checks and merge with a merge commit**
+- [x] **Step 5: Wait for the PR's checks and merge with a merge commit**
 
 Run: `gh pr checks <url> --watch --interval 30 && gh pr merge <url> --merge --delete-branch`
 Expected: the upstream Test workflow passes on all three systems; PR merged into `queqiao`
