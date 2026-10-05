@@ -1,5 +1,14 @@
 # queqiao SP2-router-core Implementation Plan
 
+## 执行结果（2026-10-05 回填）
+
+- **状态**：✅ 完成并合并 —— PR #6（merge `e8179bb`）；**注意**：该 PR 的 base 误用 `main`（上游同步分支），已按 PR #2/#3 先例把 main 并回工作分支 `queqiao`（`aef17af`）。
+- **交付**：`internal/router/{types,policy,config,session,hint,experiment,events,turnmeta,classify,api,hook,presets}.go`；网关轻量挂钩（`gateway/router_hook.go` + 调用点 + `usage` 两字段 + `router_wiring.go`）；`queqiao router init/status/check`。
+- **关键提交**：`c9065f3` policy → `1d52caf` config → `4df92e2` session/hint/experiment/events → `b82da31` turnmeta+classify → `530d823` api → `b93d66e` gateway hook → `2140bb0` router CLI → `10d685e` check 修复。
+- **复审修正（实施前，`b9d5ab0`/`5297a16`）**：挂钩放**调用点**（`ruleFor` 对无规则组根本不执行，放函数内不生效）；依赖方向 `router → gateway`，网关侧定义回调 + `MuxRegister`，main 接线（避免 import cycle）；spec §6.3 两条已重写。
+- **实施期修正**：① `router check` 先剥 provider 前缀再查服务；② 分类器 `max_tokens` 8→400（SP3 真机走查发现思考模型吃光预算，spec §5.4 已修订）；③ `provider.FindGroup` 是按模型查、按组 id 查需自建索引。
+- **遗留**：无。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build `internal/router/` — the gateway-side routing core that picks a tier per turn via a pure `Choose` policy (R1–R8), a classifier (Jev or local model), in-memory session/tool-stats state, hint storage for Codex, session arm assignment, a `router.jsonl` event log, and the `/v1/queqiao/*` HTTP API — and hook it into the magpie gateway (`ruleFor` callback + mux) so requests to the router group get tiered while requests to the tier groups just record stats.

@@ -1,5 +1,13 @@
 # queqiao SP0-spike Implementation Plan
 
+## 执行结果（2026-10-05 回填）
+
+- **状态**：✅ 完成并合并 —— PR #4（merge `d67e806`），worktree/分支已清理。
+- **产出**：`docs/superpowers/notes/spike-results.md`（S1–S13 逐项判定 + 证据指针）；实验资产在 `docs/superpowers/spikes/{cc-mod,pi-ext,recorder,codex-market,jev}`（日志按 .gitignore 不入库）。
+- **判定分布**：主方案成立——S1（`turn.step` 改写 model）、S2、S4（`pi.setModel` 本轮生效 + 稳定会话 ID + X-Magpie-Session 注入）、S6、S7（hooks 只能 legacy 插件格式、timeout 单位秒、Codex 只读 `.agents/` 市场）、S9（`spawn_agent` 的 `updatedInput.model` 生效）、S10（mod 在 REPL/`-p`/交互 fork 均加载；Agent SDK spawn errno -88）、S11（派生会话复用父会话 header，`/branch` 与 `/fork` 同报 `source:"fork"`）；备选——S5、S8（网关识别不了 Codex 工具失败，R3 只靠 dissatisfied）、S12（父会话改读 header 的 `parentSession`；子代理工具名 `subagent`/`dispatch_agent`）、S13（`spawn_agent` 无 `fork_context`）。
+- **Step 3（S1 备选名）**：不适用——S1 主方案成立，自定义名改写工作正常，备选未触发。
+- **遗留**：无。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Settle spikes S1–S13 of the spec with recorded evidence, so every later sub-project knows whether it builds the main path or the fallback.
@@ -174,7 +182,7 @@ Expected to decide:
 - S1 main path holds when every main request after a `rewrite_sent` reaches the recorder as `group/qq-fast`, `turn.step` showed `model == "group/queqiao"` for main steps, the `/model opus` turn showed `group/qq-perf` and was not rewritten, `classic.UserPromptSubmit` showed `permission_mode == "plan"` in plan mode, and cache reads (`usage.cache_read_input_tokens` in the responses, logged by upstream magpie `usage.jsonl`) are non-zero from the second step of a turn.
 - S2 holds when the `session` field of the mod's lines equals `x-claude-code-session-id` on the requests of the same turn.
 
-- [ ] **Step 3: If S1 fails on the custom name, rerun with `main_to=sonnet`/`sub_to=haiku` [human] and record which form works**
+- [x] **Step 3: If S1 fails on the custom name, rerun with `main_to=sonnet`/`sub_to=haiku` [human] and record which form works**（不适用：S1 主方案成立，备选未触发）
 
 Rule: names rejected → 备选 1 (aliases); aliases also fail → 备选 2 (command hook + hint path (b)), and stop to revise the spec §3.1/§6.7 before SP3.
 

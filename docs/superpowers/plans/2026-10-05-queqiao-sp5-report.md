@@ -1,5 +1,13 @@
 # SP5：验收实验与报表
 
+## 执行结果（2026-10-05 回填）
+
+- **状态**：✅ 完成并合并 —— PR #11（merge `2f3a15c`），worktree/分支已清理。
+- **交付**：`internal/router/{report,stats,prstates,render}.go` + `queqiao router report [--since 14d] [--json]`；测试含合成台账的精确数值断言、假 gh 的 CLI 端到端、实验开关的 API 级翻转。
+- **复审修正（实施前）**：control 组的事件 `Kind` 是 `shadow`（非 `decide`）——分组必须取「decide+shadow 中最后带 arm 的事件」，否则对照组整组消失；control 组并列显示 `shadow_tier` 分布；提示命中率分母只含经路由组的请求；PR 终态回退链 gh > `pr_merged` feedback > 未知；无价目请求排除出成本并计数。
+- **实施期事实**：`gh` 必须走 `proc.Command`（仓库守卫测试 `TestNoCommandBypassesProc` 当场抳出）；口径 8 条已写入 spec §9。
+- **[human] 遗留**：首份真实报表（需正式启用 queqiao 网关并跑满第一阶段——control=performance ≥2 周或每组 150 个 PR 会话）；见 `~/workspace/notes/areas/queqiao-验收清单.md` 第 3 节。
+
 > Spec：`docs/superpowers/specs/2026-10-02-queqiao-design.md` §9（主）、§6.4 的 feedback 消费、§6.6 的 `queqiao router report --since 14d`、§11（SP5-eval 验收：**用合成的 `usage.jsonl` 和 `router.jsonl` 测试报表的统计结果；实验能开能关**）。
 >
 > 前置：SP3/SP4/SP6 全部完成 ✓（feedback 事件三端都在发；SP2 已实现 `/turn` 的实验分组、`hint_consumed`/`shadow` 事件、usage 的 `router_tier`/`router_arm` 字段）。

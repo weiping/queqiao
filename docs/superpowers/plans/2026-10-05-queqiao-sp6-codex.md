@@ -1,5 +1,14 @@
 # SP6：Codex 插件 `queqiao-router-codex` + `internal/harness/`
 
+## 执行结果（2026-10-05 回填）
+
+- **状态**：✅ 完成并合并 —— PR #10（merge `ea72e9d`）；worktree/分支/本地 marketplace 已清理，真机安装已切 GitHub 源。
+- **交付**：`internal/harness/`（公共运行时：stdin 1MiB、1500ms 预算、panic/错误一律退出码 0）+ `harness/codex`（user-prompt / pre-agent / post-bash）+ `queqiao hook` 命令 + `clients/codex/` 插件 + 仓库根 `.agents/plugins/marketplace.json` + e2e 共享 helper 与 `e2e_codex_test.go`（三轮 fast→balanced→balanced，hint 路由命中各档成员 1/2/0）。
+- **复审修正（实施前）**：§8 的「plugin.json 过 Agent Plugins Schema」按 S7 改写（legacy 格式以 Codex CLI 加载成功为准）；抽共享 e2e helper；走查用隔离 HOME 跑 `router init` 的 Codex 步骤。
+- **实施期修正**：`plugin.json` 的 `"hooks"` 相对插件根解析→必须写 `"./hooks/hooks.json"`（首次实测 `"./hooks.json"` + 子目录文件 = hooks 静默不加载）；`pre-agent` 的 R1 不在客户端维护第三份表——`agent_type` 随 `/turn` 上传由网关 R1 判定（spec §6.9 已备注）；§8 另一行按 S13 改写（`fork_context` 不存在）。
+- **真机走查（2026-10-05，codex-cli 0.160）**：`decide codex fast R6-adopt 638ms` + `hint_consumed fast`，请求由 fast 档成员服务 ✅；`router init` 的 Codex 步骤真机首验；hook 子进程不继承自定义环境变量——网关须在默认端口（README/spec §6.6 已记）。
+- **遗留**：无。
+
 > Spec：`docs/superpowers/specs/2026-10-02-queqiao-design.md` §6.9（主）、§5.6、§5.8（Codex 行）、§6.6 的 hook 命令行、§8 的 harness 行与 e2e 行、§11（SP6-codex 验收）。
 >
 > 前置：SP2 已合并（`/turn` 端点、`turn_id` 元数据读取在）；SP3/SP4 已合并。

@@ -1,5 +1,14 @@
 # SP4：Pi 包 `pi-queqiao`
 
+## 执行结果（2026-10-05 回填）
+
+- **状态**：✅ 完成并合并 —— PR #8（merge `10cec76`）；事后复审修复 PR #9（merge `76828b9`）；另有一处直接提交 `134e430`。
+- **交付**：`clients/pi/`（`@weiping/pi-queqiao`：session_start / before_provider_headers / before_agent_start / model_select / tool_result / tool_call + `src/client.ts`；26 vitest）。
+- **复审修复（合并后）**：`tool_call` 改用 `/turn` 返回的 `group`（原拼 `qq-${tier}`，performance 会拼成不存在的 `qq-performance`）；`QueqiaoClient` 剥 base URL 尾斜杠（`//v1` 会被网关路径清洗弄成重定向）；`/turn` 补 `cwd`（§4.1 项目级 criteria）；spec §8/§6.8 的 S12 过时措辞修订。
+- **真机走查（2026-10-05，pi 1.0.0）**：检查 1（`/model` 手切 → `manual_model_switch` feedback + 钉档停自动）✅；检查 2 升档在换 `typesafe/jev-latest` 分类器后✅（deepseek 双问 3.7s 超 1500ms 预算，spec §5.7 已记）；`/fork` 继承**抳到真 bug**：pi 1.0.2 会话文件名带时间戳前缀，父 ID 解析错→继承静默失效（`134e430` 修复后用真实 UUID 实测 `balanced R4-escalation-hold` 继承生效）。
+- **更正**：pi 并不回写 `models.json`（此前判断为人工恢复命令造成的假象）。
+- **[human] 遗留**：`/model` 与 `/fork` 的完整抽检——见 `~/workspace/notes/areas/queqiao-验收清单.md` 第 2 节。
+
 > Spec：`docs/superpowers/specs/2026-10-02-queqiao-design.md` §6.8（主）、§4.5（Pi 行）、§5.8（Pi 行）、§8（vitest 行）、§11（SP4-pi 验收）。
 >
 > 前置：SP2 已合并（网关端点在）；SP3 已合并（PR #7）。

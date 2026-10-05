@@ -1,5 +1,13 @@
 # SP3：Claude Code 插件 `queqiao-router`（mod）
 
+## 执行结果（2026-10-05 回填）
+
+- **状态**：✅ 完成并合并 —— PR #7（merge `7fca5a1`），worktree/分支已清理。
+- **交付**：`clients/claude-code/`（mod：主路径改写、子代理五步+agentId 钉档、工具统计/PR/换模反馈、派生会话继承；24 插件测试全绿）、仓库根 `.claude-plugin/marketplace.json`、`internal/gateway/e2e_cc_test.go`（`e2e` 标签，三轮 fast→balanced(R3)→balanced(R4)）。
+- **复审修正（实施前）**：§8 的端到端 Go 测试列入 Task 6 Step 0；marketplace `source` 定为根相对 `./clients/claude-code`（本地 add+install 实测）；`plan_mode` 来源改为 `classic.UserPromptSubmit.permission_mode`（spec §6.7 已修订）。
+- **实施期事实**：`types/index.d.ts` 必须是 `declare module 'claude-code'` 增强；`$` 只能传给顶层函数声明（sandbox 静态规则）；测试 kit 的 `tool.call` 结果带 `{result:…}` 包装，与生产顶层 `isError/text` 不同（已防御读取并注明）。
+- **真机走查（2026-10-05，CC 2.1.289）**：7 项中 5 项通过（简单提问→`qq-fast`、`/model` 钉档放行、Explore 子代理→fast、`--safe-mode` 网关兑底、决策日志）；**[human] 遗留**：`/fork` 派生继承、plan mode→performance——命令与判定见 `~/workspace/notes/areas/queqiao-验收清单.md` 第 1 节。
+
 > Spec：`docs/superpowers/specs/2026-10-02-queqiao-design.md` §6.7（主）、§5.5、§5.8（Claude Code 行）、§4.5（Claude Code 部分，env 已由 SP2 `router init` 写入，本计划只验证）、§8（mod 行的测试）、§11（验收标准 SP3-claude-code 行）。
 >
 > 前置：SP2 已合并（PR #6，`e8179bb`/`aef17af`）——网关的 `/v1/queqiao/turn`、`/feedback`、`/router` 端点已在 `internal/router/api.go` 实现。

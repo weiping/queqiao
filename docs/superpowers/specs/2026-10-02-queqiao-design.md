@@ -824,6 +824,24 @@ CI 中所有测试都不访问真实的 TypeSafe 和模型厂商。
 
 执行顺序：`SP0 → SP1 → SP2 → SP3 ∥ SP4 ∥ SP6 → SP5`。三个 harness 子项目互不依赖，可以放在不同的 git worktree 里并行：SP3 只写 TypeScript 的 mod，SP4 只写 Pi 包，SP6 写 Go 的 hook 处理程序和 Codex 插件，改动的目录互不重叠。
 
+### 执行结果（2026-10-05 回填）
+
+七个子项目全部完成并合并；每个子项目的执行记录（关键提交、与计划的偏差、真机走查结论、遗留项）回填在各自计划的「执行结果」一节（`docs/superpowers/plans/`）。
+
+| 子项目 | 状态 | PR / 合并 | 真机走查 |
+| --- | --- | --- | --- |
+| `SP0-spike` | ✅ | #4 `d67e806` | —（S1–S13 判定见 `docs/superpowers/notes/spike-results.md`） |
+| `SP1-fork` | ✅ | #5 `33843f1` | — |
+| `SP2-router-core` | ✅ | #6 `e8179bb` → 并回 `queqiao` `aef17af` | —（CLI 在隔离环境实测） |
+| `SP3-claude-code` | ✅ | #7 `7fca5a1` | 7 项中 5 项；[human] `/fork` 继承、plan mode |
+| `SP4-pi` | ✅ | #8 `10cec76`；复审修复 #9 `76828b9`；直修 `134e430` | [human] `/model`、`/fork` 完整抽检 |
+| `SP6-codex` | ✅ | #10 `ea72e9d` | ✅ hook 触发 + hint 路由 + fast 档成员服务 |
+| `SP5-eval` | ✅ | #11 `2f3a15c` | 首份真实报表待实验跑满 |
+
+**[human] 遗留项**（可照抄的清单：`~/workspace/notes/areas/queqiao-验收清单.md`）：CC 的 `/fork` 与 plan mode、Pi 的 `/model` 与 `/fork`、以及正式启用后的首份 `queqiao router report`。
+
+**环境状态**：真机安装点（Claude Code marketplace、Codex marketplace）已切到 GitHub 源 `weiping/queqiao`；agent 记忆（`memory/`）不再纳入仓库版本控制。
+
 **给执行者的约定**
 
 - 推荐用 `superpowers:subagent-driven-development` 执行计划，每个任务启动一个新的子代理，任务完成后做代码审查。

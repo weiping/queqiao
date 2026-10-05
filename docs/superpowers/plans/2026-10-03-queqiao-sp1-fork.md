@@ -1,5 +1,12 @@
 # queqiao SP1-fork Implementation Plan
 
+## 执行结果（2026-10-05 回填）
+
+- **状态**：✅ 完成并合并 —— PR #5（merge `33843f1`），worktree/分支已清理。
+- **落地**：`appdir.SetName("queqiao")`（配置在 `~/.config/queqiao`、缓存在 `~/.cache/queqiao`，包内默认仍 `magpie`）、Makefile `BIN ?= queqiao`、update 无 feed 时报错而非静默、stats 关闭上报、`.gitignore` 加 `/queqiao`；spec §6.1 补记 `.gitignore` 行（`d943f3b`）。
+- **与计划一致**：`go.mod` 与全部 import 保持 `github.com/yetone/magpie`（不改名），与上游合并的冲突面就限于 §6.1 表格里那几处。
+- **遗留**：无。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn the magpie fork into a `queqiao` binary that keeps its files in `~/.config/queqiao` and `~/.cache/queqiao`, never checks for updates, never sends usage stats, and still passes every upstream test.
