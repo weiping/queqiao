@@ -1,6 +1,6 @@
 # queqiao SP2-router-core Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build `internal/router/` — the gateway-side routing core that picks a tier per turn via a pure `Choose` policy (R1–R8), a classifier (Jev or local model), in-memory session/tool-stats state, hint storage for Codex, session arm assignment, a `router.jsonl` event log, and the `/v1/queqiao/*` HTTP API — and hook it into the magpie gateway (`ruleFor` callback + mux) so requests to the router group get tiered while requests to the tier groups just record stats.
 
@@ -89,7 +89,7 @@ type Decision struct {
 **Interfaces:**
 - Produces: `func Choose(in PolicyInput, cfg PolicyConfig) Decision` implementing §5.2 rules R1–R8, in order, first match wins.
 
-- [ ] **Step 1: Write the failing tests** in `internal/router/policy_test.go`. One focused test per rule plus hysteresis and subagent-statelessness; cover every row of §5.2. Examples:
+- [x] **Step 1: Write the failing tests** in `internal/router/policy_test.go`. One focused test per rule plus hysteresis and subagent-statelessness; cover every row of §5.2. Examples:
 
 ```go
 func TestR1FixedAgent(t *testing.T) {
@@ -133,19 +133,19 @@ func TestSubagentIsStateless(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `go test -tags nogui ./internal/router/ -run . -v`
 Expected: FAIL — `undefined: Choose` (package doesn't compile).
 
-- [ ] **Step 3: Implement `Choose`** in `internal/router/policy.go` per §5.2, exactly: R1 fixed → R2 plan → R3 escalate (dissatisfied OR ≥3 tool calls with failures*2 ≥ calls) → R4 escalation-hold → R5 (classified confidence ≥ TierMin enters R6) → R6 hysteresis (only rule that lowers) → R7 carry → R8 default. "Tier +1" caps at performance. R3/R4/R7/R8 set `EscalatedLeft`/`LowerStreak` to 0 unless stated; only R6 manages `LowerStreak`. Subagent (`Agent` not main/gateway) treats `Prev` as nil.
+- [x] **Step 3: Implement `Choose`** in `internal/router/policy.go` per §5.2, exactly: R1 fixed → R2 plan → R3 escalate (dissatisfied OR ≥3 tool calls with failures*2 ≥ calls) → R4 escalation-hold → R5 (classified confidence ≥ TierMin enters R6) → R6 hysteresis (only rule that lowers) → R7 carry → R8 default. "Tier +1" caps at performance. R3/R4/R7/R8 set `EscalatedLeft`/`LowerStreak` to 0 unless stated; only R6 manages `LowerStreak`. Subagent (`Agent` not main/gateway) treats `Prev` as nil.
 
-- [ ] **Step 4: Run tests, iterate until green**
+- [x] **Step 4: Run tests, iterate until green**
 
 Run: `go test -tags nogui ./internal/router/ -count=1`
 Expected: `ok`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/router/policy.go internal/router/policy_test.go internal/router/types.go
@@ -163,12 +163,12 @@ git commit -m "feat(router): pure Choose policy with R1-R8 and hysteresis"
 **Interfaces:**
 - Produces: `func Load(globalPath, cwd string) (Config, error)`; `type Config` matching §4.6 (`Tiers map[Tier]TierCfg{Group,ClaudeAlias,Criteria}`, `DefaultTier`, `Classifier`, `ClassifyTimeoutMs`, `Thresholds`, `EscalateTurns`, `CacheTTLSeconds`, `FixedAgents`, `Experiment`); `func (c Config) PolicyConfig() PolicyConfig`. Project-level `<cwd>/.queqiao/router.json` may override only `criteria`.
 
-- [ ] **Step 1: Write failing tests**: a valid file loads; a missing tiers key or a bad group errors; thresholds out of [0,1] error; project `criteria` override merges; a project file trying to change `default_tier` is ignored.
+- [x] **Step 1: Write failing tests**: a valid file loads; a missing tiers key or a bad group errors; thresholds out of [0,1] error; project `criteria` override merges; a project file trying to change `default_tier` is ignored.
 
-- [ ] **Step 2: Run to fail** — `undefined: Load`.
-- [ ] **Step 3: Implement** `Load` (read, parse, validate three tiers present + thresholds in range; merge project `criteria` only).
-- [ ] **Step 4: Run green.**
-- [ ] **Step 5: Commit** `feat(router): load and validate router.json`
+- [x] **Step 2: Run to fail** — `undefined: Load`.
+- [x] **Step 3: Implement** `Load` (read, parse, validate three tiers present + thresholds in range; merge project `criteria` only).
+- [x] **Step 4: Run green.**
+- [x] **Step 5: Commit** `feat(router): load and validate router.json`
 
 ---
 
@@ -184,8 +184,8 @@ git commit -m "feat(router): pure Choose policy with R1-R8 and hysteresis"
 - `func Arm(session string, e ExperimentConfig) string` — stable hash of session+salt into router|control by `router_percent`.
 - `func Append(ev Event) error` — append one JSON line to `~/.config/queqiao/router.jsonl` (mkdir -p the dir).
 
-- [ ] **Step 1: failing tests** for each: round-trip Commit/Get; Observe accumulates tool stats and stamps `SinceLast`; eviction after 24 h (inject a clock); Hint TTL + take-once; Arm determinism + percent boundary; Append writes a parseable line.
-- [ ] **Step 2: run to fail; Step 3: implement; Step 4: green; Step 5: commit** `feat(router): sessions, hints, experiment arms, event log`
+- [x] **Step 1: failing tests** for each: round-trip Commit/Get; Observe accumulates tool stats and stamps `SinceLast`; eviction after 24 h (inject a clock); Hint TTL + take-once; Arm determinism + percent boundary; Append writes a parseable line.
+- [x] **Step 2: run to fail; Step 3: implement; Step 4: green; Step 5: commit** `feat(router): sessions, hints, experiment arms, event log`
 
 ---
 
@@ -199,8 +199,8 @@ git commit -m "feat(router): pure Choose policy with R1-R8 and hysteresis"
 - `func CodexTurnID(h http.Header, body []byte) string` — read `x-codex-turn-metadata` header first; else parse Responses body's `client_metadata["x-codex-turn-metadata"]` and read its `turn_id`; else "".
 - `type Classifier interface { Classify(ctx context.Context, q Question) (*Verdict, error) }`; `func NewClassifier(cfg Config, ask func(ctx context.Context, model, body string) (string, error)) Classifier`. For `typesafe/jev-latest` build the §5.3 two-question System One request and post it via magpie's existing decider routing — `provider.RouteDecider(model)` → `Provider.DecideURL(ctx)` (`internal/provider/decide.go:113-130` builds the Vercel TypeSafe `/v1/systemone` URL) — with the provider's key; do NOT call the gateway's `serveSystemOne` (that is the server side, for agents). For a plain `provider/model`, reuse magpie's "answer one number" prompt: ask tier as a number, then dissatisfied as a separate yes/no; confidence = 1 if the answer parsed, else 0. Honour `cfg.ClassifyTimeoutMs`.
 
-- [ ] **Step 1: failing tests** — `CodexTurnID` from header, from body, absent → "". Classifier: fake `ask` returns a Jev-shaped JSON and a numbered answer; timeout returns error.
-- [ ] **Step 2–4** as usual; **Step 5** commit `feat(router): codex turn id and classifier`
+- [x] **Step 1: failing tests** — `CodexTurnID` from header, from body, absent → "". Classifier: fake `ask` returns a Jev-shaped JSON and a numbered answer; timeout returns error.
+- [x] **Step 2–4** as usual; **Step 5** commit `feat(router): codex turn id and classifier`
 
 ---
 
@@ -217,8 +217,8 @@ git commit -m "feat(router): pure Choose policy with R1-R8 and hysteresis"
 - The shared `Decide(ctx, input)` (§6.5) — `/turn` and gateway mode both call it; it owns session-state read/write and §5.8 parent inheritance (`parent_session` > `forked_from_thread_id` > `/lineage`-marked `firstWords`; S12: Pi normally arrives with `parent_session` already set).
 - **Degradation (spec §6.2/§7):** if `Load` fails at startup, the gateway still starts; the router group behaves as plain magpie (member order) and `router status` reports the error. Wire this in main: a failed Load → nil router deps → hook stays nil → queqiao-managed groups pass through untouched.
 
-- [ ] **Step 1: failing tests** — turn returns a tier + reason; missing session/prompt → 400; feedback → 204; session lookup 200/404; lineage → 204; router status JSON.
-- [ ] **Step 2–4**; **Step 5** commit `feat(router): /v1/queqiao turn, feedback, session, lineage, status`
+- [x] **Step 1: failing tests** — turn returns a tier + reason; missing session/prompt → 400; feedback → 204; session lookup 200/404; lineage → 204; router status JSON.
+- [x] **Step 2–4**; **Step 5** commit `feat(router): /v1/queqiao turn, feedback, session, lineage, status`
 
 ---
 
@@ -247,11 +247,11 @@ git commit -m "feat(router): pure Choose policy with R1-R8 and hysteresis"
 - `func SetRouterHook(f func(h http.Header, body []byte, req *Request, g provider.Group, ms []provider.Member, agent string) *RuleHit)` in gateway.
 - `var MuxRegister []func(*http.ServeMux)` consulted at the top of `Handler()`.
 
-- [ ] **Step 1: failing test** — `internal/gateway/router_hook_test.go`: with a fake hook installed via `SetRouterHook`, (a) a router-group new-turn request gets the hook's member first and an in-turn follow-up (tool-result message, same `ruleKey`) keeps it WITHOUT a second hook call (assert a call counter); (b) a tier-group request invokes the hook but member order is unchanged; (c) a fork-shaped request (S11: same session header, same firstWords as the parent) lands on the same rule key. Also `Handler()` consults `MuxRegister`: registering a probe function adds a route.
-- [ ] **Step 2: run to fail** — `SetRouterHook` undefined.
-- [ ] **Step 3: implement** per the 5 points above; keep `ruleFor` itself untouched (the hook lives at the call site, which the spec's intent — "fire before the Ruled gate" — requires; record this as a reviewed deviation from the spec's literal "inside ruleFor" wording, justified by point 1).
-- [ ] **Step 4: `go test -tags nogui ./internal/gateway/ ./internal/router/ -count=1` green** (plus `go vet`).
-- [ ] **Step 5: commit** `feat(router): hook routing into the gateway`
+- [x] **Step 1: failing test** — `internal/gateway/router_hook_test.go`: with a fake hook installed via `SetRouterHook`, (a) a router-group new-turn request gets the hook's member first and an in-turn follow-up (tool-result message, same `ruleKey`) keeps it WITHOUT a second hook call (assert a call counter); (b) a tier-group request invokes the hook but member order is unchanged; (c) a fork-shaped request (S11: same session header, same firstWords as the parent) lands on the same rule key. Also `Handler()` consults `MuxRegister`: registering a probe function adds a route.
+- [x] **Step 2: run to fail** — `SetRouterHook` undefined.
+- [x] **Step 3: implement** per the 5 points above; keep `ruleFor` itself untouched (the hook lives at the call site, which the spec's intent — "fire before the Ruled gate" — requires; record this as a reviewed deviation from the spec's literal "inside ruleFor" wording, justified by point 1).
+- [x] **Step 4: `go test -tags nogui ./internal/gateway/ ./internal/router/ -count=1` green** (plus `go vet`).
+- [x] **Step 5: commit** `feat(router): hook routing into the gateway`
 
 ---
 
@@ -266,16 +266,16 @@ git commit -m "feat(router): pure Choose policy with R1-R8 and hysteresis"
 - `queqiao router status` prints config validity + tier→group map + last 20 decisions (from `GET /v1/queqiao/router`).
 - `queqiao router check` runs the §4.6 smoke test: per §4.2 门槛, 20 tool-carrying requests per primary AND failover member over BOTH Anthropic Messages and OpenAI Responses, plus window-size checks. Requires configured providers with real keys — it is a live, billable test: print cost warning and require `--yes`, exit non-zero on any failure.
 
-- [ ] **Step 1: failing tests** — init writes a valid file + groups; status prints mapping; check passes on a good config and fails loudly on a bad one.
-- [ ] **Step 2–4**; **Step 5** commit `feat(router): queqiao router init/status/check`
+- [x] **Step 1: failing tests** — init writes a valid file + groups; status prints mapping; check passes on a good config and fails loudly on a bad one.
+- [x] **Step 2–4**; **Step 5** commit `feat(router): queqiao router init/status/check`
 
 ---
 
 ### Task 8: full suite, vet, PR
 
-- [ ] **Step 1: `go vet -tags nogui ./... && go test -tags nogui ./... -count=1`** — every package `ok` except known flaky races in `internal/gateway`.
-- [ ] **Step 2: `make cli && bash build/queqiao-smoke.sh ./queqiao`** → `smoke: ok`.
-- [ ] **Step 3: push + PR** into `queqiao` with merge commit.
+- [x] **Step 1: `go vet -tags nogui ./... && go test -tags nogui ./... -count=1`** — every package `ok` except known flaky races in `internal/gateway`.
+- [x] **Step 2: `make cli && bash build/queqiao-smoke.sh ./queqiao`** → `smoke: ok`.
+- [x] **Step 3: push + PR** into `queqiao` with merge commit.
 
 ```bash
 git push -u origin qq/sp2-router-core
@@ -284,7 +284,7 @@ gh pr create -R weiping/queqiao --base queqiao --head qq/sp2-router-core \
   --body "Implements §6.2–6.5 of docs/superpowers/specs/2026-10-02-queqiao-design.md (plan: docs/superpowers/plans/2026-10-04-queqiao-sp2-router-core.md)."
 ```
 
-- [ ] **Step 4: wait for checks (macOS flaky races may need a rerun) and merge with a merge commit.**
+- [x] **Step 4: wait for checks (macOS flaky races may need a rerun) and merge with a merge commit.**
 
 ## Self-review notes
 
