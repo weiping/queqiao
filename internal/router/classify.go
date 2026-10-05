@@ -165,7 +165,8 @@ func (c *classifier) askPlain(ctx context.Context, prompt string) (string, error
 	body, err := json.Marshal(plainRequest{
 		Model:     c.cfg.Classifier,
 		Messages:  []plainMessage{{Role: "user", Content: prompt}},
-		MaxTokens: 8,
+		MaxTokens: 400, // reasoning models think before they answer; the
+		// classify timeout, not this cap, is what bounds the wait
 	})
 	if err != nil {
 		return "", err

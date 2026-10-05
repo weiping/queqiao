@@ -164,7 +164,7 @@ func TestPlainClassify(t *testing.T) {
 		if err := json.Unmarshal([]byte(b), &req); err != nil {
 			t.Fatalf("body not json: %v", err)
 		}
-		if req.Model != "qwen/qwen3-32b" || req.MaxTokens != 8 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {
+		if req.Model != "qwen/qwen3-32b" || req.MaxTokens != 400 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {
 			t.Fatalf("req: %+v", req)
 		}
 	}

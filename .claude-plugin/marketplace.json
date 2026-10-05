@@ -1,0 +1,17 @@
+{
+  "name": "queqiao",
+  "owner": {
+    "name": "weiping"
+  },
+  "plugins": [
+    {
+      "name": "queqiao-router",
+      "source": "./clients/claude-code",
+      "description": "Per-turn tier routing for Claude Code via the queqiao gateway.",
+      "version": "0.1.0",
+      "author": {
+        "name": "weiping"
+      }
+    }
+  ]
+}
