@@ -185,3 +185,84 @@ describe("queqiao extension", () => {
     expect(bodies(fetchMock, "/v1/queqiao/feedback").length).toBe(1)
   })
 })
+
+describe("queqiao extension: feedback and subagents", () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    vi.stubEnv("QUEQIAO_URL", "http://gw")
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  async function boot() {
+    const f = fakePi()
+    ;(await import("../extensions/queqiao.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    return f
+  }
+
+  it("tool_result with a PR link in the text sends pr_created", async () => {
+    const f = await boot()
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }))
+    f.fire("tool_result", {
+      type: "tool_result",
+      isError: false,
+      content: [{ type: "text", text: "Opened https://github.com/weiping/queqiao/pull/7 for review" }],
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(bodies(fetchMock, "/v1/queqiao/feedback")).toMatchObject([
+      { session: "s-pi-1", kind: "pr_created", value: "https://github.com/weiping/queqiao/pull/7" },
+    ])
+  })
+
+  it("tool_result without a link, or an error result, sends nothing", async () => {
+    const f = await boot()
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }))
+    f.fire("tool_result", { type: "tool_result", isError: false, content: [{ type: "text", text: "done" }] })
+    f.fire("tool_result", { type: "tool_result", isError: true, content: [{ type: "text", text: "Opened https://github.com/a/b/pull/1" }] })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(bodies(fetchMock, "/v1/queqiao/feedback").length).toBe(0)
+  })
+
+  it("tool_call picks a tier for a fresh pi-subagents spawn and writes the model", async () => {
+    const f = await boot()
+    gw(fetchMock, [{ tier: "fast", group: "group/qq-fast" }])
+    const input: Record<string, unknown> = { context: "fresh", task: "search the repo for todo markers" }
+    await f.fire("tool_call", { type: "tool_call", toolName: "subagent", input })
+    const t = bodies(fetchMock, "/v1/queqiao/turn")
+    expect(t[0]).toMatchObject({ session: "s-pi-1", prompt: "search the repo for todo markers", agent: "subagent", store_hint: false })
+    expect(input.model).toBe("magpie/group/qq-fast")
+  })
+
+  it("tool_call also handles dispatch_agent and the prompt/description fields", async () => {
+    const f = await boot()
+    gw(fetchMock, [{ tier: "balanced", group: "group/qq-balanced" }])
+    const input: Record<string, unknown> = { context: "fresh", description: "fix the flaky test" }
+    await f.fire("tool_call", { type: "tool_call", toolName: "dispatch_agent", input })
+    expect(bodies(fetchMock, "/v1/queqiao/turn")[0].prompt).toBe("fix the flaky test")
+    expect(input.model).toBe("magpie/group/qq-balanced")
+  })
+
+  it("tool_call leaves fork-context spawns, preset models and other tools alone", async () => {
+    const f = await boot()
+    gw(fetchMock, [{ tier: "fast", group: "group/qq-fast" }])
+    const forked: Record<string, unknown> = { context: "fork", task: "keep going in the fork" }
+    await f.fire("tool_call", { type: "tool_call", toolName: "subagent", input: forked })
+    const preset: Record<string, unknown> = { context: "fresh", task: "x", model: "magpie/some-model" }
+    await f.fire("tool_call", { type: "tool_call", toolName: "subagent", input: preset })
+    const other = { command: "ls" }
+    await f.fire("tool_call", { type: "tool_call", toolName: "bash", input: other })
+    expect(bodies(fetchMock, "/v1/queqiao/turn").length).toBe(0)
+    expect(forked).not.toHaveProperty("model")
+    expect(preset.model).toBe("magpie/some-model")
+  })
+
+  it("tool_call with a failing /turn leaves the spawn without a model", async () => {
+    const f = await boot()
+    fetchMock.mockRejectedValue(new Error("down"))
+    const input: Record<string, unknown> = { context: "fresh", task: "hard thing" }
+    await f.fire("tool_call", { type: "tool_call", toolName: "subagent", input })
+    expect(input).not.toHaveProperty("model")
+  })
+})
