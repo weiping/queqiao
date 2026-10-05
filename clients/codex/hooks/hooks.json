@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "queqiao hook user-prompt --harness codex",
+            "timeout": 2,
+            "statusMessage": "queqiao: 选档"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(spawn_agent|Agent)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "queqiao hook pre-agent --harness codex",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "queqiao hook post-bash --harness codex",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}
