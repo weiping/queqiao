@@ -409,7 +409,7 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 
 请求的模型是 `group/queqiao`、但没有匹配到提示时（例如 OpenCode 直接用这个组；Claude Code 的 mod 没有加载、或这一轮 `/turn` 失败而没有改写模型；Codex 的 hook 超时或还没被信任），网关用自己能拿到的输入走同一个 `Choose`：`message` 取 magpie `userText()` 的结果，`Agent` 记为 `gateway`，`PlanMode` 为 false。这样插件只是给路由加上下文，没有插件时路由照样工作。
 
-**（SP3 实测补充）** mod 超时与在途 `/turn` 之间存在同轮竞速：mod 在 1500ms 放弃后请求立刻到达，此刻服务端的 `/turn` 可能尚未提交新 `TurnState`，hook 兜底会读到上一轮状态（实测升档晚一轮落地，`R4` 下一轮补回）。两个缓解：分类器用 jev（单请求，预算内完成）或保证 `classify_timeout_ms` + 双问耗时 < 1500ms；网关不等待在途 `/turn`（避免把延迟加到每个请求）。`router.jsonl` 里同一轮因此可能出现两条 decision（`/turn` 的与 hook 的），SP5 的报表按 session+turn 去重。
+**（SP3 实测补充）** mod 超时与在途 `/turn` 之间存在同轮竞速：mod 在 1500ms 放弃后请求立刻到达，此刻服务端的 `/turn` 可能尚未提交新 `TurnState`，hook 兜底会读到上一轮状态（实测升档晚一轮落地，`R4` 下一轮补回）。两个缓解：分类器用 jev（单请求，预算内完成）或保证 `classify_timeout_ms` + 双问耗时 < 1500ms；网关不等待在途 `/turn`（避免把延迟加到每个请求）。`router.jsonl` 里同一轮因此可能出现两条 decision（`/turn` 的与 hook 的），SP5 的报表按 session+turn 去重。**（验收实测量化，2026-10-05）** jev 单请求时延实测在 **314–1526ms** 之间波动；>1500ms 的轮次两层都超预算（mod 落 `R7-carry`/`R8-default`，网关兜底也超时）→ 该轮档位不切换，下一轮补偿。正常时延（300–900ms）下升档稳定生效（实测 `fast R6-adopt 330ms` → `balanced R3-escalate 331ms`）。验收时若首轮看到 R8-default，重跑一次即可判定。
 
 ### 5.8 fork 子代理与派生会话的档位继承
 
@@ -627,7 +627,7 @@ clients/claude-code/
 | 事件 | 行为 |
 | --- | --- |
 | `session.start` | 读 `options.gateway_url`；第一次调用 `GET /v1/queqiao/router` 确认网关可达，不可达时 `$.ui.status("queqiao: 网关未运行")`，本会话后续事件照常尝试 |
-| `classic.SessionStart` | `source` 为 `fork`（以及 S11 确认的 `/branch` 取值）时把 `derived` 置为 true |
+| `classic.SessionStart` | `source` 为 `fork`（以及 S11 确认的 `/branch` 取值）时把 `derived` 置为 true。**（验收实测修订，2026-10-05）** S3 的「`-p` 模式该事件不触发」只适用于不带 fork/resume 的普通 `-p`：`claude -p -c --fork-session` 下该事件会触发，派生继承随之生效（实测 fork 会话首条 decision 为 `balanced R4-escalation-hold`）；`turn.start` 里的 `cwd` 同理在该形态下可取到 |
 | `turn.start` | 取 `$.session.id()`；`e.text` 为空（续写、无提示的轮次）时不调用 `/turn`，沿用 `mainTier`。否则调用 `/turn`：`{harness:"claude-code", session, prompt: e.text, agent:"main", plan_mode, cwd?, tool_calls, tool_failures, parent_session?, store_hint:false}`（`cwd` 防御式来自 `classic.SessionStart` 的 `e.cwd`，`-p` 模式该事件不触发则不发），与一个 1500 ms 的 `$.clock` 计时竞速。成功后写 `turn` 和 `mainTier`，`$.ui.status("queqiao: <tier> · <reason>")`；失败或超时清空 `turn`。最后 `return next(e)`。`plan_mode` 取 `classic.UserPromptSubmit` 的 `permission_mode === 'plan'`（S1 实测的唯一读法，记入 `$.state` 供 `turn.start` 读取；空文本轮沿用最近记录值）。`derived` 为 true 且还没查过时，按第 5.8 节从 `$.store` 查出 `parent_session` |
 | `turn.step` | `e.model` 是路由组（`group/queqiao`）时改写：主会话的请求用 `turn.group`，`turn` 为空时不改（交给网关模式）；带 `agentId` 的请求按第 5.5 节查或写 `agentTier`。其他模型一律不改。`effort` 不改，推理强度由档位成员的后缀决定。写法为 `yield* next({...e, model})` |
 | `agent.spawn` | 第 5.5 节的五步 |
@@ -664,12 +664,14 @@ clients/pi/
 | `session_start` | 确定会话 ID（第 10 节 S4 验证 Pi 提供的会话标识；拿不到时用 `crypto.randomUUID()` 生成，在扩展内存中保留到会话结束）。`reason` 为 `fork` 时记下父会话 ID（S12）；读不到父会话 ID 时调用 `/lineage` 标记 |
 | `before_provider_headers` | 给每个请求加 `X-Magpie-Session: <会话 ID>`，让网关能统计本会话的工具失败次数和请求间隔 |
 | `before_agent_start` | 调用 `/turn`（`store_hint:false`，`agent:"main"`，`prompt` 取 `event.prompt`，`cwd` 取 `process.cwd()`——SP4 复审补充，项目级 criteria 需要），超时 1500 ms；拿到档位后，若档位变了，`pi.setModel(<magpie/group/qq-*>)`。失败时不改模型 |
-| `model_select` | `source` 表示用户手动切换时，发送 `manual_model_switch`，并在本会话剩余时间里不再自动切换（与 Claude Code 中 `/model` 的效果一致） |
+| `model_select` | `source` 表示用户手动切换时，发送 `manual_model_switch`，并在本会话剩余时间里不再自动切换（与 Claude Code 中 `/model` 的效果一致）。**（验收实测，2026-10-05）** `pi -p --model X` 的启动指定**不算手切**（无手动来源的 `model_select`）——扩展照常选档并 `setModel` 覆盖它；只有会话中的 `/model` 才触发 feedback + 钉档（实测：`/model` → `manual_model_switch group/qq-fast→kimi-code-cn/k3`，其后的轮次零决策） |
 | `tool_result` | 匹配 PR 链接，发送 `pr_created` |
 | `tool_call` | 只在装了 pi-subagents 时生效（工具名为 `subagent`/`dispatch_agent`，S12 确认；参数为 `context` 枚举 fresh/fork/profile，无 `inherit_context`）。参数里已有 `model` 的不改；其余以任务描述调用 `/turn`（`store_hint:false`，带 `cwd`），把 `event.input.model` 改为 `magpie/<档位组返回的 group>`（SP4 复审修正：用响应的 group，不拼 tier 名——`qq-perf` 不等于 `qq-performance`） |
 | `before_agent_start`（补充） | 本会话是派生会话的第一轮时，`/turn` 请求带上 `parent_session` |
 
 运行时依赖只用 Node 内置的 `fetch` 和 `crypto`，`dependencies` 为空。Pi 自带的包放进 `peerDependencies`，版本写 `"*"`。
+
+**（验收实测，2026-10-05）** pi 会**热加载并回写** `models.json`：长期运行的 pi 会话会把内存里的 provider 配置写回磁盘，外部编辑可能被覆盖（本次验收中 3425→3426 的改动被常驻会话写回，恢复又需显式重写并核验）。因此「改网关地址→用完还原」必须以**显式写入 + `grep baseUrl` 核验**为准，不要依赖备份文件。
 
 ### 6.9 Codex 插件 `queqiao-router-codex`（`SP6`）
 
@@ -833,12 +835,12 @@ CI 中所有测试都不访问真实的 TypeSafe 和模型厂商。
 | `SP0-spike` | ✅ | #4 `d67e806` | —（S1–S13 判定见 `docs/superpowers/notes/spike-results.md`） |
 | `SP1-fork` | ✅ | #5 `33843f1` | — |
 | `SP2-router-core` | ✅ | #6 `e8179bb` → 并回 `queqiao` `aef17af` | —（CLI 在隔离环境实测） |
-| `SP3-claude-code` | ✅ | #7 `7fca5a1` | 7 项中 5 项；[human] `/fork` 继承、plan mode |
-| `SP4-pi` | ✅ | #8 `10cec76`；复审修复 #9 `76828b9`；直修 `134e430` | [human] `/model`、`/fork` 完整抽检 |
+| `SP3-claude-code` | ✅ | #7 `7fca5a1` | ✅ 4/4（2026-10-05 验收清单执行：`claude -p` 简单提问→fast；`-c` 不对→`balanced R3-escalate`；`--fork-session`→fork 首条 `balanced R4-escalation-hold`；`--permission-mode plan`→`performance R2-plan-mode`） |
+| `SP4-pi` | ✅ | #8 `10cec76`；复审修复 #9 `76828b9`；直修 `134e430` | ✅ 4/4（同次执行：`pi -p` 提问→`fast R6-adopt`；会话中 `/model`→`manual_model_switch` feedback + 钉档停自动（后续轮零决策）；`pi -p --fork <id>`→fork 首条 `balanced R4-escalation-hold`） |
 | `SP6-codex` | ✅ | #10 `ea72e9d` | ✅ hook 触发 + hint 路由 + fast 档成员服务 |
 | `SP5-eval` | ✅ | #11 `2f3a15c` | 首份真实报表待实验跑满 |
 
-**[human] 遗留项**（可照抄的清单：`~/workspace/notes/areas/queqiao-验收清单.md`）：CC 的 `/fork` 与 plan mode、Pi 的 `/model` 与 `/fork`、以及正式启用后的首份 `queqiao router report`。
+**[human] 遗留项**（可照抄的清单：`docs/queqiao-验收清单.md`，已带执行结果）：仅剩第 3 节「两周实验与首份真实报表」（条件触发：正式启用 queqiao 网关并跑满第一阶段）。CC 与 Pi 的 8 项已于 2026-10-05 全部执行通过，清单里记录了四条被推翻的旧前提（CC/Pi 均可非交互验证；插件 `gateway_url` 与 `ANTHROPIC_BASE_URL` 是两条通道；jev 时延波动；`pi -p --model` 不算手切）。
 
 **环境状态**：真机安装点（Claude Code marketplace、Codex marketplace）已切到 GitHub 源 `weiping/queqiao`；agent 记忆（`memory/`）不再纳入仓库版本控制。
 
