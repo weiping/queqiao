@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/yetone/magpie/internal/edit"
 	"github.com/yetone/magpie/internal/provider"
 	"github.com/yetone/magpie/internal/router"
+	ledgerUsage "github.com/yetone/magpie/internal/usage"
 )
 
 // routerCmd is `queqiao router <init|status|check>` (spec §6.6).
@@ -32,6 +34,8 @@ func routerCmd(args []string) error {
 		return routerStatus(args[1:])
 	case "check":
 		return routerCheck(args[1:])
+	case "report":
+		return routerReport(args[1:])
 	}
 	return fmt.Errorf("queqiao router takes init, status or check, not %q", args[0])
 }
@@ -528,4 +532,92 @@ func groupByID(id string) (provider.Group, bool) {
 		}
 	}
 	return provider.Group{}, false
+}
+
+// routerReport is `queqiao router report [--since 14d] [--json]` (§9):
+// the experiment report over usage.jsonl and router.jsonl.
+func routerReport(args []string) error {
+	return routerReportTo(os.Stdout, args)
+}
+
+// routerReportTo is routerReport with the output stream as a parameter
+// (tests capture it).
+func routerReportTo(w io.Writer, args []string) error {
+	since := 14 * 24 * time.Hour
+	asJSON := false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--since":
+			i++
+			if i >= len(args) {
+				return fmt.Errorf("--since needs a duration like 14d")
+			}
+			d, err := parseSince(args[i])
+			if err != nil {
+				return fmt.Errorf("--since: %v", err)
+			}
+			since = d
+		case "--json":
+			asJSON = true
+		default:
+			return fmt.Errorf("unknown flag %q", args[i])
+		}
+	}
+
+	// router.jsonl: one JSON event per line
+	var events []router.Event
+	if b, err := os.ReadFile(filepath.Join(appdir.Config(), "router.jsonl")); err == nil {
+		for _, line := range strings.Split(string(b), "\n") {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			var ev router.Event
+			if json.Unmarshal([]byte(line), &ev) == nil {
+				events = append(events, ev)
+			}
+		}
+	}
+
+	// usage.jsonl via the ledger's block reader, only rows in the window
+	now := time.Now()
+	var records []ledgerUsage.Record
+	ledgerUsage.Visit(now.Add(-since), func(r ledgerUsage.Record) {
+		if r.Session != "" {
+			records = append(records, r)
+		}
+	})
+
+	states := router.ParallelPRStates(events, router.GhPRState, 4)
+	rep := router.Aggregate(router.ReportInput{
+		Records: records, Events: events, Now: now, Since: since,
+		PriceOf: func(provider, model string) *catalog.Price {
+			if p, ok := catalog.PriceOf(provider, model); ok {
+				return &p
+			}
+			return nil
+		},
+		PRStates: states,
+	})
+	if asJSON {
+		router.RenderJSON(w, rep)
+	} else {
+		router.Render(w, rep)
+	}
+	return nil
+}
+
+// parseSince reads "14d", "36h" or a plain time.ParseDuration.
+func parseSince(s string) (time.Duration, error) {
+	if strings.HasSuffix(s, "d") {
+		n, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
+		if err != nil || n <= 0 {
+			return 0, fmt.Errorf("%q is not a number of days", s)
+		}
+		return time.Duration(n) * 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("%q is not a duration", s)
+	}
+	return d, nil
 }

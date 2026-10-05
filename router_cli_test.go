@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/provider"
@@ -186,5 +188,72 @@ func TestRouterStatusInvalidConfig(t *testing.T) {
 	}
 	if err := routerStatus(nil); err != nil {
 		t.Fatal(err) // status reports invalid, it does not fail the command
+	}
+}
+
+// ---- SP5: router report ----
+
+// synthReportFiles writes synthetic router.jsonl and usage.jsonl under a
+// temp config home and points the process there.
+func synthReportFiles(t *testing.T, events []string, usageRows []string) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	cfg := appdir.Config() // the test process' app name, not main's
+	if err := os.MkdirAll(cfg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg+"/router.jsonl", []byte(strings.Join(events, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg+"/usage.jsonl", []byte(strings.Join(usageRows, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRouterReportOverSyntheticFiles(t *testing.T) {
+	now := time.Now().UTC()
+	at := func(d time.Duration) string { return now.Add(-d).Format(time.RFC3339) }
+	synthReportFiles(t,
+		[]string{
+			`{"kind":"decide","t":"` + at(3*time.Hour) + `","session":"r1","harness":"codex","tier":"fast","reason":"R5","arm":"router"}`,
+			`{"kind":"shadow","t":"` + at(3*time.Hour) + `","session":"c1","harness":"codex","tier":"performance","reason":"R5","arm":"control","shadow_tier":"balanced"}`,
+			`{"kind":"hint_consumed","t":"` + at(2*time.Hour) + `","session":"r1"}`,
+			`{"kind":"feedback","t":"` + at(time.Hour) + `","session":"r1","extra":"pr_created https://github.com/a/b/pull/1"}`,
+			`{"kind":"feedback","t":"` + at(30*time.Minute) + `","session":"c1","extra":"manual_model_switch other/m1"}`,
+		},
+		[]string{
+			`{"t":"` + at(2*time.Hour) + `","agent":"codex","provider":"a","model":"fastm","session":"r1","status":200,"in":1000,"out":1000}`,
+			`{"t":"` + at(2*time.Hour) + `","agent":"codex","provider":"b","model":"balm","session":"c1","status":200,"in":2000,"out":1000}`,
+		})
+
+	var buf bytes.Buffer
+	if err := routerReportTo(&buf, []string{"--json", "--since", "7d"}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, want := range []string{`"sessions": 1`, `"merged_z"`, `"router"`, `"control"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("report missing %q:\n%s", want, out)
+		}
+	}
+
+	// the text form shows the two arms side by side
+	buf.Reset()
+	if err := routerReportTo(&buf, []string{"--since", "7d"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "queqiao router report") ||
+		!strings.Contains(buf.String(), "样本不足") {
+		t.Fatalf("text report:\n%s", buf.String())
+	}
+}
+
+func TestRouterReportRejectsBadFlags(t *testing.T) {
+	if err := routerReport([]string{"--since", "week"}); err == nil {
+		t.Fatal("bad duration accepted")
+	}
+	if err := routerReport([]string{"--nope"}); err == nil {
+		t.Fatal("unknown flag accepted")
 	}
 }
