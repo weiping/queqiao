@@ -62,19 +62,33 @@ export class QueqiaoClient {
   }
 
   private async post(path: string, body: unknown, timeoutMs?: number): Promise<unknown> {
+    // the budget is raced on our side (not just AbortSignal.timeout, whose
+    // clock a test rig cannot drive) so a hung gateway still returns null
+    let abort: (() => void) | undefined
+    const expired = timeoutMs !== undefined ? new Promise<never>((_, reject) => {
+      const t = setTimeout(() => reject(new Error("queqiao: budget spent")), timeoutMs)
+      abort = () => clearTimeout(t)
+    }) : undefined
     try {
-      const res = await fetch(this.base + path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: timeoutMs !== undefined ? AbortSignal.timeout(timeoutMs) : undefined,
-      })
+      const res = await (expired === undefined
+        ? fetch(this.base + path, this.init(body))
+        : Promise.race([fetch(this.base + path, this.init(body)), expired]))
       if (!res.ok) return null
       if (res.status === 204) return {}
       const text = await res.text()
       return text === "" ? {} : (JSON.parse(text) as unknown)
     } catch {
       return null
+    } finally {
+      abort?.()
+    }
+  }
+
+  private init(body: unknown): RequestInit {
+    return {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     }
   }
 }
