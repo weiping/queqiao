@@ -26,8 +26,8 @@ var presets = map[string]Preset{
 		TierPerformance: {"anthropic/claude-opus-5-5:high", "openrouter/anthropic/claude-opus-5.5:high"},
 	}},
 	"cn": {ID: "cn", Tiers: map[Tier][2]string{
-		TierFast:        {"deepseek/deepseek-v4-flash", "glm/glm-5.3-flash:high"},
-		TierBalanced:    {"moonshot/kimi-k2.5", "glm/glm-5.3:high"},
+		TierFast:     {"deepseek/deepseek-v4-flash", "glm/glm-5.3-flash:high"},
+		TierBalanced: {"moonshot/kimi-k2.5", "glm/glm-5.3:high"},
 		// §4.3: cn's performance tier is frontier's for now; init prompts
 		// the user to pick a domestic model for it later.
 		TierPerformance: {"<p>/gpt-6-astra:low", "<p>/claude-opus-5-5:high"},
