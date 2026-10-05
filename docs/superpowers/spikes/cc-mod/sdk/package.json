@@ -1,0 +1,8 @@
+{
+  "name": "queqiao-spike-sdk-probe",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "*"
+  }
+}

@@ -34,16 +34,21 @@ import (
 	"github.com/yetone/magpie/internal/source"
 )
 
-// Site is magpie's home; its /api/latest is the update feed.
-const Site = "https://usemagpie.ai"
+// Site is queqiao's home; releases live on its GitHub releases page.
+const Site = "https://github.com/weiping/queqiao/releases"
+
+// ErrNoFeed is what Latest reports when queqiao has no update feed of its
+// own: the fork never auto-updates itself.
+var ErrNoFeed = errors.New("queqiao 不自动更新，请从 https://github.com/weiping/queqiao/releases 下载")
 
 // Feed is where the newest release is described. MAGPIE_UPDATE_FEED points
-// it elsewhere, for testing an update against a local server.
+// it elsewhere, for testing an update against a local server; without it
+// queqiao has no feed at all, and Latest returns ErrNoFeed.
 func Feed() string {
 	if f := os.Getenv("MAGPIE_UPDATE_FEED"); f != "" {
 		return f
 	}
-	return Site + "/api/latest"
+	return ""
 }
 
 // Release is one published version.
@@ -79,6 +84,9 @@ func Latest(ctx context.Context) (*Release, error) { return LatestIn(ctx, "") }
 // LatestIn asks the feed for the newest release, its notes in lang (see
 // InLang): the app's language, which What's new follows.
 func LatestIn(ctx context.Context, lang string) (*Release, error) {
+	if Feed() == "" {
+		return nil, ErrNoFeed
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET", withLang(Feed(), lang), nil)
 	if err != nil {
 		return nil, err

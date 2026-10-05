@@ -430,6 +430,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 // Handler routes the client APIs.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	for _, f := range MuxRegister {
+		f(mux)
+	}
 	mux.HandleFunc("GET /{$}", s.info)
 	// an OpenAI-compatible base URL answers too: Empryo lists a provider with
 	// no key of its own only when its baseURL does
@@ -1065,6 +1068,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 	var ruled []provider.Member
 	var ruleAt, words string
 	var ruleReq *Request // parsed for the rules of the group or a group in it
+	routerTier, routerArm := "", ""
 	// a classifier's own call to a group (a group's classifier may be one)
 	// asks no classifier in turn: one that is, however far round, the group
 	// asking would ask itself for ever
@@ -1072,9 +1076,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 	if r.Header.Get("User-Agent") == RouterAgent {
 		ask = nil
 	}
-	if isGroup && slices.ContainsFunc(ms, func(m provider.Member) bool {
+	routerWants := isGroup && routerHook != nil && routerManages != nil && routerManages(g)
+	if isGroup && (slices.ContainsFunc(ms, func(m provider.Member) bool {
 		return g.Ruled() || slices.ContainsFunc(m.Via, provider.Group.Ruled)
-	}) {
+	}) || routerWants) {
 		if req, err := parse(from, body); err == nil {
 			ruleReq, ruleAt, words = req, ruleKey(g, r.Header, req), firstWords(req)
 		}
@@ -1082,6 +1087,16 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 	if ruleReq != nil && g.Ruled() {
 		hit = ruleFor(ruleAt, g, ms, ruleReq, agent, ask)
 		ruled = ruleMembers(hit, ms)
+	} else if ruleReq != nil && routerWants {
+		// the queqiao router's groups carry no rules, so ruleFor never ran
+		// for them; its callback sees the request and either reorders (the
+		// router group) or just observes (the tier groups)
+		if h := routerHook(r.Header, body, ruleReq, g, ms, agent); h != nil {
+			hit, ruled = h, ruleMembers(h, ms)
+			if hit.Router != nil {
+				routerTier, routerArm = hit.Router.Tier, hit.Router.Arm
+			}
+		}
 	}
 	// Some clients send images even when the selected model is known to
 	// accept text only. Reject a new image and omit images from history.
@@ -1502,7 +1517,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 			if call.To != "" {
 				rec := usage.Record{RouteID: tr.ID, Time: began, Agent: call.Agent, Via: call.Via, Provider: call.Provider, Host: where, Model: c.model,
 					ProviderKeyID: providerKeyID, ProviderKeyName: providerKeyName, ProviderAccount: providerAccount,
-					Requested: call.Model, Served: call.Usage.Served,
+					Requested: call.Model, Served: call.Usage.Served, RouterTier: routerTier, RouterArm: routerArm,
 					Input: call.Usage.Input, Output: call.Usage.Output, CacheRead: call.Usage.CacheRead,
 					CacheWrite: call.Usage.CacheWrite, Reasoning: call.Usage.Reasoning, Effort: sent, Millis: time.Since(began).Milliseconds(), Status: call.Status,
 					TTFT: try.TTFT, FirstText: try.FirstText, Session: sessionOf(r.Header), NativeSession: nativeSessionOf(r.Header), Kind: call.Kind,
@@ -1685,7 +1700,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, from provider.Pro
 	if call.To != "" {
 		rec := usage.Record{RouteID: tr.ID, Time: start, Agent: call.Agent, Via: call.Via, Provider: call.Provider, Host: where, Model: model,
 			ProviderKeyID: providerKeyID, ProviderKeyName: providerKeyName, ProviderAccount: providerAccount,
-			Requested: call.Model, Served: call.Usage.Served,
+			Requested: call.Model, Served: call.Usage.Served, RouterTier: routerTier, RouterArm: routerArm,
 			Input: call.Usage.Input, Output: call.Usage.Output, CacheRead: call.Usage.CacheRead,
 			CacheWrite: call.Usage.CacheWrite, Reasoning: call.Usage.Reasoning, Effort: sent, Millis: call.Millis, Status: call.Status,
 			TTFT: call.TTFT, FirstText: call.FirstText, Session: sessionOf(r.Header), NativeSession: nativeSessionOf(r.Header), Kind: call.Kind,

@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/agent"
 	"github.com/yetone/magpie/internal/catalog"
 	"github.com/yetone/magpie/internal/claudebridge"
@@ -110,6 +111,7 @@ var (
 )
 
 func main() {
+	appdir.SetName("queqiao")
 	if provider.TookOpenedURL(os.Args[1:]) {
 		// Claude Code, signing in for magpie, handed over the page to open
 		return
@@ -259,6 +261,8 @@ func run(args []string) error {
 		return quotaCmd(args)
 	case "update":
 		return updateCmd(args)
+	case "router":
+		return routerCmd(args[1:])
 	case "library", "lib":
 		return libraryCmd(args)
 	case "backup":

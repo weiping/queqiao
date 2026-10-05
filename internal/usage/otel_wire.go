@@ -91,6 +91,9 @@ func (e *otelExporter) traces(records []Record) any {
 		if r.Effort != "" {
 			a = append(a, otelString("magpie.reasoning_effort", r.Effort))
 		}
+		if r.RouterTier != "" {
+			a = append(a, otelString("magpie.router_tier", r.RouterTier), otelString("magpie.router_arm", r.RouterArm))
+		}
 		if r.BodyIn != "" {
 			a = append(a, otelString("langfuse.observation.input", r.BodyIn))
 		}
