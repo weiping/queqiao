@@ -5,6 +5,8 @@
 > 前置：SP3/SP4/SP6 全部完成 ✓（feedback 事件三端都在发；SP2 已实现 `/turn` 的实验分组、`hint_consumed`/`shadow` 事件、usage 的 `router_tier`/`router_arm` 字段）。
 >
 > 产物：`internal/router/report.go`（纯聚合函数）+ `queqiao router report` + 测试。不改上游文件。
+>
+> **复审记录（2026-10-05）**：F1——SP2 实现里 control 组的事件 Kind 是 `shadow`（Tier=control_tier、ShadowTier=路由器本选），分组必须取「decide+shadow 中最后带 arm 的事件」，否则整个 control 组消失；control 组的档位分布用 ShadowTier 并排显示。F2——提示命中率分母只含**经路由组的请求**（CC mod 直改档位组的请求天然不在内），口径写明。F3——无价目请求排除出成本、计数披露（防中位数被 0 拉低）。F4——p90 用最近邻秩定义（合成测试可精确断言）。F5——PR 终态回退链：gh > feedback 的 pr_merged/pr_closed > 「未知」。F6——报表窗口跨实验开关边界时按事件 arm 如实分组并脚注。F7——usage 读取优先复用 internal/usage 的 Period 块读（已导出则用），ReportInput 仍是纯数据。
 
 ## 数据源（全部已存在，SP5 只读）
 
@@ -18,11 +20,11 @@
 ## 口径决定（写入代码注释与 spec §9 备注）
 
 1. **会话成本** = 该 session 全部 200 请求的 price.Cost 之和；无 session 的行（probe 等）不计。
-2. **分组（arm）**：以 `decide` 事件里该会话最后一次带 `arm` 的记录为准（router/control）；usage 的 `router_arm` 作交叉校验，不一致时以事件为准并在报表下注明行数。
+2. **分组（arm）**：以 `decide` **和 `shadow`** 事件里该会话最后一次带 `arm` 的记录为准（router/control；control 组的会话只以 shadow 出现，Tier=control_tier、ShadowTier=路由器本选）；usage 的 `router_arm` 作交叉校验，不一致时以事件为准并在报表下注明行数。**档位分布按轮**（该组全部 decide+shadow 事件的 tier 占比）；control 组并列显示 ShadowTier 分布（路由器本会选的档）。
 3. **手动换模型率**：会话内 ≥1 条 `manual_model_switch` 即计（SP6 的「每轮都发」在此按会话去重——正是当初的设计）。
-4. **提示命中率** = `hint_consumed / (hint_consumed + harness="gateway" 的 decide)`——被路由请求中靠提示完成的比例；分母为 0 时显示「—」。
-5. **缓存写入费用占比** = Σ cache_write 费率费用 / Σ 总费用（按每请求实际价目）。
-6. **bootstrap**：中位数 95% CI，1000 次重采样，**固定随机种子**（测试可复现）。
+4. **提示命中率** = `hint_consumed / (hint_consumed + harness="gateway" 的 decide)`——**经路由组请求**中靠提示完成的比例；CC mod 直改档位组的请求不经路由组，天然不计；分母为 0 时显示「—」。
+5. **缓存写入费用占比** = Σ cache_write 费率费用 / Σ 总费用（按每请求实际价目）。**无价目请求**（catalog 无价）：排除出各项成本、计数披露。
+6. **bootstrap**：中位数 95% CI，1000 次重采样，**固定随机种子**（测试可复现）；**p90 用最近邻秩**（小样本可精确断言）。
 7. **双比例 z 检验**：合并率（merged/PR 会话）与「开出 PR 会话占比」的组间比较，正态近似；样本 <100/组时按 §9 标注「样本不足」，成本与手动换模型率仍作结论依据。
 8. `--since`（默认 14d）按两个文件的 `t` 过滤；PR 终态查询单独记缓存（report 运行期，`gh` 一次一查）。
 
@@ -41,7 +43,7 @@ worktree `.worktrees/qq-sp5-report`，分支 `qq/sp5-report`，基于 `queqiao`�
 
 ## Task 2：PR 终态补查 + 文本渲染
 
-- `prstates.go`：`gh pr view <url> --json state`（`exec`，10s 超时，缺失/失败 → "未知"）；同 URL 去重缓存。测试：PATH 里放假 `gh` 脚本（输出 OPEN/MERGED）与「无 gh」两种。
+- `prstates.go`：终态回退链 `gh pr view <url> --json state`（`exec`，10s 超时）> feedback 事件里的 `pr_merged`/`pr_closed` > 「未知」；同 URL 去重缓存。测试：PATH 里放假 `gh` 脚本（输出 OPEN/MERGED）、无 `gh` 但有 feedback 事件、两者皆无，三种。
 - `render.go`：§9 的每指标一行 × 两组并排 + 样本不足标注 + 口径脚注；`--json` 输出同结构。
 提交 `feat(router): pr-state lookup and report rendering`。
 
