@@ -775,6 +775,15 @@ CI 中所有测试都不访问真实的 TypeSafe 和模型厂商。
 - PR 的最终状态由 `report` 调用 `gh pr view <url> --json state` 补查。没有安装 `gh` 时，这一列显示“未知”，其余指标照常输出。
 - **样本量提醒**：个人使用很难攒够让合并率差异显著的样本量。报表在样本少于每组 100 个时，在合并率旁标注“样本不足”，只把成本和手动换模型率作为结论依据。
 
+**（SP5 实施口径，与 `internal/router/report.go` 一致）**
+
+- **分组**：会话的 arm 取它最后一条带 `arm` 的 `decide` **或 `shadow`** 事件——control 组的会话只以 `shadow` 出现（`tier`=control_tier，`shadow_tier`=路由器本会选的档）；control 组的档位分布并列显示 `shadow_tier` 分布。
+- **成本**：会话内全部 2xx 请求的 `price.Cost` 之和；无 session 的行与无价目的行不计（后者计数披露）。缓存写入费用占比按每请求实际单价单算。
+- **手动换模型率**：会话内 ≥1 条 `manual_model_switch` 即计一次（会话去重——hook 无状态、每轮都发）。
+- **提示命中率** = `hint_consumed / (hint_consumed + harness="gateway" 的 decide)`：只含**经路由组**的请求；mod/扩展直改档位组的请求不经路由组，不计入。
+- **PR 终态**：`gh pr view <url> --json state` > 会话自身的 `pr_merged` feedback > 「未知」。
+- **统计**：p90 用最近邻秩；中位数 bootstrap 95% 置信区间（1000 次重采样，固定种子）；合并率用双比例 z 检验（正态近似）。
+
 ---
 
 ## 10. 先行验证（`SP0`，在其他子项目开工前完成）
