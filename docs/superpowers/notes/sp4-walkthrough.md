@@ -25,3 +25,10 @@ deepseek/deepseek-flash）；QUEQIAO_URL 指向 3426。
 3. 走查期间为绕限额把 fast 档成员从 zhipu/glm-5.3-flash 换成
    minimax-cn/MiniMax-M2.7-highspeed（隔离 XDG 内的临时配置，用户
    真实配置未动）。
+
+## 补记（2026-10-05 下午，[human] 抽检完成）
+
+- **检查 1（/model 手切）✅**：feedback 事件在案（`manual_model_switch group/qq-fast→deepseek-flash`），钉档后停自动生效
+- **检查 2（升档）✅（换 jev 后）**：deepseek-flash 双问 3.7s 超 1500ms 预算导致模型不切换（§5.7 竞速的 Pi 版）；换 `typesafe/jev-latest`（用户 magpie 配置自带 provider）后单请求 312ms，R3 升档即时可见
+- **检查 2（/fork 继承）——抓到并修复真 bug**（commit 134e430）：pi 1.0.2 会话文件名带时间戳前缀（`…T08-41-23-729Z_<uuid>.jsonl`），扩展把整个 basename 当父会话 ID → 网关查无此会话 → 继承静默失效（旧格式实测复现 `fast R6-adopt`；正确 UUID 实测 `balanced R4-escalation-hold`，EscalatedLeft 原样继承 ✓）。修复：UUID 正则提取 + 双格式单测
+- **更正**：「pi 退出回写 models.json」不成立——SP4 时的还原是人工 cp 备份恢复所致；models.json 可直接编辑持久
