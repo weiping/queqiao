@@ -1,0 +1,23 @@
+{
+  "name": "@weiping/pi-queqiao",
+  "version": "0.1.0",
+  "description": "Route every Pi turn across queqiao's fast/balanced/performance tiers via the queqiao gateway.",
+  "keywords": ["pi-package"],
+  "pi": { "extensions": ["./extensions"] },
+  "type": "module",
+  "main": "./extensions/queqiao.js",
+  "types": "./extensions/queqiao.d.ts",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc --noEmit"
+  },
+  "author": { "name": "weiping" },
+  "license": "MIT"
+}
