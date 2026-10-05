@@ -1,0 +1,32 @@
+[
+  {
+    "id": "queqiao-spec",
+    "load": "docs/superpowers/specs/2026-10-02-queqiao-design.md",
+    "when_jev": "The request is about queqiao's own design: routing tiers (fast/balanced/performance), the pre-turn classifier, post-hoc escalation, sub-agent tier inheritance, or the A/B acceptance reporting."
+  },
+  {
+    "id": "queqiao-spec-code",
+    "load": "docs/superpowers/specs/2026-10-02-queqiao-design.md",
+    "when_files": ["internal/router/**", "internal/harness/**", "clients/**", "docs/superpowers/**"]
+  },
+  {
+    "id": "queqiao-sp0-plan",
+    "load": "docs/superpowers/plans/2026-10-03-queqiao-sp0-spike.md",
+    "when_jev": "The request concerns the SP0 spike: the recording proxy, the three agent probes (Claude Code mod, Codex hook, Pi extension), or the S1-S13 spike decisions."
+  },
+  {
+    "id": "queqiao-sp1-plan",
+    "load": "docs/superpowers/plans/2026-10-03-queqiao-sp1-fork.md",
+    "when_files": ["main.go", "internal/appdir/**", "internal/update/**", "internal/stats/**"]
+  },
+  {
+    "id": "readme-magpie",
+    "load": "README.md",
+    "when_jev": "The request asks how the magpie gateway works: providers, routing groups, plugins, model naming or pricing, install, OTLP export, or file locations."
+  },
+  {
+    "id": "makefile-build",
+    "load": "Makefile",
+    "when_jev": "The request is about building, cross-compiling, releasing, or the GUI dev loop (cgo webview, gtk3/nogui build tags, dev ports 3426-3429)."
+  }
+]

@@ -1,0 +1,46 @@
+{
+  "make-cli": {
+    "what": "Build the terminal-only binary (CGO off, cross-compiles anywhere)",
+    "how": "make cli"
+  },
+  "make-build": {
+    "what": "Build the GUI binary natively (cgo webview; Linux adds the gtk3 tag)",
+    "how": "make build"
+  },
+  "make-test": {
+    "what": "Vet and test with the platform's GUI tags",
+    "how": "make test"
+  },
+  "go-test-nogui": {
+    "what": "Full test suite without the GUI, the way local runs avoid needing GTK/webview headers",
+    "how": "go test -tags nogui -count=1 ./..."
+  },
+  "race-tests": {
+    "what": "The race-detector suites CI runs (gateway, redact, provider usage)",
+    "how": "go test -race -timeout 20m ./internal/gateway/ ./internal/redact/ && go test -race ./internal/provider/ -run '^Test(LoginUsage|SubscriptionUsageEachAccount)'"
+  },
+  "make-dev": {
+    "what": "Run the app in dev mode: UI hot-reloads, Go changes rebuild the backend behind live windows (ports 3426-3429)",
+    "how": "make dev"
+  },
+  "make-app": {
+    "what": "Bundle the macOS menu-bar app (magpie.app) — DESTRUCTIVE: deletes and rebuilds the bundle",
+    "how": "make app"
+  },
+  "make-release": {
+    "what": "Cross-compile all release artifacts into dist/",
+    "how": "make release"
+  },
+  "gh-pr": {
+    "what": "Open a PR from a qq/sp<N> feature branch into queqiao — outward-facing",
+    "how": "gh pr create --base queqiao"
+  },
+  "wrangler-site": {
+    "what": "Deploy the usemagpie.ai site from site/ — outward-facing production deploy of the upstream domain; do not run in this fork",
+    "how": "cd site && npx wrangler deploy"
+  },
+  "none": {
+    "what": "None of the project tools is relevant to this request.",
+    "how": ""
+  }
+}

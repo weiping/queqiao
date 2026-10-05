@@ -98,3 +98,20 @@ describe("QueqiaoClient", () => {
     expect(lastCall(fetchMock).url).toBe("http://gw/v1/queqiao/lineage")
   })
 })
+
+describe("parentIdFromHeader", () => {
+  it("extracts the session id from timestamp-prefixed pi 1.0.2 filenames", async () => {
+    const { parentIdFromHeader } = await import("../src/session.js")
+    expect(
+      parentIdFromHeader({
+        parentSession:
+          "/Users/u/.pi/agent/sessions/-w-/2026-10-05T08-41-23-729Z_01a10b39-8e11-7476-bcb8-94b98e283b93.jsonl",
+      }),
+    ).toBe("01a10b39-8e11-7476-bcb8-94b98e283b93")
+  })
+
+  it("still handles plain <id>.jsonl names (pi 1.0.0, S12's shape)", async () => {
+    const { parentIdFromHeader } = await import("../src/session.js")
+    expect(parentIdFromHeader({ parentSession: "/sessions/abc-123.jsonl" })).toBe("abc-123")
+  })
+})

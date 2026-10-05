@@ -1,0 +1,46 @@
+{
+  "test": {
+    "what": "Full check: go vet plus all tests, native build with GUI tags.",
+    "how": "make test"
+  },
+  "test-nogui": {
+    "what": "All tests without the GUI (no cgo, runs on any platform); the queqiao README's test command.",
+    "how": "go test -tags nogui ./..."
+  },
+  "build-cli": {
+    "what": "Build the terminal-only binary ./magpie (CGO_ENABLED=0, cross-compiles anywhere).",
+    "how": "make cli"
+  },
+  "build-gui": {
+    "what": "Build the native GUI binary (cgo webview; macOS 12+ min, GTK3 tags on Linux).",
+    "how": "make build"
+  },
+  "dev": {
+    "what": "Dev loop on ports 3426-3429: windows stay up, backend rebuilds on Go change (fswatch); falls back to dev-once.",
+    "how": "make dev"
+  },
+  "icons": {
+    "what": "Regenerate tray/app icons into build/darwin.",
+    "how": "make icons (destructive: overwrites build/darwin icon assets; macOS tools required)"
+  },
+  "ui-preview": {
+    "what": "Record a local UI preview of a PR diff (DeepSeek drives the browser; never leak the key).",
+    "how": "cd .github/ui-preview && npm install && npx playwright install chromium && DEEPSEEK_API_KEY=… DIFF_FILE=pr.diff PR_TITLE=… ./run.sh ../.. /tmp/out"
+  },
+  "site-deploy": {
+    "what": "Deploy the usemagpie.ai site and worker from site/.",
+    "how": "cd site && npx wrangler deploy (destructive: publishes production usemagpie.ai)"
+  },
+  "clean": {
+    "what": "Remove build outputs: magpie, magpie.app, dist/, windows syso files.",
+    "how": "make clean (destructive)"
+  },
+  "release": {
+    "what": "Cross-build all dist/ artifacts for the current OS plus the CLI targets.",
+    "how": "make release (destructive: runs make clean first)"
+  },
+  "none": {
+    "what": "None of the project tools is relevant to this request.",
+    "how": ""
+  }
+}

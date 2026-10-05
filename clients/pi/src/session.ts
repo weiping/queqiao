@@ -19,7 +19,10 @@ export function parentIdFromHeader(header: Record<string, unknown> | null | unde
   const v = header?.parentSession
   if (typeof v !== "string" || v === "") return null
   const base = v.split("/").pop() ?? ""
-  const id = base.endsWith(".jsonl") ? base.slice(0, -".jsonl".length) : base
+  // pi 1.0.2 names session files "<timestamp>_<uuid>.jsonl"; older builds
+  // used "<uuid>.jsonl". The session id is the trailing UUID either way.
+  const ids = [...base.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)]
+  const id = ids.length > 0 ? ids[ids.length - 1][0] : base.endsWith(".jsonl") ? base.slice(0, -".jsonl".length) : base
   return id === "" ? null : id
 }
 

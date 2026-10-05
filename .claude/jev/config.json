@@ -1,0 +1,13 @@
+{
+  "mode": "shadow",
+  "permission": {
+    "extra_deny_patterns": [
+      "^\\.github/workflows/",
+      "^site/wrangler\\.jsonc$",
+      "^\\.wrangler/",
+      "^\\.env$",
+      "^\\.env\\.local$",
+      "\\.pem$"
+    ]
+  }
+}

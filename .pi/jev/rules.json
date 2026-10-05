@@ -1,0 +1,43 @@
+[
+  {
+    "id": "agents-plugin-migration",
+    "load": "AGENTS.md",
+    "when_files": [
+      "internal/provider/**/*",
+      "internal/gateway/**/*",
+      "internal/plugin/**/*",
+      "internal/zed/**/*",
+      "internal/qoder/**/*",
+      "internal/gui/assets/app.js"
+    ]
+  },
+  {
+    "id": "readme",
+    "load": "README.md",
+    "when_jev": "The request is about building, running or operating magpie/queqiao: CLI subcommands, gateway and provider configuration, or the upstream architecture."
+  },
+  {
+    "id": "queqiao-design",
+    "load": "docs/superpowers/specs/2026-10-02-queqiao-design.md",
+    "when_jev": "The request involves queqiao's routing work: picking fast/balanced/performance tiers, the router policy, routing groups in the gateway, the internal/router, internal/harness or clients layout, or any SP subproject (SP0-SP6)."
+  },
+  {
+    "id": "sp0-spike-plan",
+    "load": "docs/superpowers/plans/2026-10-03-queqiao-sp0-spike.md",
+    "when_jev": "The request is about the SP0 spike that validates routing assumptions before the other subprojects start."
+  },
+  {
+    "id": "sp1-fork-plan",
+    "load": "docs/superpowers/plans/2026-10-03-queqiao-sp1-fork.md",
+    "when_jev": "The request touches the fork groundwork: renaming the app dir and binary to queqiao, turning off auto-update and usage stats, or keeping the queqiao/main branch split merge-friendly."
+  },
+  {
+    "id": "ui-preview",
+    "load": ".github/ui-preview/README.md",
+    "when_files": [
+      "internal/gui/assets/**/*",
+      ".github/ui-preview/**/*",
+      ".github/workflows/ui-preview.yml"
+    ]
+  }
+]
