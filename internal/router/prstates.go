@@ -3,9 +3,10 @@ package router
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/yetone/magpie/internal/proc"
 	"time"
 )
 
@@ -44,7 +45,7 @@ func PRStates(events []Event, gh func(ctx context.Context, url string) (string, 
 
 // GhPRState shells out to gh; "" error means gh is absent.
 var GhPRState = func(ctx context.Context, url string) (string, error) {
-	cmd := exec.CommandContext(ctx, "gh", "pr", "view", url, "--json", "state")
+	cmd := proc.CommandContext(ctx, "gh", "pr", "view", url, "--json", "state")
 	out, err := cmd.Output()
 	if err != nil {
 		// gh missing (exec.Error) vs a failed query: both unknown here
