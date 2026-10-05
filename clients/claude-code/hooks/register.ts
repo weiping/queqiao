@@ -103,6 +103,42 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  on('tool.call', async ($, e, next) => {
+    const r = await next(e)
+    if (e.agentId === undefined) {
+      // the engine hands a failed call's flags over at the top level in a
+      // session; the test kit hands the wrapped { result: … } verbatim —
+      // read both (probed 2026-10-05)
+      const inner = (r as { isError?: boolean; text?: string; result?: { isError?: boolean; text?: string } }) ?? {}
+      const view = inner.result ?? inner
+      const failed = inner.isError === true || view.isError === true
+      const text = typeof view.text === 'string' ? view.text : ''
+      const stats = await read($, stToolStats)
+      await update($, stToolStats, (s) => ({
+        calls: s.calls + 1,
+        failures: s.failures + (failed ? 1 : 0),
+      }))
+      if (e.tool === 'Bash') {
+        const m = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.exec(text)
+        if (m !== null) {
+          await post($, gateway, '/v1/queqiao/feedback', { session: await sessionOf($), kind: 'pr_created', value: m[0] })
+        }
+      }
+    }
+    return r
+  })
+
+  on('classic.PostModelSwitch', async ($, e, next) => {
+    if (e.source === 'command' || e.source === 'picker') {
+      await post($, gateway, '/v1/queqiao/feedback', {
+        session: await sessionOf($),
+        kind: 'manual_model_switch',
+        value: `${e.from_model}→${e.to_model}`,
+      })
+    }
+    return next(e)
+  })
+
   on('agent.spawn', async ($, e, next) => {
     // 1. fork: dead branch on CC 2.1.288+ — no fork subagent type exists
     //    (S3); kept for the day one does. Forks inherit the parent model.
@@ -142,6 +178,28 @@ export const register: Register = (on, options) => {
     if (turn === null) return yield* next(e) // gateway fallback mode
     return yield* next({ ...e, model: turn.group })
   })
+}
+
+/** The session id, or "" when even that fails. */
+async function sessionOf($: any): Promise<string> {
+  try {
+    return await $.session.id()
+  } catch {
+    return ''
+  }
+}
+
+/** fire-and-forget POST to the gateway; swallows every error. */
+async function post($: any, gateway: string, path: string, body: unknown): Promise<void> {
+  try {
+    await $.http.fetch(gateway + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    // feedback is best-effort
+  }
 }
 
 /** The /turn call raced against TURN_BUDGET_MS; null on failure/timeout. */

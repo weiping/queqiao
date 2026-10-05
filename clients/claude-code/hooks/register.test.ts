@@ -289,3 +289,85 @@ test('agentId steps pass through when no turn has ever succeeded', async ($, on)
 
   expect(seen).toEqual(['group/queqiao'])
 })
+
+// ---- Task 4: feedback ----
+
+// tool.call answers the engine gives back, one per call (default: ok)
+function feedbackBasics(on: any, toolAnswers: Array<{ text: string; isError?: boolean }> = []) {
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  const { status } = stubBasics(on)
+  mock.clock(on)
+  let n = 0
+  on('tool.call', () => {
+    const a = toolAnswers.length > 0 ? toolAnswers[Math.min(n, toolAnswers.length - 1)] : { text: 'ok' }
+    n++
+    return { result: { text: a.text, isError: a.isError === true } }
+  })
+  on('classic.PostModelSwitch', () => ({}))
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string }) {
+    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+  return { calls, status }
+}
+
+test('tool.call counts main-session calls and failures, not subagent ones', async ($, on) => {
+  const { calls, status } = feedbackBasics(on, [
+    { text: 'ok' },
+    { text: 'ls: /nope: No such file or directory', isError: true },
+    { text: 'file contents' },
+  ])
+
+  await $.tool.call({ tool: 'Bash', command: 'ls', agentId: undefined })
+  await $.tool.call({ tool: 'Bash', command: 'ls /nope', agentId: undefined })
+  await $.tool.call({ tool: 'Read', file_path: 'x', agentId: 'a1' }) // subagent: not counted
+
+  await $.turn.start({ turnId: 't2', text: 'next turn carries the stats' })
+  const body = JSON.parse(calls[calls.length - 1].body ?? '{}')
+  expect(body.tool_calls).toBe(2)
+  expect(body.tool_failures).toBe(1)
+})
+
+test('tool.call stats reset after being reported', async ($, on) => {
+  const { calls } = feedbackBasics(on, [{ text: 'ok' }])
+  await $.tool.call({ tool: 'Bash', command: 'ls', agentId: undefined })
+  await $.turn.start({ turnId: 't1', text: 'one' }) // reports 1/0, resets
+  await $.turn.start({ turnId: 't2', text: 'two' }) // reports 0/0
+  const bodies = calls.map((c: { body?: string }) => JSON.parse(c.body ?? '{}')).filter((b: any) => b.prompt)
+  expect(bodies.map((b: any) => [b.tool_calls, b.tool_failures])).toEqual([
+    [1, 0],
+    [0, 0],
+  ])
+})
+
+test('a Bash tool result with a PR link sends pr_created', async ($, on) => {
+  const { calls } = feedbackBasics(on, [{ text: 'Opened: https://github.com/weiping/queqiao/pull/6' }])
+  await $.tool.call({ tool: 'Bash', command: 'gh pr create', agentId: undefined })
+  const fb = calls.find((c: { url: string }) => c.url.endsWith('/v1/queqiao/feedback'))
+  expect(fb).toBeDefined()
+  expect(JSON.parse(fb.body)).toEqual({
+    session: 's-1',
+    kind: 'pr_created',
+    value: 'https://github.com/weiping/queqiao/pull/6',
+  })
+})
+
+test('no PR link, no feedback event', async ($, on) => {
+  const { calls } = feedbackBasics(on, [{ text: 'done' }])
+  await $.tool.call({ tool: 'Bash', command: 'ls', agentId: undefined })
+  expect(calls.find((c: { url: string }) => c.url.endsWith('/v1/queqiao/feedback'))).toBeUndefined()
+})
+
+test('classic.PostModelSwitch reports command and picker switches only', async ($, on) => {
+  const { calls } = feedbackBasics(on)
+  for (const source of ['command', 'picker', 'sdk', 'auto', 'resume']) {
+    await $.classic.PostModelSwitch({ from_model: 'group/queqiao', to_model: 'group/qq-perf', source })
+  }
+  const events = calls
+    .filter((c: { url: string }) => c.url.endsWith('/v1/queqiao/feedback'))
+    .map((c: { body?: string }) => JSON.parse(c.body ?? '{}'))
+  expect(events).toEqual([
+    { session: 's-1', kind: 'manual_model_switch', value: 'group/queqiao→group/qq-perf' },
+    { session: 's-1', kind: 'manual_model_switch', value: 'group/queqiao→group/qq-perf' },
+  ])
+})
