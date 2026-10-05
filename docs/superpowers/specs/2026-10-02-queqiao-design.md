@@ -371,7 +371,7 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 
 ### 5.4 分类器备选
 
-`router.json` 的 `classifier` 字段可以写 `typesafe/jev-latest`（默认），也可以写任意 `provider/model`。用普通模型时，复用 magpie `classify.go` 的“只回答一个编号”的提示词：`tier` 题照常回答，`dissatisfied` 题单独再问一次“yes/no”。普通模型拿不到置信度，此时 `TierConfidence` 按回答格式是否合法记为 1 或 0。
+`router.json` 的 `classifier` 字段可以写 `typesafe/jev-latest`（默认），也可以写任意 `provider/model`。用普通模型时，复用 magpie `classify.go` 的“只回答一个编号”的提示词：`tier` 题照常回答，`dissatisfied` 题单独再问一次“yes/no”。普通模型拿不到置信度，此时 `TierConfidence` 按回答格式是否合法记为 1 或 0。**（SP3 实测修订）** `max_tokens` 上限从 magpie 的 8 提到 400：2026 年的主流「flash」档模型（glm-5.3-flash、deepseek-flash、kimi、MiniMax）都先输出思考再作答，8 个 token 会被思考耗尽、content 恒空，分类恒落 R8；等待由 `classify_timeout_ms` 约束，token 上限只是防跑飞。
 
 ### 5.5 子代理（Claude Code）
 
@@ -408,6 +408,8 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 ### 5.7 网关模式（没有插件的 Agent）
 
 请求的模型是 `group/queqiao`、但没有匹配到提示时（例如 OpenCode 直接用这个组；Claude Code 的 mod 没有加载、或这一轮 `/turn` 失败而没有改写模型；Codex 的 hook 超时或还没被信任），网关用自己能拿到的输入走同一个 `Choose`：`message` 取 magpie `userText()` 的结果，`Agent` 记为 `gateway`，`PlanMode` 为 false。这样插件只是给路由加上下文，没有插件时路由照样工作。
+
+**（SP3 实测补充）** mod 超时与在途 `/turn` 之间存在同轮竞速：mod 在 1500ms 放弃后请求立刻到达，此刻服务端的 `/turn` 可能尚未提交新 `TurnState`，hook 兜底会读到上一轮状态（实测升档晚一轮落地，`R4` 下一轮补回）。两个缓解：分类器用 jev（单请求，预算内完成）或保证 `classify_timeout_ms` + 双问耗时 < 1500ms；网关不等待在途 `/turn`（避免把延迟加到每个请求）。`router.jsonl` 里同一轮因此可能出现两条 decision（`/turn` 的与 hook 的），SP5 的报表按 session+turn 去重。
 
 ### 5.8 fork 子代理与派生会话的档位继承
 
@@ -616,6 +618,9 @@ clients/claude-code/
 | `agentTier` | `agentId → tier`，fork 和继承父模型的子代理第一次出现时写入（第 5.5 节） |
 | `toolStats` | 本轮主会话的 `{calls, failures}`，下一轮随 `/turn` 上报后清零 |
 | `derived` | 本会话是否由 `/fork`、`/branch` 派生，以及是否已经查过父会话 |
+| `planMode` | 最近一次 `classic.UserPromptSubmit` 报告的权限模式是否为 `plan`（SP3 实施新增） |
+| `cwd` | 会话工作目录，取 `session.start` 事件的 `e.cwd`（`-p` 模式也触发；SP3 实施新增，随 `/turn` 发送） |
+| `stored` | 首条用户消息的哈希是否已写入 `$.store`（每会话一次；SP3 实施新增） |
 
 各事件的行为：
 
