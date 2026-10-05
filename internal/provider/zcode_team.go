@@ -382,4 +382,3 @@ func zhipuTeamOf(key string) (org, project string) {
 	}
 	return "", ""
 }
-

@@ -10,8 +10,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/agent"
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/catalog"
 	"github.com/yetone/magpie/internal/claudebridge"
 	"github.com/yetone/magpie/internal/davsync"
@@ -263,6 +263,8 @@ func run(args []string) error {
 		return updateCmd(args)
 	case "router":
 		return routerCmd(args[1:])
+	case "hook":
+		return hookCmd(args[1:])
 	case "library", "lib":
 		return libraryCmd(args)
 	case "backup":

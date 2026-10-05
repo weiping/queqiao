@@ -34,7 +34,9 @@ func newZCodeTeamUpstream(t *testing.T) *zcodeTeamUpstream {
 	u.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		org, proj := r.Header.Get("Bigmodel-Organization"), r.Header.Get("Bigmodel-Project")
-		ok := func(data any) { json.NewEncoder(w).Encode(map[string]any{"code": 200, "msg": "ok", "data": data, "success": true}) }
+		ok := func(data any) {
+			json.NewEncoder(w).Encode(map[string]any{"code": 200, "msg": "ok", "data": data, "success": true})
+		}
 		deny := func() { w.WriteHeader(401) }
 		switch p := r.URL.Path; {
 		case p == "/api/v1/oauth/cli/init":

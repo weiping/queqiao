@@ -586,7 +586,7 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 | `queqiao hook post-bash --harness codex` | SP6 | Codex `PostToolUse`（`Bash`）的处理程序，识别 PR 链接 |
 | `queqiao router report --since 14d` | SP5 | 第 9 节的实验报表 |
 
-命令型 hook 现在只有 Codex 用。处理程序的公共部分（读 stdin、调用网关、超时、一律以退出码 0 结束）放在 `internal/harness/`，Codex 的输入解析与输出格式放在 `internal/harness/codex/`，均由 SP6 建立。保留 `--harness` 参数，以后接入别的只有命令型 hook 的 Agent 时不必改 hook 命令（Codex 的 hook 内容一变就要用户重新信任，第 12 节）。Codex 插件因此不依赖 Node 或 Python，只要求 `queqiao` 在 `PATH` 里。
+命令型 hook 现在只有 Codex 用。处理程序的公共部分（读 stdin、调用网关、超时、一律以退出码 0 结束）放在 `internal/harness/`，Codex 的输入解析与输出格式放在 `internal/harness/codex/`，均由 SP6 建立。保留 `--harness` 参数，以后接入别的只有命令型 hook 的 Agent 时不必改 hook 命令（Codex 的 hook 内容一变就要用户重新信任，第 12 节）。Codex 插件因此不依赖 Node 或 Python，只要求 `queqiao` 在 `PATH` 里。**（SP6 实测补充）** hook 子进程不继承自定义环境变量（S7 再证）：网关地址走 `QUEQIAO_URL`，传不进 hook 时默认 `http://127.0.0.1:3425`——生产部署网关应在默认端口。另：`"hooks"` 字段相对插件根解析，spec 的 `hooks/hooks.json` 布局配 `"./hooks/hooks.json"`（首次实测 `"./hooks.json"` + 子目录文件会静默不加载）。
 
 Claude Code 不再需要 hook 子命令，也不再需要 `queqiao statusline`：mod 运行在 Claude Code 里，用 `$.http.fetch` 直接调网关，用 `$.ui.status` 显示档位。
 
@@ -710,7 +710,7 @@ Codex 文档没有写明 hook 是否支持 `args` 数组形式，这里用整条
 | `pre-agent` | 按第 5.6 节处理（`fork_context` 步骤 S13 已删） | 需要改模型时输出 `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{...原参数, "model":"group/qq-<档位>"}}}`；否则不输出 |
 | `post-bash` | 在整个 stdin JSON 文本里匹配 `https://github.com/<owner>/<repo>/pull/<n>`，找到就发送 `pr_created`。不依赖工具结果的字段名，字段名随 Codex 版本变化时也不受影响 | 不输出 |
 
-Codex 没有与 `PostModelSwitch` 对应的事件，所以手动换模型的信号由 `user-prompt` 根据输入里的 `model` 判断。
+Codex 没有与 `PostModelSwitch` 对应的事件，所以手动换模型的信号由 `user-prompt` 根据输入里的 `model` 判断。**（SP6 实施备注）** hook 无会话状态，`manual_model_switch` 每轮钉档时都发，去重交给 SP5 报表；`pre-agent` 的 R1 固定档位不再在客户端维护第三份表，而是把 `agent_type` 作为 `agent` 传给 `/turn`，由网关侧 R1 判定（单表单一来源）。
 
 **R3 在 Codex 下的信号来源**：Codex 的工具结果走 Responses 协议的 `function_call_output`，magpie 的中间表示里不一定标出 `IsError`。**S8 结论：网关从 Codex 的 Responses 请求中统计不出工具失败数**（失败命令 `ls /nope` 记 `tool_results=1` 但 `tool_errors=0`，输出为括号形式/结构化，不匹配 Anthropic `^Exit code: N` 前缀）。因此 Codex 会话的 R3 只由 `dissatisfied` 触发，`router status` 中注明这一点。
 
@@ -750,7 +750,7 @@ Codex 没有与 `PostModelSwitch` 对应的事件，所以手动换模型的信�
 | 单元 | `session.go` 的派生关系：显式 `parent_session` 优先于 `forked_from_thread_id`，二者优先于 `firstWords` 匹配；未标记的会话不做跨会话匹配；24 小时窗口 | `go test` |
 | 集成 | 派生：Codex 请求带 `forked_from_thread_id` 时，新线程第一轮继承父线程的档位；`/turn` 带 `parent_session` 时同样继承 | `internal/gateway` 测试包 |
 | 集成 | 档位组上的请求：直接请求 `group/qq-*` 时只调用 `Observe`，成员顺序不变，`SinceLast` 随之更新；`/turn` 带 `tool_calls`、`tool_failures` 时覆盖网关统计并触发 R3 | `internal/gateway` 测试包 |
-| 集成 | hook：Codex `pre-agent` 遇到 `fork_context: true` 输出父会话的档位组 | `internal/harness/codex` |
+| 集成 | hook：Codex `user-prompt` 在 stdin 任意层级出现 `forked_from_thread_id` 时把它作为 `parent_session` 发送（S13 后 fork_context 不存在，此行按 S13 改写） | `internal/harness/codex` |
 | 单元 | `hint.go`：TTL、取出即删、按空会话兜底匹配；`experiment.go`：同一会话分组稳定、比例偏差 < 2%（1 万个随机会话） | 同上 |
 | 单元 | `classify.go`：用本地假的 System One 服务器，覆盖正常、超时、429、无法解析、备选 LLM 编号回答 | `httptest` |
 | 集成 | 仿照上游 `rules_test.go` 的写法：路由组配三个假档位成员，验证（a）有提示时首个成员是提示档位；（b）同一轮的工具往返留在原档；（c）没有提示时走网关模式；（d）子代理请求单独算轮次；（e）整档失败时的转移方向 | `internal/gateway` 测试包 |
@@ -759,7 +759,7 @@ Codex 没有与 `PostModelSwitch` 对应的事件，所以手动换模型的信�
 | 单元 | `turnmeta.go`：从请求头、从 `client_metadata` 读 `turn_id`；元数据是转义成 ASCII 的 JSON 字符串时也能解析（openai/codex#19620 之后的格式）；两处都没有时返回空串 | `go test` |
 | 集成 | 提示匹配：同一会话里两条提示文本相同、`turn_id` 不同，Codex 请求按 `turn_id` 各取各的提示 | `internal/gateway` 测试包 |
 | 端到端 | 启动 `queqiao serve`、假上游（会流式回复的 OpenAI 兼容服务）和假 Jev；先按 Claude Code mod 的方式（调用 `/turn`，再以返回的 `group` 发 Anthropic Messages 请求）、再按 Codex 的方式（hook 调用 `/turn`，再以 `group/queqiao` 发带 `x-codex-turn-metadata` 的 OpenAI Responses 请求），各模拟一遍“第一轮简单提问 → 第二轮说‘不对’ → 第三轮继续”，断言三轮档位依次为 fast、balanced（R3 升档）、balanced（R4 保持） | Go 测试，带 `e2e` 构建标签 |
-| 插件 | `claude plugin validate --strict clients/claude-code` 通过（同时检查模块调用的 `$` 接口和 `$.state` 键与契约一致）；`clients/codex/plugin.json` 与 `.agents/plugins/marketplace.json` 通过 JSON Schema 校验（Schema 取自 Codex 插件文档引用的 Agent Plugins schema） | CI |
+| 插件 | `claude plugin validate --strict clients/claude-code` 通过（同时检查模块调用的 `$` 接口和 `$.state` 键与契约一致）；`.agents/plugins/marketplace.json` 通过 JSON Schema 校验（Agent Plugins schema）；`clients/codex/.codex-plugin/plugin.json` 为 legacy 格式（S7：hooks 只能 legacy 格式声明），以 `codex plugin marketplace add` + `codex plugin add` 实际加载成功为准 | CI |
 | Pi 包 | 扩展在给定事件下发出的 HTTP 请求和 `setModel` 调用（模拟 `pi` 对象）；`tool_call` 对 pi-subagents `subagent`/`dispatch_agent` 工具参数的改写（S12 名称；`context:"fork"` 不改、其余选档写入 `magpie/group/qq-<档位>`） | vitest |
 
 CI 中所有测试都不访问真实的 TypeSafe 和模型厂商。

@@ -98,7 +98,7 @@ func TestSummarizeKeepsMovedAccountTogether(t *testing.T) {
 	y, m, d := time.Now().Date()
 	now := time.Date(y, m, d, 12, 0, 0, 0, time.Local)
 	recs := []Record{
-		{Time: now.Add(-3 * time.Hour), Provider: "kiro", Host: "dee@example.com", Model: "m", Input: 100},      // the built-in
+		{Time: now.Add(-3 * time.Hour), Provider: "kiro", Host: "dee@example.com", Model: "m", Input: 100},        // the built-in
 		{Time: now.Add(-2 * time.Hour), Provider: "kiro", Host: "kiro as dee@example.com", Model: "m", Input: 10}, // its plugin
 		{Time: now.Add(-1 * time.Hour), Provider: "kiro", Host: "q.us-east-1.amazonaws.com as dee@example.com", Model: "m", Input: 1},
 		{Time: now.Add(-1 * time.Hour), Provider: "kiro", Host: "kiro as bo@example.com", Model: "m", Input: 7}, // another account
