@@ -5,6 +5,8 @@
 > 前置：SP2 已合并（`/turn` 端点、`turn_id` 元数据读取在）；SP3/SP4 已合并。
 >
 > 产物：`internal/harness/`（Go 公共部分 + Codex 解析）、`clients/codex/`（插件）、仓库根 `.agents/plugins/marketplace.json`。`main.go` 加 `hook` 子命令分发（允许改动的接线点）。
+>
+> **复审记录（2026-10-05）**：F1——§8「plugin.json 通过 Agent Plugins Schema 校验」与 S7 legacy 格式矛盾（legacy 无 $schema），Task 3 改为 marketplace.json 走 Schema/CLI 校验、legacy plugin.json 以 Codex CLI 加载成功为准，Task 6 修订 spec 该行；F2——Task 4 抽共享 e2e helper（与 e2e_cc_test.go 同包）；F3——Task 5 用隔离 HOME 跑 `router init` 的 Codex 步骤写 config.toml（该路径首获真机验证）；F4——user-prompt 对空 session/prompt 的防御跳过入测试清单。
 
 ## 从 SP0 带入的实测事实
 
@@ -45,7 +47,7 @@ clients/codex/
 ## Task 2：`internal/harness/codex` 解析 + 三个处理程序
 
 **失败测试**（输入用 spike 记录过的 Codex hook JSON 形状）：
-- `user-prompt`：`model` 为 `group/queqiao` → `/turn` 收到 `{harness:"codex", session: session_id, turn_id, prompt, agent:"main", plan_mode:false, cwd, store_hint:true}`（**注意 store_hint:true**——与 mod 的 false 相反，Codex 无本地状态，靠网关提示匹配）；stdin 里出现 `forked_from_thread_id`（任何层级，防御式搜索）→ 带 `parent_session`；`model` 不是路由组 → 不发 `/turn`，发一次 `manual_model_switch`（每会话一次——处理程序无状态，怎么记「一次」？**设计：用 hint 存状态不行（无写权限路径）；方案：manual_model_switch 去重交给网关 feedback 端点天然幂等不可行……改设计：每次非路由组轮次都发 feedback，value 带 model，报表侧去重**——或处理程序用 `/tmp` 状态文件？不干净。最终方案：**每次都发**（§6.4 feedback 是事件日志，重复 manual_model_switch 对报表影响可忽略，SP5 去重）。本条写进 spec §6.9 备注）；stdout 恒空、退出码 0。
+- `user-prompt`：`session_id` 或 `prompt` 为空 → 直接退出 0（防御）；`model` 为 `group/queqiao` → `/turn` 收到 `{harness:"codex", session: session_id, turn_id, prompt, agent:"main", plan_mode:false, cwd, store_hint:true}`（**注意 store_hint:true**——与 mod 的 false 相反，Codex 无本地状态，靠网关提示匹配）；stdin 里出现 `forked_from_thread_id`（任何层级，防御式搜索）→ 带 `parent_session`；`model` 不是路由组 → 不发 `/turn`，发一次 `manual_model_switch`（每会话一次——处理程序无状态，怎么记「一次」？**设计：用 hint 存状态不行（无写权限路径）；方案：manual_model_switch 去重交给网关 feedback 端点天然幂等不可行……改设计：每次非路由组轮次都发 feedback，value 带 model，报表侧去重**——或处理程序用 `/tmp` 状态文件？不干净。最终方案：**每次都发**（§6.4 feedback 是事件日志，重复 manual_model_switch 对报表影响可忽略，SP5 去重）。本条写进 spec §6.9 备注）；stdout 恒空、退出码 0。
 - `pre-agent`：`tool_input.model` 已有 → 无输出；`agent_type` 命中 R1 表（与 Go 侧 `fixed_agents` 一致）→ 输出 `hookSpecificOutput{hookEventName:"PreToolUse", permissionDecision:"allow", updatedInput:{…原参数, model:"group/qq-<档位>"}}`；其余 → `/turn`（`agent:<agent_type|default>`, `message→prompt` 取 `tool_input.message`）成功才输出，失败无输出；输出 JSON 可解析且保留原参数。
 - `post-bash`：整个 stdin 原文匹配 PR 链接 → `pr_created`；不匹配/无 → 无网络调用；无输出。
 **实现**：`codex/codex.go` + `hook_cli.go` + `main.go` 分发（`case "hook"`）。提交 `feat(harness): codex hook handlers and quexiao hook command`。
@@ -64,11 +66,11 @@ clients/codex/
 
 ## Task 5：真实 Codex 走查
 
-隔离网关（同 SP3/SP4 套路，3426）；`codex plugin marketplace add` 本地路径 + 安装 + `codex exec --dangerously-bypass-hook-trust`（S7 路径）跑一轮简单提问：决策日志 `codex fast`；再一轮「不对」看 R3（分类器双问 2.4s > hook 无竞速问题——hook 的 /turn 是同步等待 1500ms，超时则本轮无提示，下一轮网关模式补；与 §5.7 一致）。记录到 `docs/superpowers/notes/sp6-walkthrough.md`。[human] TUI 信任弹窗项留给用户。
+隔离网关（同 SP3/SP4 套路，3426）+ 隔离 HOME（`router init` 的 Codex 步骤会写 `$HOME/.codex/config.toml` 与 `queqiao-models.json`——该代码路径首获真机验证）；`codex plugin marketplace add` 本地路径 + 安装 + `codex exec --dangerously-bypass-hook-trust`（S7 路径）跑一轮简单提问：决策日志 `codex fast`；再一轮「不对」看 R3（分类器双问 2.4s > hook 无竞速问题——hook 的 /turn 是同步等待 1500ms，超时则本轮无提示，下一轮网关模式补；与 §5.7 一致）。记录到 `docs/superpowers/notes/sp6-walkthrough.md`。[human] TUI 信任弹窗项留给用户。
 
 ## Task 6：回写与收尾
 
-- **spec 修订**：§8 过时行「`pre-agent` 遇到 `fork_context: true` 输出父会话的档位组」按 S13 改写（fork_context 已不存在）；§6.9 补「manual_model_switch 每轮都发、报表去重」备注。
+- **spec 修订**：§8 过时行「`pre-agent` 遇到 `fork_context: true` 输出父会话的档位组」按 S13 改写（fork_context 已不存在）；§8 插件校验行按 S7 改写（marketplace.json 走 Agent Plugins Schema + CLI 校验，legacy `plugin.json` 以 Codex CLI 加载成功为准）；§6.9 补「manual_model_switch 每轮都发、报表去重」备注。
 - 全量 `go vet`/`go test -tags nogui ./...` + e2e 标签跑两个 e2e。
 - PR `qq/sp6-codex` → **base queqiao**；清理 worktree/分支；memory。
 
