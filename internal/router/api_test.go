@@ -317,3 +317,53 @@ func TestDecideGatewayToolStats(t *testing.T) {
 		t.Fatalf("gateway stats: %+v", res)
 	}
 }
+
+// §11's "实验能开能关" at the API level: flipping experiment.enabled
+// changes the same session's arm and the served tier, and the shadow
+// decision appears on the control side only.
+func TestExperimentToggleFlipsTheArm(t *testing.T) {
+	d, _, events := testDeps(t, &Verdict{Tier: TierFast, TierConfidence: 0.9, Dissatisfied: 0})
+	srv := testServer(d)
+	defer srv.Close()
+
+	arm := func() (string, Tier) {
+		t.Helper()
+		res := postJSON(t, srv.URL+"/v1/queqiao/turn", map[string]any{"session": "toggle-1", "prompt": "hi"})
+		defer res.Body.Close()
+		var out struct {
+			Tier Tier   `json:"tier"`
+			Arm  string `json:"arm"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+			t.Fatal(err)
+		}
+		return out.Arm, out.Tier
+	}
+
+	// off: everyone routes, the router's own verdict serves
+	if a, tier := arm(); a != "router" || tier != TierFast {
+		t.Fatalf("experiment off: %s %s", a, tier)
+	}
+	// on (everyone control): the control tier serves, shadow records fast
+	d.Config.Experiment = ExperimentConfig{Enabled: true, RouterPercent: 0, ControlTier: TierPerformance, Salt: "salt"}
+	if a, tier := arm(); a != "control" || tier != TierPerformance {
+		t.Fatalf("experiment on: %s %s", a, tier)
+	}
+	// back off: routed again
+	d.Config.Experiment = ExperimentConfig{}
+	if a, tier := arm(); a != "router" || tier != TierFast {
+		t.Fatalf("experiment off again: %s %s", a, tier)
+	}
+	var shadows, decides int
+	for _, ev := range *events {
+		switch ev.Kind {
+		case "shadow":
+			shadows++
+		case "decide":
+			decides++
+		}
+	}
+	if shadows != 1 || decides != 2 {
+		t.Fatalf("events: %d shadow, %d decide", shadows, decides)
+	}
+}
