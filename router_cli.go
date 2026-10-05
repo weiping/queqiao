@@ -347,6 +347,10 @@ func routerCheck(args []string) error {
 			if strings.HasPrefix(base, "group/") {
 				continue
 			}
+			// strip the provider prefix; catalog windows are per model id
+			if _, bare, ok := strings.Cut(base, "/"); ok {
+				base = bare
+			}
 			if !modelServed(base) {
 				fmt.Println(amber.Render("✗"), tier, "member unserved:", m)
 				failed = true
