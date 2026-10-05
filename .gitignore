@@ -10,3 +10,4 @@
 /magpie-dev.new
 /.worktrees/
 memory/
+.DS_Store
