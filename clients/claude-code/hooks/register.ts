@@ -24,6 +24,42 @@ const stToolStats = atom({ plugin: 'queqiao-router', key: 'toolStats' }, { calls
 const stDerived = atom({ plugin: 'queqiao-router', key: 'derived' }, { is: false, checked: false })
 const stPlanMode = atom({ plugin: 'queqiao-router', key: 'planMode' }, false)
 const stCwd = atom({ plugin: 'queqiao-router', key: 'cwd' }, null as string | null)
+const stStored = atom({ plugin: 'queqiao-router', key: 'stored' }, false)
+
+// §5.8: the same hash on both the storing side and the looking-up side
+function fnv1a(s: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16)
+}
+
+type SessionMessageLite = { role: 'user' | 'assistant'; text: string }
+
+async function firstUserHash($: any): Promise<string | null> {
+  try {
+    const messages = (await $.session.messages()) as SessionMessageLite[]
+    for (const m of messages) {
+      if (m.role === 'user' && m.text !== '') return fnv1a(m.text)
+    }
+  } catch {
+    // messages unavailable: nothing to hash
+  }
+  return null
+}
+
+/** The parent session id for a derived session, from $.store (§5.8). */
+async function parentFromStore($: any, hash: string, own: string): Promise<string | undefined> {
+  try {
+    const hit = (await $.store.get('qq:first:' + hash)) as { session?: string } | undefined
+    if (hit !== undefined && typeof hit.session === 'string' && hit.session !== own) return hit.session
+  } catch {
+    // store unavailable: treated as a fresh session
+  }
+  return undefined
+}
 
 const ROUTING_GROUP = 'group/queqiao'
 const TURN_BUDGET_MS = 1500
@@ -63,6 +99,13 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // /fork and /branch both report source "fork" (S11); /clear, /resume and
+  // /branch reset $.state and this refires, so re-mark on every event
+  on('classic.SessionStart', async ($, e, next) => {
+    await update($, stDerived, () => ({ is: e.source === 'fork', checked: false }))
+    return next(e)
+  })
+
   // plan detection (S1's proven read); empty-text turns keep the last value
   on('classic.UserPromptSubmit', async ($, e, next) => {
     await update($, stPlanMode, () => e.permission_mode === 'plan')
@@ -75,6 +118,14 @@ export const register: Register = (on, options) => {
       const stats = await read($, stToolStats)
       const planMode = await read($, stPlanMode)
       const cwd = await read($, stCwd)
+      // a derived session looks its parent up once (§5.8)
+      let parentSession: string | undefined
+      const derived = await read($, stDerived)
+      if (derived.is && !derived.checked) {
+        await update($, stDerived, (d) => ({ ...d, checked: true }))
+        const hash = await firstUserHash($)
+        if (hash !== null) parentSession = await parentFromStore($, hash, session)
+      }
       const decided = await decideTurn($, gateway, {
         harness: 'claude-code',
         session,
@@ -82,6 +133,7 @@ export const register: Register = (on, options) => {
         agent: 'main',
         plan_mode: planMode,
         ...(cwd !== null ? { cwd } : {}),
+        ...(parentSession !== undefined ? { parent_session: parentSession } : {}),
         tool_calls: stats.calls,
         tool_failures: stats.failures,
         store_hint: false,
@@ -159,6 +211,36 @@ export const register: Register = (on, options) => {
     if (decided === null) return next(e)
     // 5. spawn with the tier's alias; §4.5's env resolves it to the group
     return next({ ...e, model: TIER_ALIAS[decided.tier] })
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    if (e.agentId === undefined) {
+      const derived = await read($, stDerived)
+      const stored = await read($, stStored)
+      if (!derived.is && !stored) {
+        await update($, stStored, () => true)
+        try {
+          const hash = await firstUserHash($)
+          if (hash !== null) {
+            const session = await sessionOf($)
+            const at = await $.clock.now()
+            // prune the index to the last 24h, then add this entry ($.store
+            // has no enumeration, so the index key is the whole list)
+            const idx = ((await $.store.get('qq:first-index')) as Record<string, { session: string; at: number }> | undefined) ?? {}
+            const fresh: Record<string, { session: string; at: number }> = {}
+            for (const [h, v] of Object.entries(idx)) {
+              if (at - v.at < 24 * 3600 * 1000) fresh[h] = v
+            }
+            fresh[hash] = { session, at }
+            await $.store.set('qq:first-index', fresh)
+            await $.store.set('qq:first:' + hash, { session, at })
+          }
+        } catch {
+          // storing lineage is best-effort
+        }
+      }
+    }
+    return next(e)
   })
 
   on('turn.step', async function* ($, e, next) {

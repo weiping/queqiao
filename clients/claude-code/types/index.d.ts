@@ -19,6 +19,8 @@ declare module 'claude-code' {
       planMode: boolean
       /** The session's cwd, from session.start's event input. */
       cwd: string | null
+      /** Whether the first-message hash was already stored (once per session). */
+      stored: boolean
     }
   }
 }

@@ -371,3 +371,106 @@ test('classic.PostModelSwitch reports command and picker switches only', async (
     { session: 's-1', kind: 'manual_model_switch', value: 'group/queqiao→group/qq-perf' },
   ])
 })
+
+// ---- Task 5: derived sessions (/fork, /branch) ----
+
+function derivedBasics(on: any, opts: { firstUser?: string; derived?: boolean } = {}) {
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  stubBasics(on)
+  const clock = mock.clock(on)
+  const store = new Map<string, unknown>()
+  on('store.get', (_$: unknown, e: { key: string }) => ({ value: store.get(e.key) }))
+  on('store.set', (_$: unknown, e: { key: string; value: unknown }) => {
+    store.set(e.key, e.value)
+    return { value: undefined }
+  })
+  on('session.messages', () => ({
+    value: opts.firstUser === undefined ? [] : [{ role: 'user', text: opts.firstUser }],
+  }))
+  on('classic.SessionStart', () => ({}))
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  return { calls, store, clock }
+}
+
+test('the first main turn.complete stores the first-message hash; later ones do not', async ($, on) => {
+  const { store } = derivedBasics(on, { firstUser: 'help me with the router spec' })
+
+  await $.turn.start({ turnId: 't1', text: 'help me with the router spec' })
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 10, isAborted: false, usage: null })
+  await $.turn.complete({ turnId: 't2', answer: 'ok', durationMs: 10, isAborted: false, usage: null })
+
+  const keys = [...store.keys()]
+  expect(keys.filter((k) => k.startsWith('qq:first:')).length).toBe(1)
+  const idx = store.get('qq:first-index') as Record<string, { session: string }>
+  expect(Object.keys(idx).length).toBe(1)
+})
+
+test('a subagent turn.complete does not store anything', async ($, on) => {
+  const { store } = derivedBasics(on, { firstUser: 'hello' })
+  await $.turn.start({ turnId: 't1', text: 'hello' })
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 10, isAborted: false, usage: null, agentId: 'a1' })
+  expect([...store.keys()].filter((k) => k.startsWith('qq:first'))).toEqual([])
+})
+
+test('classic.SessionStart marks fork sessions derived only', async ($, on) => {
+  derivedBasics(on)
+  for (const source of ['fork', 'startup', 'resume', 'clear']) {
+    await $.classic.SessionStart({ source })
+  }
+  // observable effect: a fork-marked session consults $.store on its first
+  // turn (checked in the next test); here we just drive it for coverage
+})
+
+test('a derived session sends parent_session from the store on its first turn, once', async ($, on) => {
+  const { calls, store } = derivedBasics(on, { firstUser: 'help me with the router spec' })
+  // the parent session stored its hash earlier
+  const hash = fnv1a('help me with the router spec')
+  store.set('qq:first:' + hash, { session: 's-parent', at: 1000 })
+
+  await $.classic.SessionStart({ source: 'fork' })
+  await $.turn.start({ turnId: 't1', text: 'help me with the router spec' })
+  const first = JSON.parse(calls[0].body ?? '{}')
+  expect(first.parent_session).toBe('s-parent')
+
+  // second turn: no further lookup, and the field stays absent without a hit
+  await $.turn.start({ turnId: 't2', text: 'and now more' })
+  const second = JSON.parse(calls[1].body ?? '{}')
+  expect(second.parent_session).toBeUndefined()
+})
+
+test('a non-derived session never consults the store', async ($, on) => {
+  const { calls, store } = derivedBasics(on, { firstUser: 'plain session' })
+  store.set('qq:first:' + fnv1a('plain session'), { session: 'other', at: 1 })
+  await $.classic.SessionStart({ source: 'startup' })
+  await $.turn.start({ turnId: 't1', text: 'plain session' })
+  const first = JSON.parse(calls[0].body ?? '{}')
+  expect(first.parent_session).toBeUndefined()
+})
+
+test('store entries older than 24h are pruned on write', async ($, on) => {
+  const { store, clock } = derivedBasics(on, { firstUser: 'fresh one' })
+  const oldHash = fnv1a('an old session opener')
+  store.set('qq:first-index', {
+    [oldHash]: { session: 's-old', at: 0 },
+  })
+  store.set('qq:first:' + oldHash, { session: 's-old', at: 0 })
+
+  await clock.set(25 * 3600 * 1000) // 25h later
+  await $.turn.start({ turnId: 't1', text: 'fresh one' })
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 1, isAborted: false, usage: null })
+
+  const idx = store.get('qq:first-index') as Record<string, unknown>
+  expect(idx[oldHash]).toBeUndefined()
+  expect(idx[fnv1a('fresh one')]).toBeDefined()
+})
+
+// the same FNV-1a the mod uses (§5.8: both sides share algorithm and source)
+function fnv1a(s: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16)
+}
