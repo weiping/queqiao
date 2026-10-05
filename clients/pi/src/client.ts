@@ -7,6 +7,8 @@ export interface TurnRequest {
   session: string
   prompt: string
   agent?: string
+  /** Project dir; lets the gateway load .queqiao/router.json criteria. */
+  cwd?: string
   parentSession?: string
 }
 
@@ -26,7 +28,13 @@ export interface Feedback {
 export const TURN_BUDGET_MS = 1500
 
 export class QueqiaoClient {
-  constructor(private readonly base: string) {}
+  constructor(base: string) {
+    // tolerate a trailing slash: "//v1/..." would hit the gateway's path
+    // cleaning and turn a POST into a redirect
+    this.base = base.replace(/\/+$/, "")
+  }
+
+  private readonly base: string
 
   /** POST /v1/queqiao/turn; null on any failure, timeout included. */
   async turn(req: TurnRequest): Promise<TurnResponse | null> {
@@ -37,6 +45,7 @@ export class QueqiaoClient {
       agent: req.agent ?? "main",
       store_hint: false,
     }
+    if (req.cwd !== undefined) body.cwd = req.cwd
     if (req.parentSession !== undefined) body.parent_session = req.parentSession
     const out = (await this.post("/v1/queqiao/turn", body, TURN_BUDGET_MS)) as TurnResponse | null
     if (out === null || typeof out.tier !== "string" || typeof out.group !== "string") return null

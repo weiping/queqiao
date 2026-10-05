@@ -105,7 +105,7 @@ describe("queqiao extension", () => {
     f.fire("session_start", { type: "session_start", reason: "startup" })
     await f.fire("before_agent_start", { type: "before_agent_start", prompt: "what license?" })
     const t = bodies(fetchMock, "/v1/queqiao/turn")
-    expect(t[0]).toMatchObject({ harness: "pi", session: "s-pi-1", prompt: "what license?", agent: "main", store_hint: false })
+    expect(t[0]).toMatchObject({ harness: "pi", session: "s-pi-1", prompt: "what license?", agent: "main", store_hint: false, cwd: expect.any(String) })
     expect(f.state.setModelCalls).toEqual(["magpie/group/qq-fast"])
   })
 
@@ -233,6 +233,14 @@ describe("queqiao extension: feedback and subagents", () => {
     const t = bodies(fetchMock, "/v1/queqiao/turn")
     expect(t[0]).toMatchObject({ session: "s-pi-1", prompt: "search the repo for todo markers", agent: "subagent", store_hint: false })
     expect(input.model).toBe("magpie/group/qq-fast")
+  })
+
+  it("tool_call uses the tier's real group id (performance is qq-perf, not qq-performance)", async () => {
+    const f = await boot()
+    gw(fetchMock, [{ tier: "performance", group: "group/qq-perf" }])
+    const input: Record<string, unknown> = { context: "fresh", task: "design the migration" }
+    await f.fire("tool_call", { type: "tool_call", toolName: "subagent", input })
+    expect(input.model).toBe("magpie/group/qq-perf")
   })
 
   it("tool_call also handles dispatch_agent and the prompt/description fields", async () => {

@@ -14,6 +14,24 @@ describe("QueqiaoClient", () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
+  it("tolerates a trailing slash in the base URL", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ tier: "fast", group: "group/qq-fast" }), { status: 200 }),
+    )
+    const c = new QueqiaoClient("http://gw/")
+    await c.turn({ session: "s1", prompt: "hi" })
+    expect(String(fetchMock.mock.calls[0][0])).toBe("http://gw/v1/queqiao/turn")
+  })
+
+  it("turn() carries cwd when given (§4.1 project criteria)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ tier: "fast", group: "group/qq-fast" }), { status: 200 }),
+    )
+    const c = new QueqiaoClient("http://gw")
+    await c.turn({ session: "s1", prompt: "hi", cwd: "/work/repo" })
+    expect(lastCall(fetchMock).body.cwd).toBe("/work/repo")
+  })
+
   it("turn() posts the pi harness shape and returns the tier", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ tier: "fast", group: "group/qq-fast", reason: "R5" }), { status: 200 }),

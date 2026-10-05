@@ -54,6 +54,7 @@ export default function (pi: ExtensionAPI): void {
     const out = await client.turn({
       session,
       prompt,
+      cwd: process.cwd(), // §4.1 project-level criteria
       parentSession: parent !== null && !parentSent ? parent : undefined,
     })
     if (parent !== null) parentSent = true
@@ -101,8 +102,9 @@ export default function (pi: ExtensionAPI): void {
       (v): v is string => typeof v === "string" && v !== "",
     )
     if (task === undefined) return
-    const out = await client.turn({ session, prompt: task, agent: "subagent" })
+    const out = await client.turn({ session, prompt: task, agent: "subagent", cwd: process.cwd() })
     if (out === null) return
-    e.input.model = `${PROVIDER}/group/qq-${out.tier}`
+    // out.group is the tier's real group id (qq-perf, not qq-performance)
+    e.input.model = `${PROVIDER}/${out.group}`
   })
 }

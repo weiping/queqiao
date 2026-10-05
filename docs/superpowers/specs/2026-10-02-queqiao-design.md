@@ -663,10 +663,10 @@ clients/pi/
 | --- | --- |
 | `session_start` | 确定会话 ID（第 10 节 S4 验证 Pi 提供的会话标识；拿不到时用 `crypto.randomUUID()` 生成，在扩展内存中保留到会话结束）。`reason` 为 `fork` 时记下父会话 ID（S12）；读不到父会话 ID 时调用 `/lineage` 标记 |
 | `before_provider_headers` | 给每个请求加 `X-Magpie-Session: <会话 ID>`，让网关能统计本会话的工具失败次数和请求间隔 |
-| `before_agent_start` | 调用 `/turn`（`store_hint:false`，`agent:"main"`，`prompt` 取 `event.prompt`），超时 1500 ms；拿到档位后，若档位变了，`pi.setModel(<magpie/group/qq-*>)`。失败时不改模型 |
+| `before_agent_start` | 调用 `/turn`（`store_hint:false`，`agent:"main"`，`prompt` 取 `event.prompt`，`cwd` 取 `process.cwd()`——SP4 复审补充，项目级 criteria 需要），超时 1500 ms；拿到档位后，若档位变了，`pi.setModel(<magpie/group/qq-*>)`。失败时不改模型 |
 | `model_select` | `source` 表示用户手动切换时，发送 `manual_model_switch`，并在本会话剩余时间里不再自动切换（与 Claude Code 中 `/model` 的效果一致） |
 | `tool_result` | 匹配 PR 链接，发送 `pr_created` |
-| `tool_call` | 只在装了 pi-subagents 时生效（工具名为 `subagent`/`dispatch_agent`，S12 确认；参数为 `context` 枚举 fresh/fork/profile，无 `inherit_context`）。参数里已有 `model` 的不改；其余以任务描述调用 `/turn`（`store_hint:false`），把 `event.input.model` 改为 `magpie/group/qq-<档位>` |
+| `tool_call` | 只在装了 pi-subagents 时生效（工具名为 `subagent`/`dispatch_agent`，S12 确认；参数为 `context` 枚举 fresh/fork/profile，无 `inherit_context`）。参数里已有 `model` 的不改；其余以任务描述调用 `/turn`（`store_hint:false`，带 `cwd`），把 `event.input.model` 改为 `magpie/<档位组返回的 group>`（SP4 复审修正：用响应的 group，不拼 tier 名——`qq-perf` 不等于 `qq-performance`） |
 | `before_agent_start`（补充） | 本会话是派生会话的第一轮时，`/turn` 请求带上 `parent_session` |
 
 运行时依赖只用 Node 内置的 `fetch` 和 `crypto`，`dependencies` 为空。Pi 自带的包放进 `peerDependencies`，版本写 `"*"`。
@@ -760,7 +760,7 @@ Codex 没有与 `PostModelSwitch` 对应的事件，所以手动换模型的信�
 | 集成 | 提示匹配：同一会话里两条提示文本相同、`turn_id` 不同，Codex 请求按 `turn_id` 各取各的提示 | `internal/gateway` 测试包 |
 | 端到端 | 启动 `queqiao serve`、假上游（会流式回复的 OpenAI 兼容服务）和假 Jev；先按 Claude Code mod 的方式（调用 `/turn`，再以返回的 `group` 发 Anthropic Messages 请求）、再按 Codex 的方式（hook 调用 `/turn`，再以 `group/queqiao` 发带 `x-codex-turn-metadata` 的 OpenAI Responses 请求），各模拟一遍“第一轮简单提问 → 第二轮说‘不对’ → 第三轮继续”，断言三轮档位依次为 fast、balanced（R3 升档）、balanced（R4 保持） | Go 测试，带 `e2e` 构建标签 |
 | 插件 | `claude plugin validate --strict clients/claude-code` 通过（同时检查模块调用的 `$` 接口和 `$.state` 键与契约一致）；`clients/codex/plugin.json` 与 `.agents/plugins/marketplace.json` 通过 JSON Schema 校验（Schema 取自 Codex 插件文档引用的 Agent Plugins schema） | CI |
-| Pi 包 | 扩展在给定事件下发出的 HTTP 请求和 `setModel` 调用（模拟 `pi` 对象）；`tool_call` 对 pi-subagents `Agent` 工具参数的改写，包括 `inherit_context` 的钉档 | vitest |
+| Pi 包 | 扩展在给定事件下发出的 HTTP 请求和 `setModel` 调用（模拟 `pi` 对象）；`tool_call` 对 pi-subagents `subagent`/`dispatch_agent` 工具参数的改写（S12 名称；`context:"fork"` 不改、其余选档写入 `magpie/group/qq-<档位>`） | vitest |
 
 CI 中所有测试都不访问真实的 TypeSafe 和模型厂商。
 
