@@ -9,10 +9,12 @@
 | 1.3 `/fork` 继承 | ✅ | `--fork-session`：fork 会话 58ba6df9 首条 `balanced R4-escalation-hold 467ms`（父 d708227d 已 balanced） |
 | 1.4 plan mode→performance | ✅ | `--permission-mode plan`：会话 365042c8 `performance R2-plan-mode` |
 | 2.1 Pi 简单提问→fast | ✅ | 01a10c70 `pi fast R6-adopt 314ms` |
-| 2.2 `/model` 手切→feedback+停自动 | ⏳ 需人工 | 非交互探测：`pi -p --model k3` **不算手切**（无 feedback，且仍被自动切档）——中段 `/model` 仍须 TUI 人工验 |
-| 2.3 锤档停自动 | ⏳ 随 2.2 | |
+| 2.2 `/model` 手切→feedback | ✅ | 人工交互（pi 01a10c81）：`feedback manual_model_switch group/qq-fast→kimi-code-cn/k3` |
+| 2.3 钉档停自动 | ✅ | 手切后的下一轮（14:42:44）**无任何新决策**（钉档生效） |
 | 2.4 Pi `/fork` 继承 | ✅ | `pi -p --fork 01a10c70`：fork 会话 01a10c72 首条 `balanced R4-escalation-hold 868ms` |
 | 3. 两周实验/首份报表 | ⏳ 条件触发 | 需正式启用 queqiao 网关并跑满第一阶段 |
+
+**本轮总计：可自动化的 6 项全部通过（CC 4/4 + Pi 2.1/2.4），需人工的 2 项也通过（Pi 2.2/2.3）；仅剩第 3 节（条件触发）。**
 
 **本次执行对清单的修订（下次按修订后的做）**
 
@@ -21,6 +23,7 @@
 3. **jev 分类器时延波动 314–1526ms**：>1500ms 时 mod 竞速超时（R7-carry 或 R8-default）且网关兑底也超时，该轮档位不切换（下一轮补偿）。验收时首轮若见 R8-default，重跑一次即可——spec §5.7 已记录此时序现实。
 4. Pi 的 `--fork <id>` 同样可非交互验证继承（2.4 不必人工）；`pi -p --model X` 不算手切。
 5. `models.json` 还原要**写完再核验**：本次发现备份内容已是 3426（来源未定，疑为某次 pi 运行回写），`mv` 还原后必须 `grep` 确认——清单原有该步，正因此才抳到。
+6. **pi 会热加载并回写 `models.json`**（长期运行的 pi 进程内存里留着旧值，会在之后把它写回盘）——所以「改配置→用完还原」在这台机器上不可靠：收尾时**显式写回目标值并 grep 核验**，不要依赖备份文件。另：`pi -p --model X` 不算手切（模型选择事件不把它当用户手动切换），只有会话中的 `/model` 才触发 feedback + 钉档。
 
 ---
 
