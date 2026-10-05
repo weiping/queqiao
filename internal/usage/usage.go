@@ -89,6 +89,11 @@ type Record struct {
 	// Kind is what the agent made the call for when it isn't a turn of
 	// the conversation: a Codex subagent's (review, compact, guardian…)
 	Kind string `json:"kind,omitempty"`
+	// RouterTier and RouterArm are the queqiao router's decision for the
+	// request's turn (SP2): the tier chosen and the experiment arm the
+	// session is in.
+	RouterTier string `json:"router_tier,omitempty"`
+	RouterArm  string `json:"router_arm,omitempty"`
 	// Via is the computer whose magpie passed the call on to this one (a
 	// Remote magpie provider there), Agent being the agent's on it; "" when
 	// no other magpie forwarded it (including direct LAN/container clients).
