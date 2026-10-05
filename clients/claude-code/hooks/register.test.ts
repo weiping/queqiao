@@ -173,3 +173,119 @@ test('session.start with the gateway down reports it once', async ($, on) => {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work/repo' })
   expect(status).toEqual(['queqiao: 网关未运行'])
 })
+
+// ---- Task 3: subagents ----
+
+function spawnBasics(on: any) {
+  on('session.id', () => ({ value: 's-1' }))
+  on('ui.status', () => ({ value: undefined }))
+  mock.clock(on)
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+}
+
+test('agent.spawn: fork and preset models pass through (dead-code branch per S3)', async ($, on) => {
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  spawnBasics(on)
+  const spawns: Array<{ model?: string }> = []
+  on('agent.spawn', (_$: unknown, e: { prompt: string; subagentType: string; model?: string; fork?: boolean }) => {
+    spawns.push({ model: e.model })
+    return { model: e.model ?? 'inherited', agentId: 'a0' }
+  })
+
+  await $.agent.spawn({ prompt: 'x', subagentType: 'general-purpose', fork: true })
+  await $.agent.spawn({ prompt: 'x', subagentType: 'general-purpose', model: 'claude-sonnet-5' })
+  expect(calls.length).toBe(0) // neither reaches the gateway
+  expect(spawns).toEqual([{ model: undefined }, { model: 'claude-sonnet-5' }])
+})
+
+test('agent.spawn: R1 types map straight to an alias', async ($, on) => {
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  spawnBasics(on)
+  const models: Array<string | undefined> = []
+  on('agent.spawn', (_$: unknown, e: { prompt: string; subagentType: string; model?: string }) => {
+    models.push(e.model)
+    return { model: e.model ?? 'inherited', agentId: 'a0' }
+  })
+
+  await $.agent.spawn({ prompt: 'find it', subagentType: 'Explore' })
+  await $.agent.spawn({ prompt: 'plan it', subagentType: 'Plan' })
+  expect(models).toEqual(['haiku', 'opus'])
+  expect(calls.length).toBe(0) // R1 needs no /turn call
+})
+
+test('agent.spawn: other types ask the gateway with prompt and agent', async ($, on) => {
+  const calls = fakeGateway(on, [
+    { tier: 'balanced', group: 'group/qq-balanced', reason: 'R5' },
+    { tier: 'performance', group: 'group/qq-perf', reason: 'R5' },
+  ])
+  spawnBasics(on)
+  const models: Array<string | undefined> = []
+  on('agent.spawn', (_$: unknown, e: { prompt: string; subagentType: string; model?: string }) => {
+    models.push(e.model)
+    return { model: e.model ?? 'inherited', agentId: 'a0' }
+  })
+
+  await $.agent.spawn({ prompt: 'fix the flaky test in rules_test.go', subagentType: 'general-purpose' })
+  const body = JSON.parse(calls[0].body ?? '{}')
+  expect(calls[0].url).toBe('http://127.0.0.1:3425/v1/queqiao/turn')
+  expect(body).toMatchObject({ harness: 'claude-code', session: 's-1', agent: 'general-purpose', store_hint: false })
+  expect(models).toEqual(['sonnet'])
+})
+
+test('agent.spawn: gateway failure leaves the spawn unchanged', async ($, on) => {
+  on('http.fetch', () => ({ deny: 'down' }))
+  spawnBasics(on)
+  const models: Array<string | undefined> = []
+  on('agent.spawn', (_$: unknown, e: { prompt: string; subagentType: string; model?: string }) => {
+    models.push(e.model)
+    return { model: e.model ?? 'inherited', agentId: 'a0' }
+  })
+
+  await $.agent.spawn({ prompt: 'do things', subagentType: 'general-purpose' })
+  expect(models).toEqual([undefined])
+})
+
+test('agentId steps pin at the main tier and stay pinned when the main tier moves', async ($, on) => {
+  const calls = fakeGateway(on, [
+    { tier: 'fast', group: 'group/qq-fast', reason: 'R5' },
+    { tier: 'balanced', group: 'group/qq-balanced', reason: 'R6' },
+  ])
+  spawnBasics(on)
+  const seen: string[] = []
+  on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string; agentId?: string }) {
+    seen.push((e.agentId ?? 'main') + ':' + e.model)
+    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+
+  await $.turn.start({ turnId: 't1', text: 'quick question' }) // → fast
+  const step = async (agentId?: string) => {
+    const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/queqiao', messageCount: 1, ...(agentId ? { agentId } : {}) })
+    let s = await stream.next()
+    while (s.done !== true) s = await stream.next()
+  }
+  await step() // main → qq-fast
+  await step('a1') // first sight of a1 → pinned fast
+  await $.turn.start({ turnId: 't2', text: 'no wait, refactor everything instead' }) // → balanced
+  await step() // main moved to qq-balanced
+  await step('a1') // a1 stays pinned
+
+  expect(seen).toEqual(['main:group/qq-fast', 'a1:group/qq-fast', 'main:group/qq-balanced', 'a1:group/qq-fast'])
+  void calls
+})
+
+test('agentId steps pass through when no turn has ever succeeded', async ($, on) => {
+  on('http.fetch', () => ({ deny: 'down' }))
+  spawnBasics(on)
+  const seen: string[] = []
+  on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string; agentId?: string }) {
+    seen.push(e.model)
+    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+
+  await $.turn.start({ turnId: 't1', text: 'hi' })
+  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/queqiao', messageCount: 1, agentId: 'a1' })
+  let s = await stream.next()
+  while (s.done !== true) s = await stream.next()
+
+  expect(seen).toEqual(['group/queqiao'])
+})

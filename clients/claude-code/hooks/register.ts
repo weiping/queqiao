@@ -28,6 +28,22 @@ const stCwd = atom({ plugin: 'queqiao-router', key: 'cwd' }, null as string | nu
 const ROUTING_GROUP = 'group/queqiao'
 const TURN_BUDGET_MS = 1500
 
+// §5.5 step 3 / R1: subagent types with a fixed tier (matches the Go
+// side's fixed_agents).
+const FIXED_AGENT: Record<string, Tier> = {
+  Explore: 'fast',
+  'statusline-setup': 'fast',
+  'claude-code-guide': 'fast',
+  explorer: 'fast',
+  Plan: 'performance',
+}
+
+// §5.5 step 5: tier → the alias §4.5's env vars resolve to a tier group
+const TIER_ALIAS: Record<Tier, string> = { fast: 'haiku', balanced: 'sonnet', performance: 'opus' }
+
+// §5.8: a pinned agent's tier → its tier group (router init's §4.4 ids)
+const tierGroup = (tier: Tier): string => 'group/qq-' + tier
+
 export const register: Register = (on, options) => {
   const gateway = String(options.gateway_url ?? 'http://127.0.0.1:3425').replace(/\/$/, '')
 
@@ -87,11 +103,40 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  on('agent.spawn', async ($, e, next) => {
+    // 1. fork: dead branch on CC 2.1.288+ — no fork subagent type exists
+    //    (S3); kept for the day one does. Forks inherit the parent model.
+    // 2. a model Claude already chose is respected.
+    if (e.fork || e.model !== undefined) return next(e)
+    // 3. R1: the type settles it
+    const fixed = FIXED_AGENT[e.subagentType]
+    if (fixed !== undefined) return next({ ...e, model: TIER_ALIAS[fixed] })
+    // 4. ask the gateway; failure leaves the spawn unchanged
+    const session = await $.session.id()
+    const decided = await decideTurn($, gateway, {
+      harness: 'claude-code',
+      session,
+      prompt: e.prompt,
+      agent: e.subagentType,
+      store_hint: false,
+    })
+    if (decided === null) return next(e)
+    // 5. spawn with the tier's alias; §4.5's env resolves it to the group
+    return next({ ...e, model: TIER_ALIAS[decided.tier] })
+  })
+
   on('turn.step', async function* ($, e, next) {
     if (e.model !== ROUTING_GROUP) return yield* next(e)
     if (e.agentId !== undefined) {
-      // subagent steps: Task 3 pins them; for now they pass through
-      return yield* next(e)
+      // an agent that inherited the main model pins to the main tier at
+      // first sight and never follows the main session's later moves
+      const pinned = (await read($, stAgentTier))[e.agentId]
+      if (pinned !== undefined) return yield* next({ ...e, model: tierGroup(pinned) })
+      const main = await read($, stMainTier)
+      if (main === null) return yield* next(e) // nothing to pin to yet
+      const id = e.agentId
+      await update($, stAgentTier, (t) => ({ ...t, [id]: main }))
+      return yield* next({ ...e, model: tierGroup(main) })
     }
     const turn = await read($, stTurn)
     if (turn === null) return yield* next(e) // gateway fallback mode
