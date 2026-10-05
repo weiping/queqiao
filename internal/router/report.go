@@ -102,7 +102,9 @@ func Aggregate(in ReportInput) Report {
 				// the session's own pr_merged feedback is the fallback
 				url := strings.TrimSpace(strings.TrimPrefix(ev.Extra, "pr_created"))
 				state, ok := in.PRStates[url]
-				if !ok && hasMergedFallback(in.Events, since, ev.Session) {
+				// gh couldn't answer (UNKNOWN or absent): the session's own
+				// pr_merged feedback is the fallback
+				if (!ok || state == "UNKNOWN") && hasMergedFallback(in.Events, since, ev.Session) {
 					state = "MERGED"
 				}
 				if state == "MERGED" {
