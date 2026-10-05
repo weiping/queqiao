@@ -50,7 +50,7 @@ clients/claude-code/
 - `hooks/hooks.json`：`{"modules": ["./register.ts"]}`。
 - `agents/repo-scout.md`：frontmatter `name: repo-scout`、`model: haiku`、`tools: Read, Grep, Glob`；正文：只读代码搜索子代理的职责说明。
 - `README.md`：安装（marketplace add → plugin install）、需要 CC ≥ v2.1.287、需要网关在跑、`gateway_url` 配置、SDK 模式 errno -88 说明、`--safe-mode`/`allowManagedModsOnly` 下 mod 不加载。
-- 仓库根 `.claude-plugin/marketplace.json`：`name: "queqiao"`、plugins 数组仅 `queqiao-router`、`source` 指向 `clients/claude-code`——**写法待实测**（`./clients/claude-code` 与 `../clients/claude-code` 二选一，SP0 只用过 `--plugin-dir`，从未验证 marketplace 的 source 解析基准）。
+- 仓库根 `.claude-plugin/marketplace.json`：`name: "queqiao"`、plugins 数组仅 `queqiao-router`、`source: "./clients/claude-code"`——**已实测**（Task 1：marketplace add 本地路径 + install 成功，根目录相对形式正确）。
 
 **Step 2** `register.ts` 先放最小空实现（每个事件 `return next(e)` 原样放行）。
 
