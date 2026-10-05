@@ -44,6 +44,10 @@ Then three steps inside Codex:
 ## Troubleshooting
 
 - Nothing routes, no status message: is `queqiao` on PATH?
-  (`which queqiao`) Are the hooks trusted (`/hooks`)?
+  (`which queqiao`) Are the hooks trusted (`/hooks`)? Is the gateway on
+  its default port? (Hook subprocesses do not inherit custom
+  environment variables, so `QUEQIAO_URL` set in your shell does not
+  reach the hook — the gateway must serve on `127.0.0.1:3425`, the
+  default.)
 - Status message but wrong tier: `queqiao router status` shows the
   config and recent decisions.
