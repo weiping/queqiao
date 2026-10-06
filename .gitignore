@@ -12,3 +12,6 @@
 memory/
 .DS_Store
 .pi/url-cache/
+
+node_modules/
+queqiao.app/
