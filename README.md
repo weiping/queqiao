@@ -4,7 +4,7 @@
 
 queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magpie 的全部功能，在它的本地网关之上加一层路由。名字取自“鹊桥”：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。
 
-> **状态：已实现，线上验收中。** 全部七个子项目（SP0–SP6）已按设计完成并合并（PR #4–#11），Claude Code、Pi、Codex 三条通路的真机验收全部通过。当前处于线上 A/B 实验阶段，首份真实报表待实验跑满后产出。总体设计与各子项目的执行结果见 [`docs/superpowers/specs/2026-10-02-queqiao-design.md`](docs/superpowers/specs/2026-10-02-queqiao-design.md) 与 `docs/superpowers/plans/`。
+> **状态：已实现，生产运行中。** 全部七个子项目（SP0–SP6）完成并合并（PR #4–#11），Claude Code、Pi、Codex 三条通路真机验收通过；自 2026-10-06 起在本机正式启用（magpie 已迁移退役），线上 A/B 实验积累中，首份真实报表待跑满两周。发布物：三平台 CLI + 三平台桌面 App + 校验和（`qq-v*` 标签自动构建）。总体设计与各子项目的执行结果见 [`docs/superpowers/specs/2026-10-02-queqiao-design.md`](docs/superpowers/specs/2026-10-02-queqiao-design.md) 与 `docs/superpowers/plans/`。
 
 ## 要做什么
 
@@ -259,7 +259,7 @@ Claude Code 插件的网关地址另有 `gateway_url` 设置（`claude plugin in
 | `queqiao`（默认分支） | queqiao 的开发主干，定期合并 `main` |
 | `main` | 上游 yetone/magpie 的镜像，只做快进同步，不直接提交 |
 | `qq/sp<N>-<名字>` | 各子项目的功能分支，完成后 PR 合回 `queqiao` |
-| `qq-v*` 标签 | 发版标签：推送后自动构建各平台 CLI 并发布 Release（`install.sh` 从这里下载）；注意上游用的 `v*` 前缀会交接给 yetone/magpie-releases，queqiao 不用它 |
+| `qq-v*` 标签 | 发版标签：推送后自动构建 7 平台 CLI、三平台桌面 App（mac 签名公证待配证书、Windows/Linux 未签名）与 SHA-256 校验并发布 Release（`install.sh` 从这里下载）；注意上游用的 `v*` 前缀会交接给 yetone/magpie-releases，queqiao 不用它 |
 
 为了让合并上游尽量不冲突，queqiao 的代码放在 `internal/router/`、`internal/harness/`、`clients/` 这几个新目录里，对上游文件只做少量挂钩；Go 模块路径保留 `github.com/yetone/magpie` 不改。品牌化同理按冲突面分层：应用身份（bundle、窗口/菜单条/页面标题）与 CLI 帮助文本是 queqiao（提交分叉），页面内部文案保持上游拼写；每周同步时工作流会自动重刷 CLI 品牌（`scripts/brand_cli.py`，合并后跑一次、幂等），手动解冲突时 issue 指引里也带这一步。
 
