@@ -40,7 +40,13 @@ curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.sh 
 … | sh -s -- --bin-dir ~/bin       # 装到别处
 ```
 
-Windows 没有 shell 安装器：到 [releases](https://github.com/weiping/queqiao/releases) 下载 `queqiao-cli-windows-<arch>.exe`，改名 `queqiao.exe` 放入 PATH。所有版本见 releases 页（`qq-v*` 标签触发构建，见「分支」一节）。
+Windows 一键安装（PowerShell，同样校验 SHA-256，装进 `~\.local\bin`）：
+
+```powershell
+irm https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.ps1 | iex
+```
+
+也可以到 [releases](https://github.com/weiping/queqiao/releases) 手动下载 `queqiao-cli-windows-<arch>.exe`。所有版本见 releases 页（`qq-v*` 标签触发构建，见「分支」一节）。
 
 也可以从源码构建：
 

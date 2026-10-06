@@ -67,5 +67,10 @@ jobs:
           \`\`\`sh
           curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.sh | sh
           \`\`\`
+          Windows (PowerShell):
+          
+          \`\`\`powershell
+          irm https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.ps1 | iex
+          \`\`\`
           
           Then \`queqiao router init --preset cn\` and \`queqiao serve\`. See the README's 快速开始."
