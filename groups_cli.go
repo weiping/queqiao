@@ -129,7 +129,7 @@ func parseRouting(v string) (string, error) {
 		}
 		names = append(names, r.name)
 	}
-	return "", fmt.Errorf("routing %q is not one magpie has: %s", v, strings.Join(names, ", "))
+	return "", fmt.Errorf("routing %q is not one queqiao has: %s", v, strings.Join(names, ", "))
 }
 
 func parseStays(v string) (string, error) {
@@ -141,7 +141,7 @@ func parseStays(v string) (string, error) {
 		}
 		names = append(names, s.name)
 	}
-	return "", fmt.Errorf("stays %q is not one magpie has: %s", v, strings.Join(names, ", "))
+	return "", fmt.Errorf("stays %q is not one queqiao has: %s", v, strings.Join(names, ", "))
 }
 
 func routingName(v string) string {
@@ -215,7 +215,7 @@ func memberResolver(keep []string) func(string) (string, error) {
 					return provider.GroupPrefix + g.ID, nil
 				}
 			}
-			return "", fmt.Errorf("magpie has no group %q (queqiao groups lists them)", gid)
+			return "", fmt.Errorf("queqiao has no group %q (queqiao groups lists them)", gid)
 		}
 		if slices.Contains(ids, id) || slices.Contains(keep, id) {
 			return id, nil
@@ -232,7 +232,7 @@ func memberResolver(keep []string) func(string) (string, error) {
 		default:
 			return "", fmt.Errorf("%s is served by %d providers; name one: %s", id, len(hits), strings.Join(hits, ", "))
 		}
-		msg := fmt.Sprintf("magpie knows no model %q", id)
+		msg := fmt.Sprintf("queqiao knows no model %q", id)
 		if near := closeMatches(id, ids, 6); len(near) > 0 {
 			msg += "; did you mean " + strings.Join(near, ", ") + "?"
 		}
@@ -568,7 +568,7 @@ func groupCmd(args []string) error {
 		}
 		for _, g := range gs {
 			if g.Auto {
-				fmt.Println(green.Render("✓"), "removed", bold.Render(g.Name), muted.Render("· magpie found it, so it's hidden: queqiao group restore "+g.ID+" brings it back"))
+				fmt.Println(green.Render("✓"), "removed", bold.Render(g.Name), muted.Render("· queqiao found it, so it's hidden: queqiao group restore "+g.ID+" brings it back"))
 			} else {
 				fmt.Println(green.Render("✓"), "removed", bold.Render(g.Name))
 			}
@@ -955,7 +955,7 @@ func showGroup(g provider.Group) error {
 	kv := func(k, v string) { fmt.Printf("  %s %s\n", muted.Render(pad(k, 9)), v) }
 	head := bold.Render(g.Name) + muted.Render("  "+provider.GroupPrefix+g.ID)
 	if g.Auto {
-		head += faint.Render("  found by magpie — changing it makes it yours")
+		head += faint.Render("  found by queqiao — changing it makes it yours")
 	}
 	if g.Hidden {
 		head += amber.Render("  removed") + muted.Render(" · queqiao group restore "+g.ID)

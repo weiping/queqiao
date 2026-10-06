@@ -147,7 +147,7 @@ func main() {
 	}
 	slices.Sort(ignored)
 	for _, v := range ignored {
-		fmt.Fprintf(os.Stderr, "magpie: ignoring %s: not an absolute path (the programs magpie starts still get it)\n", v)
+		fmt.Fprintf(os.Stderr, "queqiao: ignoring %s: not an absolute path (the programs queqiao starts still get it)\n", v)
 	}
 	if provider.TookOpenedURL(os.Args[1:]) {
 		// Claude Code, signing in for magpie, handed over the page to open
@@ -237,7 +237,7 @@ func run(args []string) error {
 	}
 	// a magpie:// link the system handed over (Windows, Linux): the app
 	// opens it for the user to confirm
-	if strings.HasPrefix(strings.ToLower(args[0]), "magpie:") {
+	if strings.HasPrefix(strings.ToLower(args[0]), "queqiao:") {
 		if !hasGUI {
 			return importCmd(args)
 		}
@@ -354,7 +354,7 @@ func run(args []string) error {
 		if len(args) > 1 {
 			link := a.Import()
 			openInBrowser(link)
-			fmt.Println(green.Render("✓"), bold.Render(a.Name), muted.Render("opened to add magpie — confirm it there"))
+			fmt.Println(green.Render("✓"), bold.Render(a.Name), muted.Render("opened to add queqiao — confirm it there"))
 			fmt.Println(muted.Render("  " + link))
 			return nil
 		}
@@ -442,7 +442,7 @@ func disconnect(a *agent.Agent) error {
 		}
 		fmt.Println(green.Render("✓"), bold.Render(a.Name), muted.Render(f.Label), shown)
 	}
-	fmt.Println(muted.Render("  disconnected from magpie, back to what it had before"))
+	fmt.Println(muted.Render("  disconnected from queqiao, back to what it had before"))
 	if a.Notice != nil {
 		if n := a.Notice(); n != "" {
 			fmt.Println(muted.Render("  ↻ " + n))
@@ -526,9 +526,9 @@ func list(agents []*agent.Agent, detectedOnly bool, dimFrom int) error {
 			r.vals = strings.Join(parts, label.Render("  ·  "))
 			if a.Import != nil {
 				if a.Added != nil && a.Added() {
-					r.vals = value.Render("magpie added")
+					r.vals = value.Render("queqiao added")
 				} else {
-					r.vals = label.Render("magpie "+a.ID+" add") + faint.Render("  to add magpie")
+					r.vals = label.Render("queqiao "+a.ID+" add") + faint.Render("  to add queqiao")
 				}
 			}
 		}

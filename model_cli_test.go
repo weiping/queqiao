@@ -1200,20 +1200,20 @@ func TestModelWireCmd(t *testing.T) {
 		t.Errorf("naming every model alike said %q", out)
 	}
 	if out := saidArgs(t, "wire", "b/*"); !strings.Contains(out, "B is asked for every one of its models as vendor-c/one") ||
-		strings.Contains(out, "* is the model magpie knows each of them by") {
+		strings.Contains(out, "* is the model queqiao knows each of them by") {
 		t.Errorf("asking about a name with no star in it said %q; want no sentence about the star", out)
 	}
-	if out := saidArgs(t, "wire", "b/*", "vendor-c/*"); !strings.Contains(out, "* is the model magpie knows each of them by") {
+	if out := saidArgs(t, "wire", "b/*", "vendor-c/*"); !strings.Contains(out, "* is the model queqiao knows each of them by") {
 		t.Errorf("naming every model with a star in it said %q; want the star explained", out)
 	}
 	if out := saidArgs(t, "wire", "b/*"); !strings.Contains(out, "b/vendor/m is asked for as vendor-c/vendor/m") ||
-		!strings.Contains(out, "* is the model magpie knows each of them by") {
+		!strings.Contains(out, "* is the model queqiao knows each of them by") {
 		t.Errorf("asking about a name with a star in it said %q", out)
 	}
 
 	// one model of its own, which the provider's name cannot outrank
 	if out := saidArgs(t, "wire", "a/m", "vendor-c/m"); !strings.Contains(out, "is asked for as vendor-c/m") ||
-		!strings.Contains(out, "magpie and the agents still know it as m") {
+		!strings.Contains(out, "queqiao and the agents still know it as m") {
 		t.Errorf("naming one model said %q", out)
 	}
 	if n := wires()["a/m"]; n != "vendor-c/m" {
@@ -1224,10 +1224,10 @@ func TestModelWireCmd(t *testing.T) {
 		t.Errorf("asking about one model said %q", out)
 	}
 	// a name of only whitespace takes the one away, and where nothing is in
-	// force for the model it is asked for by the name magpie knows it by
+	// force for the model it is asked for by the name queqiao knows it by
 	// again — not read as a name just given
 	if out := saidArgs(t, "wire", "a/m", "   "); !strings.Contains(out, "is asked for as m again") ||
-		strings.Contains(out, "magpie and the agents still know it as m") {
+		strings.Contains(out, "queqiao and the agents still know it as m") {
 		t.Errorf("a name of only whitespace said %q; want the removal it is", out)
 	}
 	if _, ok := wires()["a/m"]; ok {
@@ -1283,7 +1283,7 @@ func TestModelWireCmd(t *testing.T) {
 	if n := wires()["a/*"]; n != "vendor-c/one" {
 		t.Errorf("--reset on a model took the provider's %q away too", n)
 	}
-	if out := saidArgs(t, "wire", "a/*", "--reset"); !strings.Contains(out, "every model of A is asked for by the name magpie knows it by again") {
+	if out := saidArgs(t, "wire", "a/*", "--reset"); !strings.Contains(out, "every model of A is asked for by the name queqiao knows it by again") {
 		t.Errorf("--reset on every model said %q", out)
 	}
 	if got := len(wires()); got != 1 {
@@ -1410,8 +1410,8 @@ func TestModelWireResetWildcardNamesTheModelsThatKeepAName(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := saidArgs(t, "wire", "a/*", "--reset")
-	if strings.Contains(out, "every model of A is asked for by the name magpie knows it by again") {
-		t.Errorf("queqiao model wire a/* --reset said %q; a/m is asked for as vendor-c/m, not by the name magpie knows it by", out)
+	if strings.Contains(out, "every model of A is asked for by the name queqiao knows it by again") {
+		t.Errorf("queqiao model wire a/* --reset said %q; a/m is asked for as vendor-c/m, not by the name queqiao knows it by", out)
 	}
 	if !strings.Contains(out, "m is asked for as vendor-c/m, a name of its own") {
 		t.Errorf("queqiao model wire a/* --reset said %q; want the model that keeps a name named with the one in force for it", out)
@@ -1421,7 +1421,7 @@ func TestModelWireResetWildcardNamesTheModelsThatKeepAName(t *testing.T) {
 		t.Errorf("after --reset on every model, m is asked for as %q; want the name given for m itself", got)
 	}
 	if got := provider.UpstreamName(mustFind(t, "a"), "only-a"); got != "only-a" {
-		t.Errorf("after --reset on every model, only-a is asked for as %q; want the name magpie knows it by", got)
+		t.Errorf("after --reset on every model, only-a is asked for as %q; want the name queqiao knows it by", got)
 	}
 	if provider.HasUpstreamName("a/*") {
 		t.Error("--reset on every model left the provider's own name behind")
@@ -1452,7 +1452,7 @@ func TestModelWireResetWildcardNamesTheModelsThatKeepAName(t *testing.T) {
 		t.Fatal(err)
 	}
 	out = saidArgs(t, "wire", "a/*", "--reset")
-	if !strings.Contains(out, "every model of A is asked for by the name magpie knows it by again") {
+	if !strings.Contains(out, "every model of A is asked for by the name queqiao knows it by again") {
 		t.Errorf("queqiao model wire a/* --reset said %q; the names left are for models A no longer serves, and it is asked for none of them", out)
 	}
 	if strings.Contains(out, "vendor-c/m") || strings.Contains(out, "vendor-c/only-a") {
@@ -1461,7 +1461,7 @@ func TestModelWireResetWildcardNamesTheModelsThatKeepAName(t *testing.T) {
 }
 
 // The refusal for a pattern with nothing left under it says every model of
-// the provider is asked for by the name magpie knows it by, and that is false
+// the provider is asked for by the name queqiao knows it by, and that is false
 // the moment one model keeps a name of its own: the model's own key wins over
 // the provider's, so it is asked for under that one however the provider's
 // entry reads. The second --reset over a provider-wide name is exactly where
@@ -1490,7 +1490,7 @@ func TestModelWireResetWildcardRefusalNamesTheModelsThatKeepAName(t *testing.T) 
 	if strings.Contains(out, "✓") {
 		t.Errorf("a --reset with nothing under the key printed a tick: %q", out)
 	}
-	if strings.Contains(err.Error(), "every model of A is already asked for by the name magpie knows it by") {
+	if strings.Contains(err.Error(), "every model of A is already asked for by the name queqiao knows it by") {
 		t.Errorf("the second --reset says %q; m is asked for as own-m, a name of its own", err)
 	}
 	if !strings.Contains(err.Error(), "m is asked for as own-m, a name of its own") {
@@ -1697,7 +1697,7 @@ func TestModelWiresCmdSkipsANameOfOnlyWhitespace(t *testing.T) {
 }
 
 // --reset takes a name away, and where there is no name to take away the
-// model is already asked for by the name magpie knows it by, or by the name
+// model is already asked for by the name queqiao knows it by, or by the name
 // its provider's own entry puts in force. A tick over either would report a
 // removal that did not happen — and under a provider-wide name it would
 // leave the reader with the one thing that is false, that the model's own
@@ -1743,8 +1743,8 @@ func TestModelWireResetRefusesANameThereIsNot(t *testing.T) {
 	if strings.Contains(out, "✓") {
 		t.Errorf("--reset on a model A does not serve printed a tick: %q", out)
 	}
-	if !strings.Contains(err.Error(), "a/nosuch is not a model of A magpie knows of") {
-		t.Errorf("--reset on a model A does not serve says %q; want it to say magpie knows no such model", err)
+	if !strings.Contains(err.Error(), "a/nosuch is not a model of A queqiao knows of") {
+		t.Errorf("--reset on a model A does not serve says %q; want it to say queqiao knows no such model", err)
 	}
 	if strings.Contains(err.Error(), "already asked for as") {
 		t.Errorf("--reset on a model A does not serve says %q; that model is asked for by no name at all", err)
@@ -1763,7 +1763,7 @@ func TestModelWireResetRefusesANameThereIsNot(t *testing.T) {
 	if out := saidArgs(t, "wire", "a/*", "vendor-c/one"); !strings.Contains(out, "every model of A is asked for as vendor-c/one") {
 		t.Fatalf("naming every model of A said %q", out)
 	}
-	if out := saidArgs(t, "wire", "a/*", "--reset"); !strings.Contains(out, "every model of A is asked for by the name magpie knows it by again") {
+	if out := saidArgs(t, "wire", "a/*", "--reset"); !strings.Contains(out, "every model of A is asked for by the name queqiao knows it by again") {
 		t.Fatalf("the first --reset on every model said %q", out)
 	}
 	out, err = refusedArgs(t, "wire", "a/*", "--reset")
@@ -1774,7 +1774,7 @@ func TestModelWireResetRefusesANameThereIsNot(t *testing.T) {
 		t.Errorf("--reset over no name at all printed a tick: %q", out)
 	}
 	if !strings.Contains(err.Error(), "a/* has no name of its own to reset") ||
-		!strings.Contains(err.Error(), "every model of A is already asked for by the name magpie knows it by") {
+		!strings.Contains(err.Error(), "every model of A is already asked for by the name queqiao knows it by") {
 		t.Errorf("the second --reset on every model says %q", err)
 	}
 
@@ -1814,11 +1814,11 @@ func TestModelWireResetRefusesANameThereIsNot(t *testing.T) {
 	if err == nil {
 		t.Fatalf("--reset on a model A does not serve, under the provider's own name, said %q", out)
 	}
-	if !strings.Contains(err.Error(), "a/nosuch is not a model of A magpie knows of") ||
+	if !strings.Contains(err.Error(), "a/nosuch is not a model of A queqiao knows of") ||
 		strings.Contains(err.Error(), "vendor-c/one") {
 		t.Errorf("the refusal is %q; want magpie knowing no such model, not the name in force", err)
 	}
-	if out := saidArgs(t, "wire", "a/*", "--reset"); !strings.Contains(out, "every model of A is asked for by the name magpie knows it by again") {
+	if out := saidArgs(t, "wire", "a/*", "--reset"); !strings.Contains(out, "every model of A is asked for by the name queqiao knows it by again") {
 		t.Errorf("--reset on every model said %q", out)
 	}
 	if got := len(wires()); got != 0 {

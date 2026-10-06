@@ -416,7 +416,7 @@ func quotaAlertCmd(args []string) error {
 		fmt.Println("; no balance alert")
 	}
 	if s.UsageAlert > 0 || s.BalanceAlert > 0 {
-		fmt.Println(muted.Render("  the notifications come from the magpie app, while it runs"))
+		fmt.Println(muted.Render("  the notifications come from the queqiao app, while it runs"))
 	}
 	return nil
 }
@@ -520,7 +520,7 @@ func quotaHistoryCmd(args []string) error {
 		if len(only) > 0 {
 			return fmt.Errorf("no readings kept of %s", strings.Join(only, ", "))
 		}
-		fmt.Println(muted.Render("nothing kept yet ·"), "a subscription's or plan's windows are kept here as magpie reads them")
+		fmt.Println(muted.Render("nothing kept yet ·"), "a subscription's or plan's windows are kept here as queqiao reads them")
 		return nil
 	}
 	for _, h := range hs {

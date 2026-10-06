@@ -357,7 +357,7 @@ func providerCmd(args []string) error {
 			if !(len(rest) == 2 && rest[1] == "none") {
 				for _, id := range rest[1:] {
 					if _, _, ok := provider.Resolve(id); !ok {
-						return fmt.Errorf("magpie knows no model %q (queqiao models lists them)", id)
+						return fmt.Errorf("queqiao knows no model %q (queqiao models lists them)", id)
 					}
 					p.Fallback = append(p.Fallback, id)
 				}

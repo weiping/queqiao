@@ -209,7 +209,7 @@ func listPlugins(ctx context.Context, asJSON bool) error {
 			}
 			who := muted.Render("not signed in · queqiao plugin login " + p.ID)
 			if c, ok := onBuiltin[p.ID]; ok && !p.SignedIn {
-				who = muted.Render(fmt.Sprintf("runs on magpie's built-in (%d accounts) · queqiao plugin move %s", c.Accounts, p.ID))
+				who = muted.Render(fmt.Sprintf("runs on queqiao's built-in (%d accounts) · queqiao plugin move %s", c.Accounts, p.ID))
 			}
 			if p.SignedIn {
 				who = green.Render("signed in")
@@ -417,7 +417,7 @@ func pluginLogin(ctx context.Context, name, method string) error {
 		if a.Method != "code" && provider.PluginPastesCallback(pp.ID, a.URL) {
 			// a browser on another computer (magpie on a server or in
 			// Docker) ends on a page that won't load: its address finishes it
-			fmt.Println("If the page the browser ends on won't load (magpie on a server or in Docker), paste its whole address here and press Enter:")
+			fmt.Println("If the page the browser ends on won't load (queqiao on a server or in Docker), paste its whole address here and press Enter:")
 			go func() {
 				for wait.Err() == nil {
 					line, err := stdin.ReadString('\n')

@@ -197,7 +197,7 @@ func removeEverySkill(args []string) (*library.Result, error) {
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			return nil, fmt.Errorf("this removes all %s; run it with --yes to do so without being asked", plural(len(names), "skill"))
 		}
-		fmt.Printf("Remove all %s (%s) from the library and every agent? Folders magpie keeps go to its backups; folders of your own are only unlinked. [y/N] ",
+		fmt.Printf("Remove all %s (%s) from the library and every agent? Folders queqiao keeps go to its backups; folders of your own are only unlinked. [y/N] ",
 			plural(len(names), "skill"), strings.Join(names, ", "))
 		line, _ := stdin.ReadString('\n')
 		if a := strings.ToLower(strings.TrimSpace(line)); a != "y" && a != "yes" {
@@ -298,7 +298,7 @@ func libraryStatus() error {
 	}
 	for _, a := range v.Instructions.Agents {
 		if a.Edited {
-			fmt.Println(" ", amber.Render("!"), a.Agent, muted.Render("magpie's part was edited in "+a.Path))
+			fmt.Println(" ", amber.Render("!"), a.Agent, muted.Render("queqiao's part was edited in "+a.Path))
 		}
 	}
 	fmt.Println(bold.Render("MCP servers"))

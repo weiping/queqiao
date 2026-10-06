@@ -15,8 +15,8 @@ import (
 // A model's name and reasoning levels, from the terminal: queqiao model.
 
 const modelUsage = `  queqiao model name <provider/model>              the name the model goes by
-  queqiao model name <provider/model> <name>       name it so everywhere: in magpie, in the gateway's
-                                                   model list, and in the lists magpie writes into the agents
+  queqiao model name <provider/model> <name>       name it so everywhere: in queqiao, in the gateway's
+                                                   model list, and in the lists queqiao writes into the agents
   queqiao model name <provider/model> --reset      give it back its own name
   queqiao model efforts <provider/model>           the reasoning levels it offers, and those it has
   queqiao model efforts <provider/model> <l>,<l>   offer only these of them, e.g. low,medium,high
@@ -47,7 +47,7 @@ const modelUsage = `  queqiao model name <provider/model>              the name 
   queqiao model wire '<provider>/*' <name>         ask for every model of that provider by this name; a * in
                                                    it is the model, so vendor-c/* asks for model-3 as
                                                    vendor-c/model-3. Quote it: a shell reads a bare * as a glob
-  queqiao model wire <provider/model> --reset      ask for it by the name magpie knows it by again, under an
+  queqiao model wire <provider/model> --reset      ask for it by the name queqiao knows it by again, under an
                                                    id of its own for a provider that has since been deleted,
                                                    and says when there was no name of its own to take away
   queqiao model wires                              the names your vendors are asked for models by
@@ -979,7 +979,7 @@ func modelWire(args []string) error {
 			}
 			if dropped {
 				fmt.Println(green.Render("✓"), pid+"/"+model,
-					muted.Render("no longer has a name of its own; a provider taking that id later is asked for it by the name magpie knows it by"))
+					muted.Render("no longer has a name of its own; a provider taking that id later is asked for it by the name queqiao knows it by"))
 				return nil
 			}
 			// no name is kept under that key, so the id is a mistyped one
@@ -1005,12 +1005,12 @@ func modelWire(args []string) error {
 		fmt.Println(bold.Render(asked), muted.Render("· what "+p.Name+" is asked for, for "+shown))
 		switch {
 		case asked == model:
-			fmt.Println(faint.Render("  · the same name magpie knows it by · queqiao model wire " + shown + " <name> to change it"))
+			fmt.Println(faint.Render("  · the same name queqiao knows it by · queqiao model wire " + shown + " <name> to change it"))
 		case model == "*":
 			fmt.Println(faint.Render("  · " + exampleOf(p, asked)))
 			fmt.Println(faint.Render("  · --reset takes it away · queqiao model wire " + p.ID + "/<model> <name> gives a single model one of its own"))
 		case own:
-			fmt.Println(faint.Render("  · magpie and the agents still know it as " + model + " · --reset asks for that again"))
+			fmt.Println(faint.Render("  · queqiao and the agents still know it as " + model + " · --reset asks for that again"))
 		case one:
 			fmt.Println(faint.Render("  · from the name given for every model of " + p.Name + " (" + every + " " + names["*"] + ")" +
 				" · --reset on it leaves that one in force"))
@@ -1057,7 +1057,7 @@ func modelWire(args []string) error {
 		return nil
 	}
 	fmt.Println(green.Render("✓"), shown, muted.Render("is asked for as"), bold.Render(now),
-		faint.Render("· magpie and the agents still know it as "+model))
+		faint.Render("· queqiao and the agents still know it as "+model))
 	return nil
 }
 
@@ -1086,7 +1086,7 @@ func resetWireName(p provider.Provider, model, id, shown string) error {
 			// provider has nothing like is never asked for by any name,
 			// so naming the one in force would claim a request magpie
 			// does not make
-			return fmt.Errorf("%s is not a model of %s magpie knows of, so there is nothing to take away and none in force: a name is only kept for a model the provider serves, and this one is asked for by no name", id, p.Name)
+			return fmt.Errorf("%s is not a model of %s queqiao knows of, so there is nothing to take away and none in force: a name is only kept for a model the provider serves, and this one is asked for by no name", id, p.Name)
 		}
 		every := "'" + p.ID + "/*'"
 		if provider.HasUpstreamName(p.ID + "/*") {
@@ -1102,7 +1102,7 @@ func resetWireName(p provider.Provider, model, id, shown string) error {
 			if kept := ownKeptSaid(&p); kept != "" {
 				return fmt.Errorf("%s has no name of its own to reset, so there was nothing to take away: %s", id, kept)
 			}
-			return fmt.Errorf("%s has no name of its own to reset, so there was nothing to take away: every model of %s is already asked for by the name magpie knows it by", id, p.Name)
+			return fmt.Errorf("%s has no name of its own to reset, so there was nothing to take away: every model of %s is already asked for by the name queqiao knows it by", id, p.Name)
 		}
 		return fmt.Errorf("%s has no name of its own to reset, so there was nothing to take away: it is already asked for as %s", id, now)
 	}
@@ -1121,7 +1121,7 @@ func resetWireName(p provider.Provider, model, id, shown string) error {
 			fmt.Println(green.Render("✓"), shown, muted.Render("has no name of its own again ·"), kept)
 			return nil
 		}
-		fmt.Println(green.Render("✓"), shown, muted.Render("· every model of "+p.Name+" is asked for by the name magpie knows it by again"))
+		fmt.Println(green.Render("✓"), shown, muted.Render("· every model of "+p.Name+" is asked for by the name queqiao knows it by again"))
 		return nil
 	}
 	fmt.Println(green.Render("✓"), shown, muted.Render("is asked for as"), bold.Render(model), muted.Render("again"))
@@ -1211,7 +1211,7 @@ func exampleOf(p *provider.Provider, name string) string {
 	if !strings.Contains(name, "*") {
 		return p.Name + " is asked for every one of its models as " + name
 	}
-	const star = " · * is the model magpie knows each of them by"
+	const star = " · * is the model queqiao knows each of them by"
 	names := p.UpstreamNames()
 	model := ""
 	for _, m := range p.Exposed() {
