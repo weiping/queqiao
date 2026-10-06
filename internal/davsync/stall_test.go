@@ -140,17 +140,23 @@ func (l narrowListener) Accept() (net.Conn, error) {
 // down, but never stops moving, is written and read in full (#657: 43 MB
 // at 305 KB/s took 2.4 minutes, and a sync was given 2).
 func TestSlowTransferIsNotCutShort(t *testing.T) {
-	shortStall(t, 300*time.Millisecond, 300*time.Millisecond)
+	// 1 s, not 300 ms: narrowLine still hands the writer whole bursts, and
+	// a loaded runner (the full suite on two vCPUs) was seen going past
+	// 300 ms between reads without the line having stopped — the test
+	// would cancel the transfer it exists to prove is kept. 1 s is above
+	// any scheduling gap; the line below is slowed so the transfer still
+	// lasts ≥ 5 watchdogs.
+	shortStall(t, 1*time.Second, 300*time.Millisecond)
 	// the PUT's last MBs cross the line twice the watchdog after magpie has
 	// handed them all over
-	s := &slowDAV{chunk: 256 << 10, gap: 40 * time.Millisecond, tail: 2 * stallAfter}
+	s := &slowDAV{chunk: 128 << 10, gap: 40 * time.Millisecond, tail: 2 * stallAfter}
 	srv, client := narrowLine(t, s)
 	d, err := newDAV(Config{URL: srv.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
 	d.client = client
-	// ~20 MB at 6.4 MB/s: 3 s each way
+	// ~20 MB at 3.2 MB/s: 6.5 s each way, ≥ 5× the 1 s watchdog
 	data := bytes.Repeat([]byte("magpie skill "), (20<<20)/13)
 	ctx := context.Background()
 	start := time.Now()
