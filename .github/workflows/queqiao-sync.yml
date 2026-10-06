@@ -132,7 +132,7 @@ jobs:
             files=$(git diff --name-only --diff-filter=U | sed 's/^/- `/; s/$/`/')
             git merge --abort
             # shellcheck disable=SC2016 # Markdown backticks, not shell
-            body=$(printf 'Merging upstream %s..%s (%s commits) into queqiao conflicts in:\n\n%s\n\nResolve by hand:\n\n```sh\ngit switch queqiao && git pull\ngit fetch origin main\ngit merge --no-ff origin/main\n# resolve, then\ngit push origin queqiao\n```\n\nOnly the upstream files listed in the spec (section 6.1) should ever conflict.\n\nRun: %s' \
+            body=$(printf 'Merging upstream %s..%s (%s commits) into queqiao conflicts in:\n\n%s\n\nResolve by hand:\n\n```sh\ngit switch queqiao && git pull\ngit fetch origin main\ngit merge --no-ff origin/main\n# resolve, then re-apply the CLI brand over the merged result:\npython3 scripts/brand_cli.py\ngo test -tags nogui .\n# then\ngit push origin queqiao\n```\n\nOnly the upstream files listed in the spec (section 6.1) should ever conflict.\n\nRun: %s' \
               "$from" "$to" "$count" "$files" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
             gh label create sync --color BFD4F2 --force >/dev/null \
               || echo "::warning::could not create the sync label on $GH_REPO"
@@ -144,6 +144,21 @@ jobs:
             fi
             echo "::error::merge conflicts"
             exit 1
+          fi
+          # upstream's new help lines arrive spelled magpie: re-apply the
+          # CLI brand over the merge (scripts/brand_cli.py is idempotent,
+          # string literals only) and fold it into the merge commit, so the
+          # PR and its checks cover the branded state
+          if python3 scripts/brand_cli.py | tee /tmp/brand.out; then
+            # fold the rebrand into the merge commit — but only into one
+            # (HEAD^2 exists); never rewrite an ordinary commit
+            if git rev-parse -q --verify "HEAD^2" >/dev/null && git status --porcelain | grep -q .; then
+              git add -A
+              git commit --amend --no-edit >/dev/null
+              echo "CLI brand re-applied over the merge"
+            fi
+          else
+            echo "::warning::brand_cli.py failed; the PR goes out unbranded — run it by hand after merge"
           fi
           # The sync branch belongs to this workflow: a rerun rebuilds the merge
           # (a new commit), so it replaces whatever an earlier run pushed.
