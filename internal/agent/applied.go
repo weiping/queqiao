@@ -168,7 +168,16 @@ func (a *Agent) Drift() *Drift {
 	joined := a.Joined != nil && a.Joined()
 	for _, f := range a.Fields {
 		want, ok := rec.Fields[f.Key]
-		if !ok || joined || vals[f.Key] == want || !magpieValue(a, f, want, vals) || magpieValue(a, f, vals[f.Key], vals) || sameGroup(want, vals[f.Key]) {
+		// a field that reads empty while it follows another (Claude Code's
+		// tiers and subagents on its main model) runs on that one's model:
+		// the main model moved onto the one magpie set the field to reads
+		// as following it, not as the field put back to the agent's own
+		// default (#1050)
+		now := vals[f.Key]
+		if now == "" && f.Follows != "" {
+			now = vals[f.Follows]
+		}
+		if !ok || joined || now == want || !magpieValue(a, f, want, vals) || magpieValue(a, f, now, vals) || sameGroup(want, now) {
 			continue
 		}
 		return &Drift{Kind: "replaced", Field: f.Key, Now: vals[f.Key], Want: want,

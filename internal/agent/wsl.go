@@ -545,7 +545,7 @@ func asleep(live *Agent, k wslKind, d distro) *Agent {
 		}}
 	for _, lf := range live.Fields {
 		key := lf.Key
-		f := Field{Key: key, Label: lf.Label, Quiet: lf.Quiet, Options: lf.Options,
+		f := Field{Key: key, Label: lf.Label, Quiet: lf.Quiet, Follows: lf.Follows, Options: lf.Options,
 			Get: func() string { return wslLastSeen(d.Name, k.memo(key)) },
 			Set: func(v string) error {
 				// opening a stopped distro's files is aborted rather than

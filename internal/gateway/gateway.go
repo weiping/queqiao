@@ -2807,9 +2807,10 @@ func (s *Server) passthrough(w http.ResponseWriter, r *http.Request, p provider.
 			body, searchFn = searchAsFunction(body)
 		}
 		body = forVendor(p, body)
-		if strings.HasSuffix(p.Host(), "openai.com") || p.IsAzure() {
+		if strings.HasSuffix(p.Host(), "openai.com") || p.IsAzure() || !s.fits(p.ID, bareReasoningRefused(model), proto) {
 			// reasoning magpie gave Codex, an id with nothing sealed in
-			// it, which they'd look up and not find (#1008)
+			// it, which they'd look up and not find (#1008), nor does an
+			// upstream that has turned it away before (#1044)
 			body = withoutBareReasoning(body)
 		}
 		// Relays enforce OpenAI's item ID prefixes too, including during
@@ -2912,6 +2913,21 @@ func (s *Server) passthrough(w http.ResponseWriter, r *http.Request, p provider.
 		var ms []string
 		if proto == provider.Chat {
 			ms = refusedInMessages(res.StatusCode, b, body)
+		}
+		if len(fs) == 0 && len(ms) == 0 && proto == provider.Responses && refusesInput(res.StatusCode, b) {
+			// and reasoning with nothing sealed in it, which a relay in
+			// front of OpenAI turns away as OpenAI does, naming only the
+			// input (#1044): asked once more without it. A DeepSeek
+			// model wants its reasoning back (#388), so it goes to every
+			// other upstream until one refuses it.
+			if nb := withoutBareReasoning(body); !bytes.Equal(nb, body) {
+				refused = append(refused, bareReasoningRefused(model))
+				body = nb
+				if res, err = s.forward(r.Context(), p, proto, path, p.Prepare(body), r.Header); err != nil {
+					return writeError(w, proto, 502, p.Name+": "+err.Error()), err.Error(), true
+				}
+				continue
+			}
 		}
 		if len(fs) == 0 && len(ms) == 0 {
 			// and a bare 400 over Codex's image tool, which a vendor
