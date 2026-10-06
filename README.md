@@ -137,7 +137,12 @@ queqiao tui                  # 同一套界面的终端版；没有别的网关�
 
 ### 桌面 App（macOS 菜单条）
 
-从源码构建（需 macOS + Xcode 命令行工具；发布物里不含 app）：
+每个 `qq-v*` release 都带 `queqiao-app-macos.zip`：下载解压，拖进 `/Applications` 即用。
+
+- **当前为未签名版**：首次打开前放行一次：`xattr -dr com.apple.quarantine /Applications/queqiao.app`（release 说明里也带这条）
+- 配好签名后（见下）即变为签名 + 公证 + staple 版，双击即开
+
+开发中也可以从源码构建（需 macOS + Xcode 命令行工具）：
 
 ```sh
 make app                                # 产出 queqiao.app（本仓库目录）
@@ -147,6 +152,8 @@ cp -R queqiao.app /Applications/        # 装进启动台/Spotlight
 App 与 CLI/web/tui 同一二进制：内嵌带路由的网关，Providers/Routing/Settings/Usage 各页直接改 `~/.config/queqiao`；菜单条 tooltip、窗口标题、页面标题都是 queqiao（页面内部文案仍为上游的 magpie 拼写——刻意保留，见「分支」节的同步策略）。开机自启二选一：`queqiao autostart on`（app 形态）或 launchd 无头 daemon（`queqiao serve`）——两者同抢 3425 不能并存。
 
 路由器专属字段（tier 分类器、Jev、A/B 实验）不在任何图形界面里，用 `queqiao router status / init` 管理。
+
+**签名与公证（维护者，一次性）**：有 Apple 开发者账号时，跑 `scripts/setup_apple_secrets.sh`——它生成 CSR、引导仅有的两次网页操作（签发 Developer ID Application 证书、创建 App Store Connect API 密钥），然后自动导出 `.p12`、提取 Team ID 并设齐 6 个 GitHub secrets。之后每个 `qq-v*` release 自动签名 + 公证 + staple。详见 [`docs/signing.md`](docs/signing.md)。
 
 ## 配置
 
