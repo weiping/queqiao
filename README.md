@@ -88,9 +88,11 @@ claude plugin install queqiao-router@queqiao
 codex plugin marketplace add weiping/queqiao
 codex plugin install queqiao-router-codex
 
-# Pi（npm 包 @weiping/pi-queqiao）
-# 在 ~/.pi/agent/settings.json 的 packages 里加 "npm:@weiping/pi-queqiao"
+# Pi（见 clients/pi）
+pi install npm:@weiping/pi-queqiao   # 升级：pi update
 ```
+
+Pi 侧默认模型会被 `router init` 指到 `magpie/group/qq-balanced`，扩展逐轮换档；手动 `/model` 会触发 feedback 并停止自动换档。装完重启 Pi 会话生效。
 
 线上 A/B 实验在 `~/.config/queqiao/router.json` 里开启（`experiment` 字段），跑满后用 `./queqiao router report --since 14d` 出报表。
 
