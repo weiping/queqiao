@@ -86,6 +86,7 @@ func routerInit(args []string) error {
 	for _, m := range unresolved {
 		fmt.Println(amber.Render("!"), "unresolved (no configured provider serves it yet):", m)
 	}
+	fillEmptyTiers(resolved)
 
 	// 1) the four routing groups (§4.4)
 	groups := []provider.Group{
@@ -224,6 +225,38 @@ func codexConfigKeys(path, catPath string) error {
 	fmt.Println(muted.Render("  edit"), path, "→", "model=group/queqiao, model_provider=magpie")
 	fmt.Println(amber.Render("!"), "restart Codex to see the router group")
 	return edit.WriteAtomic(path, []byte(strings.Join(lines, "\n")))
+}
+
+// tierGroup names each tier's routing group (§4.4).
+var tierGroup = map[router.Tier]string{
+	router.TierFast: "qq-fast", router.TierBalanced: "qq-balanced", router.TierPerformance: "qq-perf",
+}
+
+// fillEmptyTiers gives a tier none of whose preset members resolved the
+// members of its nearest tier (performance takes balanced's, then fast's;
+// balanced takes performance's, then fast's; fast takes balanced's, then
+// performance's), and says how to give it its own. A group must have a
+// member, and borrowing keeps the tier working where an empty group would
+// fail every request it gets (§7: a whole tier failing moves on anyway).
+func fillEmptyTiers(resolved map[router.Tier][]string) {
+	nearest := map[router.Tier][]router.Tier{
+		router.TierPerformance: {router.TierBalanced, router.TierFast},
+		router.TierBalanced:    {router.TierPerformance, router.TierFast},
+		router.TierFast:        {router.TierBalanced, router.TierPerformance},
+	}
+	for _, tier := range []router.Tier{router.TierFast, router.TierBalanced, router.TierPerformance} {
+		if len(resolved[tier]) > 0 {
+			continue
+		}
+		for _, from := range nearest[tier] {
+			if ms := resolved[from]; len(ms) > 0 {
+				resolved[tier] = append([]string(nil), ms...)
+				fmt.Println(amber.Render("!"), tierGroup[tier]+": none of the preset's models is served here; it uses", tierGroup[from]+"'s members for now ·",
+					"queqiao group set "+tierGroup[tier]+" models=<provider>/<model>[,<provider>/<model>]")
+				break
+			}
+		}
+	}
 }
 
 // routerInitClaudeCode writes §4.5's env mapping into the project's

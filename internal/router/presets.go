@@ -28,8 +28,9 @@ var presets = map[string]Preset{
 	"cn": {ID: "cn", Tiers: map[Tier][2]string{
 		TierFast:     {"deepseek/deepseek-v4-flash", "glm/glm-5.3-flash:high"},
 		TierBalanced: {"moonshot/kimi-k2.5", "glm/glm-5.3:high"},
-		// §4.3: cn's performance tier is frontier's for now; init prompts
-		// the user to pick a domestic model for it later.
+		// §4.3: cn's performance tier is frontier's for now; where nothing
+		// serves those models, router init gives qq-perf balanced's members
+		// and says how to set a domestic model of the user's choosing.
 		TierPerformance: {"<p>/gpt-6-astra:low", "<p>/claude-opus-5-5:high"},
 	}},
 }
@@ -38,8 +39,10 @@ var presets = map[string]Preset{
 func Presets() map[string]Preset { return presets }
 
 // Resolve turns "<p>/model[:effort]" members into "provider/model[:effort]"
-// using the providers actually configured; a member nothing serves stays as
-// written (its provider can be added later) and is reported unresolved.
+// using the providers actually configured. A placeholder nothing serves is
+// reported unresolved and left out: "<p>" names no provider, so as a group
+// member it could never answer. A concrete member stays even while nothing
+// serves it yet (its provider can be added later).
 func (p Preset) Resolve() (resolved map[Tier][]string, unresolved []string) {
 	resolved = map[Tier][]string{}
 	for _, tier := range []Tier{TierFast, TierBalanced, TierPerformance} {
@@ -47,11 +50,12 @@ func (p Preset) Resolve() (resolved map[Tier][]string, unresolved []string) {
 			if strings.HasPrefix(member, "<p>/") {
 				m := member[4:] // model[:effort]
 				base, _, _ := strings.Cut(m, ":")
-				if id := providerFor(base); id != "" {
-					member = id + "/" + m
-				} else {
+				id := providerFor(base)
+				if id == "" {
 					unresolved = append(unresolved, member)
+					continue
 				}
+				member = id + "/" + m
 			}
 			resolved[tier] = append(resolved[tier], member)
 		}

@@ -44,8 +44,9 @@ func routerHome(t *testing.T) {
 func TestRouterInitCnWritesGroupsAndConfig(t *testing.T) {
 	routerHome(t)
 	// cn preset: fast/balanced resolved by name; performance members are
-	// <p>/… and resolve to nothing here — left literal, and reported
-	// unresolved rather than failing init.
+	// <p>/… and resolve to nothing here — reported unresolved, left out of
+	// the group, and the tier takes balanced's members for now
+	// (TestRouterInitFillsAnEmptyTier) rather than failing init.
 	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
 		t.Fatal(err)
 	}
@@ -80,6 +81,32 @@ func TestRouterInitCnWritesGroupsAndConfig(t *testing.T) {
 	}
 	if cfg.Experiment.Salt == "" {
 		t.Fatal("no experiment salt")
+	}
+}
+
+// A tier whose preset members nothing serves is not written with "<p>/"
+// placeholders that can never answer: it takes the nearest tier's members
+// (performance takes balanced's) and init says how to give it its own.
+func TestRouterInitFillsAnEmptyTier(t *testing.T) {
+	routerHome(t)
+	out, err := captureStdout(t, func() error {
+		return routerInit([]string{"--preset", "cn", "--groups-only"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	perf, _ := groupByID("qq-perf")
+	bal, _ := groupByID("qq-balanced")
+	for _, m := range perf.Members {
+		if strings.HasPrefix(m, "<p>/") {
+			t.Fatalf("qq-perf kept a placeholder: %v", perf.Members)
+		}
+	}
+	if strings.Join(perf.Members, ",") != strings.Join(bal.Members, ",") {
+		t.Fatalf("qq-perf = %v, want balanced's %v", perf.Members, bal.Members)
+	}
+	if !strings.Contains(out, "queqiao group set qq-perf models=") {
+		t.Fatalf("init did not say how to give performance its own members:\n%s", out)
 	}
 }
 
@@ -255,5 +282,28 @@ func TestRouterReportRejectsBadFlags(t *testing.T) {
 	}
 	if err := routerReport([]string{"--nope"}); err == nil {
 		t.Fatal("unknown flag accepted")
+	}
+}
+
+// frontier with none of its gpt or claude models served: balanced and
+// performance both take fast's members, no placeholder left anywhere.
+func TestRouterInitFrontierWithOnlyFastServed(t *testing.T) {
+	routerHome(t)
+	if _, err := captureStdout(t, func() error {
+		return routerInit([]string{"--preset", "frontier", "--groups-only"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	fast, _ := groupByID("qq-fast")
+	for _, id := range []string{"qq-balanced", "qq-perf"} {
+		g, _ := groupByID(id)
+		if strings.Join(g.Members, ",") != strings.Join(fast.Members, ",") {
+			t.Fatalf("%s = %v, want fast's %v", id, g.Members, fast.Members)
+		}
+	}
+	for _, m := range fast.Members {
+		if strings.HasPrefix(m, "<p>/") {
+			t.Fatalf("qq-fast kept a placeholder: %v", fast.Members)
+		}
 	}
 }

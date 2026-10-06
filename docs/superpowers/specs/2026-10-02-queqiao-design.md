@@ -237,7 +237,7 @@ Pi 的流程与 Claude Code 相似，第 ① 步由 `before_agent_start` 发起�
 | balanced | `moonshot/kimi-k2.5` | `glm/glm-5.3:high` |
 | performance | 沿用 `frontier` 的 performance 主成员 | 沿用 `frontier` 的 performance 失败转移 |
 
-`cn` 预设的 performance 档暂不指定国内模型。初始化时 CLI 会提示用户从 `queqiao models` 里挑一个当前公认最强的国内模型替换，或者保持沿用 `frontier`。
+`cn` 预设的 performance 档暂不指定国内模型。`<p>/` 占位成员只在有已配置的 Provider 提供该模型时才写进组里；一个也解析不了的档位先借用最近一档的成员（performance 借 balanced），`router init` 同时打印 `queqiao group set qq-perf models=…` 提示用户从 `queqiao models` 里挑一个当前公认最强的国内模型替换。（2026-10-06 修订：原先占位成员原样写入组内，组显示 no member ready。）
 
 ### 4.4 落到网关配置
 
