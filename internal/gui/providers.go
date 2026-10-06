@@ -495,15 +495,21 @@ func providerInfo(p provider.Provider, agents []agentUse) providerJSON {
 	if p.Account != nil && p.Account.Agent == "codex" {
 		most = catalog.Codex()
 	}
+	// read once for the list: read for each model, three times over, it
+	// was most of the Providers page's wait with many models (lml on
+	// Discord, Windows)
+	set := settings.Load()
 	named := func(m catalog.Model, on bool) modelJSON {
 		images := m.Images || catalog.SeesImages(m.ID)
 		if m.ImageInput != nil {
 			images = *m.ImageInput
 		}
 		own := images
-		images, _ = provider.ApplyImage(p.ID, m.ID, images, m.ImageInput)
-		_, imageSet := provider.ImageOverride(p.ID, m.ID)
-		j := modelJSON{ID: m.ID, Name: m.Name, Efforts: provider.EffortsOf(m), On: on, Context: p.WindowOf(m), Output: p.ReplyLimit(m), Listed: provider.ListedWindow(m), Max: m.MaxContext, Free: m.Free, Rate: m.Rate, RateWas: m.RateWas, Images: images, ImageSet: imageSet, Own: own}
+		said, imageSet := provider.ImageOverrideIn(set, p.ID, m.ID)
+		if imageSet {
+			images = said
+		}
+		j := modelJSON{ID: m.ID, Name: m.Name, Efforts: provider.EffortsOf(m), On: on, Context: p.WindowOf(m), Output: p.ReplyLimitIn(m, set), Listed: provider.ListedWindow(m), Max: m.MaxContext, Free: m.Free, Rate: m.Rate, RateWas: m.RateWas, Images: images, ImageSet: imageSet, Own: own}
 		if i := slices.IndexFunc(most, func(c catalog.Model) bool { return c.ID == m.ID }); j.Max == 0 && i >= 0 {
 			j.Max = most[i].MaxContext
 		}
