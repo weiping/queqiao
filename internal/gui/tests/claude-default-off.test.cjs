@@ -16,9 +16,9 @@ const assets = path.resolve(__dirname, "../assets");
 const claude = [
   { value: "claude-sonnet-5-5", note: "Claude Sonnet 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
   { value: "claude-opus-5-5", note: "Claude Opus 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
-  { value: "deepseek/pro", label: "DeepSeek Pro", note: "DeepSeek · via magpie", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/pro" },
+  { value: "deepseek/pro", label: "DeepSeek Pro", note: "DeepSeek · via queqiao", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/pro" },
 ];
-const codex = [{ value: "relay/m1", label: "m1", note: "Relay · via magpie", ref: "relay/m1", group: "Relay" }];
+const codex = [{ value: "relay/m1", label: "m1", note: "Relay · via queqiao", ref: "relay/m1", group: "Relay" }];
 const fresh = () => ({
   agents: [
     { id: "claude", name: "Claude Code", icon: "claudecode-color", path: "~/.claude/settings.json", wired: true,
@@ -60,7 +60,7 @@ function server(lang, sets) {
 }
 
 const words = {
-  en: { def: "Default", shown: "default", use: "Use default", direct: "direct, not via magpie", via: "via magpie" },
+  en: { def: "Default", shown: "default", use: "Use default", direct: "direct, not via queqiao", via: "via queqiao" },
   zh: { def: "默认", shown: "默认", use: "使用默认", direct: "直连，不经 queqiao", via: "经 queqiao" },
 };
 

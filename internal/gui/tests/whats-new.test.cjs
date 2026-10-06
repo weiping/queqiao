@@ -33,7 +33,7 @@ const NOTES_604 = [
   "- See [the guide](https://usemagpie.ai/docs) and [not a link](javascript:window.__pwned=2).",
 ].join("\n");
 const RELEASES = [
-  { version: "0.1.604", notes: NOTES_604, url: "https://github.com/yetone/magpie-releases/releases/tag/v0.1.604" },
+  { version: "0.1.604", notes: NOTES_604, url: "https://github.com/yetone/queqiao-releases/releases/tag/v0.1.604" },
   { version: "0.1.603", notes: "## Bug Fixes\n\n- Fixed reading Kimi keys. (#446)" },
 ];
 
@@ -43,7 +43,7 @@ function settingsPayload(lang) {
     dock: false, dockWindow: false, proxy: "", redact: false, redactPersonal: false, redactWords: [],
     codexWarmup: "", claudeWarmup: "", codexWarmAt: "", claudeWarmAt: "", workbuddyCheckin: false, noStats: false,
     trayUsage: "", trayUsageEvery: 3, vision: "", imageGen: "",
-    version: "0.1.604", dir: "~/.config/magpie", gateway: "http://127.0.0.1:3425",
+    version: "0.1.604", dir: "~/.config/queqiao", gateway: "http://127.0.0.1:3425",
     proxyNow: "none", proxySource: "none", login: false,
     visionModels: [], imageGenModels: [], workbuddyCheckins: [], lanURLs: [],
     fx: { rate: 7.2, at: new Date().toISOString(), stale: false },
@@ -208,7 +208,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await dialog(page).count(), 0, "shown once");
 
       // Settings → What's new → Open opens them again, the waiting update's first
-      ctl.update = { state: "ready", current: "0.1.604", latest: "0.1.605", notes: "## New Features\n\n- A new thing. (#470)", url: "https://github.com/yetone/magpie-releases/releases/tag/v0.1.605" };
+      ctl.update = { state: "ready", current: "0.1.604", latest: "0.1.605", notes: "## New Features\n\n- A new thing. (#470)", url: "https://github.com/yetone/queqiao-releases/releases/tag/v0.1.605" };
       await page.goto("http://magpie.test/?view=settings&tab=about");
       const notesRow = page.locator("#about .row.pref.whatsnew-row");
       assert.equal(await notesRow.locator(".name").textContent(), w.again);

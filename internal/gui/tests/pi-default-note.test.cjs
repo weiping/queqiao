@@ -18,12 +18,12 @@ const piOptions = [
   { value: "openai/gpt-6-astra", note: "GPT-6 Astra", group: "OpenAI" },
   { value: "openai-codex/gpt-6-astra", note: "GPT-6 Astra", group: "OpenAI Codex" },
   { value: "openai-codex/gpt-5.5", note: "GPT-5.5", group: "OpenAI Codex" },
-  { value: "magpie/relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via magpie" },
+  { value: "magpie/relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via queqiao" },
 ];
 const state = {
   agents: [
     { id: "pi", name: "Pi", icon: "generic", path: "/fixture/pi", wired: true, fields: [{ key: "model", label: "model", value: "openai/gpt-6-astra", options: piOptions }] },
-    { id: "claude", name: "Claude Code", icon: "generic", path: "/fixture/claude", wired: true, fields: [{ key: "model", label: "model", value: "opus", options: [{ value: "opus" }, { value: "sonnet" }, { value: "relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via magpie" }] }] },
+    { id: "claude", name: "Claude Code", icon: "generic", path: "/fixture/claude", wired: true, fields: [{ key: "model", label: "model", value: "opus", options: [{ value: "opus" }, { value: "sonnet" }, { value: "relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via queqiao" }] }] },
   ],
   profiles: [],
 };

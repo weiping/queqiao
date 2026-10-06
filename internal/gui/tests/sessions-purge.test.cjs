@@ -54,7 +54,7 @@ const words = {
   en: {
     nav: "Sessions", cancel: "Cancel", forever: "Delete forever", empty: "Empty trash", askOne: "Delete this session forever?", askAll: "Empty queqiao's trash?",
     one: "Erased for good", all: "2 sessions erased for good", count: "3 sessions", trashEmpty: "Trash is empty",
-    note: "Deleted sessions are kept in ~/Library/Application Support/magpie/trash/sessions until you erase them here; magpie never erases them by itself.",
+    note: "Deleted sessions are kept in ~/Library/Application Support/magpie/trash/sessions until you erase them here; queqiao never erases them by itself.",
   },
   zh: {
     nav: "会话", cancel: "取消", forever: "彻底删除", empty: "清空回收站", askOne: "彻底删除这个会话？", askAll: "清空 queqiao 的回收站？",

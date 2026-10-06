@@ -17,7 +17,7 @@ const assets = path.resolve(__dirname, "../assets");
 
 const presets = [
   { id: "openai", name: "OpenAI", icon: "openai", kind: "vendor", chat: "https://api.openai.com/v1", added: false },
-  { id: "remote-magpie", name: "Remote magpie", icon: "magpie", kind: "relay", added: false,
+  { id: "remote-magpie", name: "Remote queqiao", icon: "queqiao", kind: "relay", added: false,
     note: "another computer's queqiao, shared on its network", endpoint: "http://192.168.1.20:3425",
     endpointHint: "The address and API key the other computer's queqiao shows in Settings, under Share on local network. Its models and routing groups are listed here; each request goes on in the API the agent spoke.",
     endpointNeeded: "The other queqiao's address is needed" },

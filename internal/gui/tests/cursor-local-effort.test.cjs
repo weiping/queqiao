@@ -21,7 +21,7 @@ const cursorLocal = (effort) => ({
   id: "cursor-local", name: "Cursor Private Inference", icon: "cursor", path: "", wired: true,
   models: { shown: 2, names: ["GPT-5.5", "DeepSeek V4 Pro"] },
   fields: [
-    { key: "provider", label: "provider", value: "magpie", options: [{ value: "magpie", label: "magpie", icon: "magpie" }] },
+    { key: "provider", label: "provider", value: "queqiao", options: [{ value: "queqiao", label: "queqiao", icon: "queqiao" }] },
     { key: "effort", label: "effort", value: effort, options: [{ value: "" }, ...levels.map((value) => ({ value }))] },
   ],
 });

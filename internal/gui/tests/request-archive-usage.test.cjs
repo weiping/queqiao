@@ -57,7 +57,7 @@ function server(lang, web, seen) {
     }
     if (url.pathname === "/api/archive/export") {
       seen.push([req.method() + " export", name]);
-      return json({ path: "~/Downloads/magpie-request-" + name.replace("/", "-") + ".json" });
+      return json({ path: "~/Downloads/queqiao-request-" + name.replace("/", "-") + ".json" });
     }
     if (url.pathname === "/api/archive/file") {
       seen.push([req.method() + " file", name]);
@@ -155,7 +155,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
             await press(dl);
             await wait(2);
             assert.deepEqual(seen[1], ["POST export", KEPT]);
-            const said = `~/Downloads/magpie-request-${KEPT.replace("/", "-")}.json`;
+            const said = `~/Downloads/queqiao-request-${KEPT.replace("/", "-")}.json`;
             await p.waitForFunction((s) => document.querySelector("#status").textContent.includes(s), said);
           }
 

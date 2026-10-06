@@ -27,7 +27,7 @@ async function fixture(t, engine, lang = "en", options = {}) {
     ...["alpha", "beta"].map((ref) => ({ ref, fingerprint: `${ref}-${control.revisions[ref] || 1}`, from: "config.toml", status: imported.has(ref) ? "same" : "new",
       provider: { id: ref, name: ref === "alpha" ? "Alpha Relay" : "Beta Relay", responses: `https://${ref}.example/v1`, key: "sk-…1234", models: ["fixture-model"] } })),
     { ref: "existing", status: "same", provider: { name: "Already here" } },
-    { ref: "magpie", skip: "it points at magpie itself", provider: { name: "magpie" } },
+    { ref: "queqiao", skip: "it points at queqiao itself", provider: { name: "queqiao" } },
   ] }];
   page.on("pageerror", (e) => errors.push(e.stack || e.message));
   await page.route("**/*", async (route) => {

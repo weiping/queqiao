@@ -28,7 +28,7 @@ function server(lang, behind, quiet) {
     if (url.pathname === "/wails/runtime.js") return route.fulfill({ contentType: "text/javascript", body: "export const Window = {};" });
     if (url.pathname === "/api/state") {
       const s = { agents: [], profiles: [], settings: { lang, theme: "light" } };
-      if (behind) s.cliBehind = "~/.local/bin/magpie";
+      if (behind) s.cliBehind = "~/.local/bin/queqiao";
       return json(s);
     }
     if (url.pathname === "/api/cli-behind/quiet") { quiet.calls++; return route.fulfill({ status: 204 }); }

@@ -11063,7 +11063,7 @@ function capHeldOf(q, cap) {
 // directNote: why the cap can't stop agent, signed in to the account and
 // asking its vendor itself, with no other account on to move it to
 function directNote(agent) {
-  return t("{agent} is signed in to this account and asks its vendor itself, not through magpie, so with no other account on to move it to, {agent} goes on using it past the cap. Add another account, or pick {agent}'s models via magpie, for the cap to hold it", { agent });
+  return t("{agent} is signed in to this account and asks its vendor itself, not through queqiao, so with no other account on to move it to, {agent} goes on using it past the cap. Add another account, or pick {agent}'s models via queqiao, for the cap to hold it", { agent });
 }
 function capHeldNote(held, cap, several, direct) {
   if (direct) {

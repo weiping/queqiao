@@ -89,7 +89,7 @@ function serve(lang, posts, use = usage, alone = false) {
 }
 
 const words = {
-  en: { direct: "At its cap · Codex still uses it", directWhy: /refused with a usage-cap error until it renews.*\nCodex is signed in to this account and asks its vendor itself, not through magpie/s, opus: "Opus week at its cap · back in 3h", opusWhy: /^Opus week is at 90%, past this account's 70% cap, so magpie sends the requests it counts to the other accounts until it renews; other models still use this account/, none: "No cap", cap: (n) => `Cap ${n}%`, held: "At its cap · back in 3h", other: "Other…", menu: "Usage cap" },
+  en: { direct: "At its cap · Codex still uses it", directWhy: /refused with a usage-cap error until it renews.*\nCodex is signed in to this account and asks its vendor itself, not through queqiao/s, opus: "Opus week at its cap · back in 3h", opusWhy: /^Opus week is at 90%, past this account's 70% cap, so queqiao sends the requests it counts to the other accounts until it renews; other models still use this account/, none: "No cap", cap: (n) => `Cap ${n}%`, held: "At its cap · back in 3h", other: "Other…", menu: "Usage cap" },
   zh: { direct: "已达上限 · Codex 仍在使用", directWhy: /经 queqiao 的请求会返回.*\nCodex 登录此账号并直接向厂商发请求/s, opus: "Opus week已达上限 · 3 小时后恢复", opusWhy: /^Opus week已用 90%，超过该账号的 70% 上限.*其他模型仍用此账号/, none: "不设上限", cap: (n) => `上限 ${n}%`, held: "已达上限 · 3 小时后恢复", other: "其他…", menu: "用量上限" },
 };
 
@@ -215,7 +215,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const missing = await page.evaluate(() => [
         "At its cap · {agent} still uses it",
         "A usage window is at {n}%, past this account's {cap}% cap: requests through queqiao are refused with a usage-cap error until it renews",
-        "{agent} is signed in to this account and asks its vendor itself, not through magpie, so with no other account on to move it to, {agent} goes on using it past the cap. Add another account, or pick {agent}'s models via magpie, for the cap to hold it",
+        "{agent} is signed in to this account and asks its vendor itself, not through queqiao, so with no other account on to move it to, {agent} goes on using it past the cap. Add another account, or pick {agent}'s models via queqiao, for the cap to hold it",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
       assert.deepEqual(errors, []);

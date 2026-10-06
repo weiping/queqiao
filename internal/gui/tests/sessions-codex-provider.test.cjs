@@ -19,11 +19,11 @@ const at = (min) => new Date(Date.now() - min * 60e3).toISOString();
 const sess = (id, title, provider, min) => ({
   agent: "codex", id, title, cwd: "/work/app", start: at(min + 30), last: at(min), models: [], cost: 0, unpriced: 0,
   resume: "codex resume " + id, path: "~/.codex/sessions/x/" + id + ".jsonl", size: 2048, messages: 4, files: 1, deletable: true,
-  provider, uses_provider: "magpie",
+  provider, uses_provider: "queqiao",
 });
 
 function serve(lang, calls) {
-  const store = { sessions: [sess("a1", "fix the login form", "custom", 5), sess("b2", "write the post", "custom", 10), sess("c3", "new work", "magpie", 1)] };
+  const store = { sessions: [sess("a1", "fix the login form", "custom", 5), sess("b2", "write the post", "custom", 10), sess("c3", "new work", "queqiao", 1)] };
   return async (route) => {
     const url = new URL(route.request().url());
     const json = (data) => route.fulfill({ json: data });
@@ -117,7 +117,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await ask.locator(".sm-provider-list li", { hasText: "write the post" }).locator("input").uncheck();
       await ask.getByRole("button", { name: w.move, exact: true }).click();
       await ask.waitFor({ state: "detached" });
-      assert.deepEqual(calls[0], { moves: [{ id: "a1", to: "magpie" }] });
+      assert.deepEqual(calls[0], { moves: [{ id: "a1", to: "queqiao" }] });
       await said(w.moved);
       await page.waitForFunction(() => document.querySelectorAll("#view-sessions .row.sm-sess .sm-prov").length === 1);
 

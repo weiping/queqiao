@@ -179,7 +179,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal((await ask.locator(".ehead b").textContent()).trim(), w.askBlog);
       assert.equal((await ask.locator(".sm-ask-path").textContent()).trim(), "/work/old-blog");
       assert.deepEqual(await ask.locator(".sm-ask-list li").allTextContents(), ["write the post", "b-2"]);
-      assert((await ask.locator(".lib-confirm").textContent()).includes("~/Library/Application Support/magpie/trash/sessions"), "they go to magpie's trash");
+      assert((await ask.locator(".lib-confirm").textContent()).includes("~/Library/Application Support/magpie/trash/sessions"), "they go to queqiao's trash");
       await ask.getByRole("button", { name: w.cancel, exact: true }).click();
       await ask.waitFor({ state: "detached" });
       assert.deepEqual(calls, [], "Cancel deletes nothing");

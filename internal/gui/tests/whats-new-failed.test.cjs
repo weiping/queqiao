@@ -14,7 +14,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const PAGE = "https://github.com/yetone/magpie-releases/releases/tag/v0.1.737";
+const PAGE = "https://github.com/yetone/queqiao-releases/releases/tag/v0.1.737";
 
 function settingsPayload(lang) {
   return {
@@ -22,7 +22,7 @@ function settingsPayload(lang) {
     dock: false, dockWindow: false, proxy: "", redact: false, redactPersonal: false, redactWords: [],
     codexWarmup: "", claudeWarmup: "", codexWarmAt: "", claudeWarmAt: "", workbuddyCheckin: false, noStats: false,
     trayUsage: "", trayUsageEvery: 3, vision: "", imageGen: "",
-    version: "0.1.737", dir: "~/.config/magpie", gateway: "http://127.0.0.1:3425",
+    version: "0.1.737", dir: "~/.config/queqiao", gateway: "http://127.0.0.1:3425",
     proxyNow: "none", proxySource: "none", login: false,
     visionModels: [], imageGenModels: [], workbuddyCheckins: [], lanURLs: [],
     fx: { rate: 7.2, at: new Date().toISOString(), stale: false },

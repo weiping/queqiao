@@ -17,8 +17,8 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const options = [
-  { value: "magpie/group/mine", label: "Mine", note: "routing group · via magpie", group: "Routing groups", ref: "group/mine", icon: "generic" },
-  { value: "magpie/other/m1", label: "m1", note: "Other · via magpie", group: "Other", ref: "other/m1", icon: "generic" },
+  { value: "magpie/group/mine", label: "Mine", note: "routing group · via queqiao", group: "Routing groups", ref: "group/mine", icon: "generic" },
+  { value: "magpie/other/m1", label: "m1", note: "Other · via queqiao", group: "Other", ref: "other/m1", icon: "generic" },
 ];
 const unlisted = [
   { id: "hunyuan/hy4", name: "hy4", provider: "Hunyuan", icon: "generic", groups: [] },

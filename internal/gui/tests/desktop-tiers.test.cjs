@@ -18,7 +18,7 @@ const fresh = () => ({
   agents: [{
     id: "claude-desktop", name: "Claude Desktop", path: "/test/claude_desktop_config.json", icon: "claude-color", wired: true,
     fields: [
-      { key: "provider", label: "provider", value: "magpie", options: [{ value: "magpie", label: "magpie" }] },
+      { key: "provider", label: "provider", value: "queqiao", options: [{ value: "queqiao", label: "queqiao" }] },
       ...tiers.map((tier) => ({ key: tier, label: tier, value: tier === "haiku" ? "magpie/v/flash" : "", options: models })),
     ],
   }],

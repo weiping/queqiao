@@ -22,7 +22,7 @@ const agent = (id, name) => ({
 const NOTICE = "Cursor Private Inference reads queqiao's gateway from CURSOR_LOCAL_AGENT_BASE_URL and CURSOR_LOCAL_AGENT_API_KEY, now set for your user: quit it and open it again.";
 const cursorLocal = (on) => ({
   id: "cursor-local", name: "Cursor Private Inference", icon: "cursor", path: "", launch: LAUNCH, wired: on,
-  fields: [{ key: "provider", label: "provider", value: on ? "magpie" : "", options: [{ value: "magpie", label: "magpie", icon: "magpie" }] }],
+  fields: [{ key: "provider", label: "provider", value: on ? "queqiao" : "", options: [{ value: "queqiao", label: "queqiao", icon: "queqiao" }] }],
 });
 const state = {
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex"), agent("pi", "Pi"),
@@ -40,7 +40,7 @@ function server(lang, copies, asked = []) {
     if (url.pathname.startsWith("/api/agents/connect/")) {
       asked.push(url.pathname);
       cur = { ...cur, agents: cur.agents.map((a) => (a.id === "cursor-local" ? cursorLocal(true) : a)) };
-      return route.fulfill({ json: { ...cur, settings: { lang, theme: "light" }, connected: { how: "magpie" }, notice: NOTICE } });
+      return route.fulfill({ json: { ...cur, settings: { lang, theme: "light" }, connected: { how: "queqiao" }, notice: NOTICE } });
     }
     if (url.pathname === "/api/copy") { copies.push(req.postDataJSON().text); return route.fulfill({ json: {} }); }
     if (url.pathname === "/api/usage/quotas") return route.fulfill({ json: [] });

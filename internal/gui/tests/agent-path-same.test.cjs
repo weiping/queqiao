@@ -4,7 +4,7 @@
 // directly) still says that model on its row, where it read Pick a model,
 // and its list has its own models with queqiao's, the one picked marked, as
 // when connected, where it had queqiao's alone. And every agent's picker
-// says "via magpie" the same way, as the tag Claude Code's has, not at the
+// says "via queqiao" the same way, as the tag Claude Code's has, not at the
 // end of a note an ellipsis cuts off. No click moves the page. In English
 // and Chinese.
 const assert = require("node:assert/strict");
@@ -17,11 +17,11 @@ const assets = path.resolve(__dirname, "../assets");
 const claude = [
   { value: "claude-sonnet-5-5", note: "Claude Sonnet 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
   { value: "claude-opus-5-5", note: "Claude Opus 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
-  { value: "magpie/deepseek/pro", label: "DeepSeek Pro", note: "DeepSeek · via magpie", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/pro" },
+  { value: "magpie/deepseek/pro", label: "DeepSeek Pro", note: "DeepSeek · via queqiao", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/pro" },
 ];
 const codex = [
-  { value: "relay/m1", label: "m1", note: "someone.with.a.long.address@example.com · via magpie", ref: "relay/m1", group: "Relay" },
-  { value: "relay/m2", label: "m2", note: "Relay · via magpie", ref: "relay/m2", group: "Relay" },
+  { value: "relay/m1", label: "m1", note: "someone.with.a.long.address@example.com · via queqiao", ref: "relay/m1", group: "Relay" },
+  { value: "relay/m2", label: "m2", note: "Relay · via queqiao", ref: "relay/m2", group: "Relay" },
 ];
 const fresh = () => ({
   agents: [
@@ -61,12 +61,12 @@ function server(lang, sets) {
   };
 }
 
-const words = { en: { via: "via magpie", direct: "direct, not via magpie" }, zh: { via: "经 magpie", direct: "直连，不经 magpie" } };
+const words = { en: { via: "via queqiao", direct: "direct, not via queqiao" }, zh: { via: "经 queqiao", direct: "直连，不经 queqiao" } };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: the row says the model picked off magpie, and every picker says via magpie alike`, async (t) => {
+    test(`${engine} ${lang}: the row says the model picked off queqiao, and every picker says via queqiao alike`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       const page = await (await browser.newContext({ viewport: { width: 980, height: 640 }, reducedMotion: "reduce" })).newPage();
       t.after(() => browser.close());
@@ -111,7 +111,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const tag = m1.locator(".badge.path.via");
       assert.equal(await tag.textContent(), w.via);
       assert.ok(await tag.evaluate((b) => b.scrollWidth <= b.clientWidth + 1 && b.getBoundingClientRect().right <= b.closest("li").getBoundingClientRect().right), "the tag isn't cut off");
-      assert.ok(!(await m1.locator(".n").textContent()).includes("via magpie"), "said once, as the tag");
+      assert.ok(!(await m1.locator(".n").textContent()).includes("via queqiao"), "said once, as the tag");
       assert.equal(await page.locator("#list li", { hasText: "m2" }).first().locator(".badge.path.via").count(), 1);
       await page.keyboard.press("Escape");
       assert.equal(await view.evaluate((v) => v.scrollTop), top, "a click moved the page");

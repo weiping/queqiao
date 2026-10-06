@@ -15,7 +15,7 @@ const terminalApps = [
 function serve(lang, posts, terminalDefault = "com.apple.Terminal") {
   let settings = {
     theme: "light", lang, tray: "panel", sessionTerminal: "", terminalApps,
-    terminalDefault, version: "test", dir: "/tmp/magpie",
+    terminalDefault, version: "test", dir: "/tmp/queqiao",
     gateway: "http://127.0.0.1:3425", visionModels: [], imageGenModels: [],
     fx: { rate: 7.2, stale: false },
   };

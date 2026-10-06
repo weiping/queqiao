@@ -104,7 +104,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     t.after(() => browser.close());
     const I = {
       en: { h: "Subscriptions and gateway middleware", p: /middleware in queqiao's gateway/, a: "Write a middleware", url: "https://usemagpie.ai/docs/plugins#middleware", trust: /sign-in or your requests/ },
-      zh: { h: "订阅与网关中间件", p: /magpie 网关里的中间件/, a: "编写中间件", url: "https://usemagpie.ai/docs/zh/plugins#middleware", trust: /登录或看到你的请求/ },
+      zh: { h: "订阅与网关中间件", p: /queqiao 网关里的中间件/, a: "编写中间件", url: "https://usemagpie.ai/docs/zh/plugins#middleware", trust: /登录或看到你的请求/ },
     };
     for (const lang of ["en", "zh"]) {
       await t.test(lang, async () => {

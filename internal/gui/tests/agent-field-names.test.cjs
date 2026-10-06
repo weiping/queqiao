@@ -14,7 +14,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const ref = (value) => ({ value, label: value, ref: value, note: "via magpie" });
+const ref = (value) => ({ value, label: value, ref: value, note: "via queqiao" });
 const options = [ref("magpie/minimax-cn/MiniMax-M3"), ref("magpie/relay/glm-4.6")];
 const roles = ["fast", "standard", "deep", "visual"];
 // as queqiao reads an Aside: the model it talks and its level beside it, the

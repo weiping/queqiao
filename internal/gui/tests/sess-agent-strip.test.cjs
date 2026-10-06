@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// #929 (yetone/magpie): with a dozen agents in range, Usage → Sessions' agent
+// #929 (yetone/queqiao): with a dozen agents in range, Usage → Sessions' agent
 // filter grew wider than the window, so the whole page scrolled sideways and
 // the last agent's filter was only reachable by dragging the page itself. A
 // strip too wide for the window scrolls in itself — the regions strip and

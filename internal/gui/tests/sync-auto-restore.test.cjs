@@ -19,7 +19,7 @@ const assets = path.resolve(__dirname, "../assets");
 
 function serve(lang, posts) {
   const settings = {
-    theme: "light", lang, tray: "panel", version: "test", dir: "/tmp/magpie",
+    theme: "light", lang, tray: "panel", version: "test", dir: "/tmp/queqiao",
     gateway: "http://127.0.0.1:3425", visionModels: [], imageGenModels: [],
     fx: { rate: 7.2, stale: false },
   };

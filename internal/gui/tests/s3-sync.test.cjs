@@ -13,7 +13,7 @@ const assets = path.resolve(__dirname, "../assets");
 
 function serve(lang, posts) {
   const settings = {
-    theme: "light", lang, tray: "panel", version: "test", dir: "/tmp/magpie",
+    theme: "light", lang, tray: "panel", version: "test", dir: "/tmp/queqiao",
     gateway: "http://127.0.0.1:3425", visionModels: [], imageGenModels: [],
     fx: { rate: 7.2, stale: false },
   };
@@ -141,11 +141,11 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await toEnd(); // the save button, at the form's foot, wheeled into sight
       await save.click();
       await form.waitFor({ state: "detached" });
-      assert.deepEqual(posts, [{ url: "s3://magpie-sync/team", user: "AKIDEXAMPLE", password: "s3cr3t", endpoint: "https://acct.r2.cloudflarestorage.com",
+      assert.deepEqual(posts, [{ url: "s3://queqiao-sync/team", user: "AKIDEXAMPLE", password: "s3cr3t", endpoint: "https://acct.r2.cloudflarestorage.com",
         region: "auto", pathStyle: true, passphrase: "correct horse", keys: true, agents: true, library: true }]);
 
       assert.equal(await first.locator(".name").textContent(), zh ? "S3 同步" : "S3 sync");
-      assert.equal(await first.locator(".sub").textContent(), (zh ? "尚未同步 · " : "Not synced yet · ") + "s3://magpie-sync/team · acct.r2.cloudflarestorage.com");
+      assert.equal(await first.locator(".sub").textContent(), (zh ? "尚未同步 · " : "Not synced yet · ") + "s3://queqiao-sync/team · acct.r2.cloudflarestorage.com");
 
       // editing it again: S3 picked, its fields as saved, the secret kept
       const edit = first.locator(".val button").last();

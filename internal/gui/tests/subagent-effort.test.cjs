@@ -28,7 +28,7 @@ const fresh = () => ({
   },
   // Claude Code's subagents (#468): a model of queqiao's, offered once it runs
   // through queqiao; before, there is nothing to pick and no square
-  ...[["cc-own", "opus", []], ["cc-magpie", "magpie/deepseek/pro", [{ value: "magpie/deepseek/flash", label: "DeepSeek Flash", ref: "deepseek/flash" }]]].map(([id, model, options]) => ({
+  ...[["cc-own", "opus", []], ["cc-queqiao", "magpie/deepseek/pro", [{ value: "magpie/deepseek/flash", label: "DeepSeek Flash", ref: "deepseek/flash" }]]].map(([id, model, options]) => ({
     id, name: "Claude Code", path: "/test/settings.json", icon: "claudecode-color", wired: options.length > 0,
     fields: [{ key: "model", label: "model", value: model, options: [{ value: model }] }, { key: "subagent", label: "subagents", value: "", options }],
   }))],
@@ -98,9 +98,9 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.locator(`${sel} .ag-link`).click();
         await page.locator(`${sel} .ag-exp`).waitFor();
       };
-      await expand('.row.agent[data-id="cc-magpie"]');
+      await expand('.row.agent[data-id="cc-queqiao"]');
       assert.equal(await page.locator('.row.agent[data-id="cc-own"] .field.extra[data-key="subagent"]').count(), 0, "a subagents square with nothing to pick");
-      assert.equal(await page.locator('.row.agent[data-id="cc-magpie"] .field.extra[data-key="subagent"]').getAttribute("aria-label"), w.follows);
+      assert.equal(await page.locator('.row.agent[data-id="cc-queqiao"] .field.extra[data-key="subagent"]').getAttribute("aria-label"), w.follows);
       await expand(codex);
 
       // a square beside the subagents' one; model (in the row, connected) and

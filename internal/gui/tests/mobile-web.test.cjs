@@ -36,7 +36,7 @@ const agentRows = [
     modelField("model", "model", "gpt-6.1-sol"),
     { key: "effort", label: "effort", value: "high", options: [{ value: "high", label: "High" }] },
     modelField("subagent", "subagents"),
-    { key: "signin", label: "sign-in", value: "magpie", options: [{ value: "magpie", label: "magpie" }, { value: "chatgpt", label: "ChatGPT" }] },
+    { key: "signin", label: "sign-in", value: "queqiao", options: [{ value: "queqiao", label: "queqiao" }, { value: "chatgpt", label: "ChatGPT" }] },
   ] },
   { id: "omp", name: "omp", path: "/test/omp.json", icon: "omp", wired: true, fields: [
     modelField("model", "model", "gpt-6.1-sol"), modelField("subagent", "subagents"),
