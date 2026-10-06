@@ -27,8 +27,21 @@ queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magp
 
 ## 快速开始
 
+一键安装（macOS / Linux / Termux，下载经 SHA-256 校验，装进 `~/.local/bin`）：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.sh | sh
+```
+
+也可以从源码构建：
+
 ```sh
 make cli                                # 构建 ./queqiao（纯终端版，不需要 cgo）
+```
+
+装好以后：
+
+```sh
 ./queqiao router init --preset cn       # 生成 router.json 和四个路由组（还有 frontier/anthropic 预设）
 ./queqiao serve                         # 启动网关，默认 127.0.0.1:3425
 ./queqiao router status                 # 检查配置、映射和最近的决策
