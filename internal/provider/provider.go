@@ -164,6 +164,14 @@ type Provider struct {
 	// DeepSeek's own keeps its prompt cache. See ClinePin.
 	PinUpstream bool `json:"pinUpstream,omitempty"`
 
+	// Unredacted has requests to a provider on this machine or the local
+	// network (Ollama, LM Studio, a vLLM box) go as the agent wrote them,
+	// unmasked by Settings' redaction, which keeps secrets from vendors
+	// (lc on Discord). It is the user's word, not the address's: a relay
+	// run locally, or Ollama's cloud models, pass a request on to a vendor.
+	// See SkipsRedaction.
+	Unredacted bool `json:"unredacted,omitempty"`
+
 	// Proxy is the proxy magpie's requests to this provider go through
 	// (#237: Codex through one, a vendor at home without): "" follows
 	// the global one (Settings' Proxy, the environment's, the system's),
@@ -634,6 +642,7 @@ func AddCopy(p Provider, from string) (string, error) {
 	}
 	p.Unlisted = p.Unlisted || src.Unlisted
 	p.Searches = p.Searches || src.Searches
+	p.Unredacted = p.Unredacted || src.Unredacted
 	if p.Website == "" {
 		p.Website = src.Website
 	}

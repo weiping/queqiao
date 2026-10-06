@@ -28,7 +28,7 @@ served by a plugin are in [Provider and plugin ownership](provider-plugins.md).
 ## Runtime path
 
 1. `handle(proto)` reads the body and the model (`requestBody`, `requestModel`), then calls `serveAgent`. `serveAgent` runs the [middleware](gateway-middleware.md) chain, then `serve`.
-2. `serve` redacts secrets in the request (`redacted`), resolves the model to a provider or a group, and refuses what can't be served:
+2. `serve` redacts secrets in the request (`redacted`), resolves the model to a provider or a group, and refuses what can't be served. A request whose provider and fallbacks, or whose group's models, all skip redaction (`unredactedRoute`, `provider.SkipsRedaction`: set *Send requests unmasked*, `Unredacted`, with every address on this machine or the local network) goes to them as the agent wrote it; the log and recent calls keep the masked body. count_tokens and embeddings follow the same rule.
    - `DecidesModel` gives a 400.
    - A gateway key held to some models (`keyHolds`, #882) gets a 403 for any other model.
    - Sealed tasks (#619) are checked here.
@@ -59,8 +59,8 @@ served by a plugin are in [Provider and plugin ownership](provider-plugins.md).
 ## Verification
 
 ```sh
-go test -tags nogui ./internal/gateway -run 'TestQuiet|TestSilentHeld|TestRotateSpreadsSessions|TestRouting|TestSmartRouting|TestFallback|TestNoFallbackForOtherErrors|TestLastFallbackErrorReachesTheAgent|TestRateLimitedSinksToTheBack|TestGroupRateLimitedSinks|TestAffinity|TestSeveralKeysOnTakeOverFromEachOther|TestSubscriptionAccountsTakeOver|TestGroup|TestTrace|TestImageTool|TestCodexNoCredits|TestClaudeGoesOnMessagesWhereTheRelayHasThem|TestAutoRelaysOnTheClientsOwnAPI|TestSearchOfferedStaysOnTheClientsAPI|TestCodexSearchAnsweredOnResponses|TestAgentEffortOnCursorLocal|TestAzureCompactionWithoutMagpiesReasoning|TestCodexCompact|TestNotAnAPIReply|TestAPIReplyUntouched|TestCodexBackendWebPage|TestSub2APIKeyLimitIsQuota|TestKeysWeighedByTheirWindows|TestGroupWeighsKeyWindows|TestKeyOutOfItsWindowRestsUntilReset|TestKeyPoolErrorDoesNotRestForWindow|TestKeyBackOnceItsWindowIsNotFull|TestRestingKeyReadAgainInAnOrderedGroup|TestThinkingStreams|TestHeldThinkingKeepsTheAgentAlive|TestRefusalAfterThinkingFailsOver|TestGeminiEmptyRepliesAskedAgain'
-go test -tags nogui ./internal/provider -run 'TestGroup|TestCodexCreditsSwitch|TestRenewedAccountForgetsItsAllowance|TestNative|TestKeyAllowance|TestPlanKeyAllowance'
+go test -tags nogui ./internal/gateway -run 'TestQuiet|TestSilentHeld|TestRotateSpreadsSessions|TestRouting|TestSmartRouting|TestFallback|TestNoFallbackForOtherErrors|TestLastFallbackErrorReachesTheAgent|TestRateLimitedSinksToTheBack|TestGroupRateLimitedSinks|TestAffinity|TestSeveralKeysOnTakeOverFromEachOther|TestSubscriptionAccountsTakeOver|TestGroup|TestTrace|TestImageTool|TestCodexNoCredits|TestClaudeGoesOnMessagesWhereTheRelayHasThem|TestAutoRelaysOnTheClientsOwnAPI|TestSearchOfferedStaysOnTheClientsAPI|TestCodexSearchAnsweredOnResponses|TestAgentEffortOnCursorLocal|TestAzureCompactionWithoutMagpiesReasoning|TestCodexCompact|TestNotAnAPIReply|TestAPIReplyUntouched|TestCodexBackendWebPage|TestSub2APIKeyLimitIsQuota|TestKeysWeighedByTheirWindows|TestGroupWeighsKeyWindows|TestKeyOutOfItsWindowRestsUntilReset|TestKeyPoolErrorDoesNotRestForWindow|TestKeyBackOnceItsWindowIsNotFull|TestRestingKeyReadAgainInAnOrderedGroup|TestThinkingStreams|TestHeldThinkingKeepsTheAgentAlive|TestRefusalAfterThinkingFailsOver|TestGeminiEmptyRepliesAskedAgain|TestLocalUnredacted'
+go test -tags nogui ./internal/provider -run 'TestGroup|TestCodexCreditsSwitch|TestRenewedAccountForgetsItsAllowance|TestNative|TestKeyAllowance|TestPlanKeyAllowance|TestSkipsRedaction'
 ```
 
 The gateway's `TestMain` gives the package a home of its own, so these tests

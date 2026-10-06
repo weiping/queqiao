@@ -14,7 +14,8 @@ import (
 )
 
 // sessionsHome puts the sessions package's fixtures where Claude Code and
-// Codex keep their sessions, in a sandbox HOME, their models priced.
+// Codex keep their sessions, in a sandbox HOME, their models priced. Their
+// days are counted in UTC, which TestMain sets for the package.
 func sessionsHome(t *testing.T) {
 	t.Helper()
 	h := home(t)
@@ -26,8 +27,7 @@ func sessionsHome(t *testing.T) {
 		}
 		t.Setenv(env, dir)
 	}
-	oldZone, oldPrice := time.Local, sessions.PriceOf
-	time.Local = time.UTC
+	oldPrice := sessions.PriceOf
 	sessions.PriceOf = func(_ settings.Settings, m string) (catalog.Price, bool) {
 		switch m {
 		case "claude-opus-5-5":
@@ -39,9 +39,9 @@ func sessionsHome(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		// the page's index is written behind it: let that write finish before
-		// the zone it reads (a stat of the file it writes) goes back
+		// the prices it reads go back
 		sessions.Reset()
-		time.Local, sessions.PriceOf = oldZone, oldPrice
+		sessions.PriceOf = oldPrice
 	})
 	sessions.Reset()
 }
