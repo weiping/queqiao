@@ -11,3 +11,4 @@
 /.worktrees/
 memory/
 .DS_Store
+.pi/url-cache/
