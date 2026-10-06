@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -69,7 +70,7 @@ func TestAgentModelsAPI(t *testing.T) {
 		got.Count == nil || got.Count.Shown != got.Count.Listed-1 {
 		t.Fatalf("%+v %+v", got.Models, got.Count)
 	}
-	if c := modelCount("codex"); *c != *got.Count {
+	if c := modelCount("codex"); !reflect.DeepEqual(c, got.Count) {
 		t.Fatalf("count %+v, answered %+v", c, got.Count)
 	}
 	got = call("POST", `{"hidden":[]}`)
@@ -97,7 +98,7 @@ func TestAgentModelLineAllHidden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	line := func() *modelCountJSON { return agentModelCount(a.ID, agentFields(a, a.Values())) }
+	line := func() *modelCountJSON { return agentModelCount(a, agentFields(a, a.Values())) }
 	c := line()
 	if c == nil || c.Shown != c.Listed || c.Listed < 2 {
 		t.Fatalf("all shown: %+v", c)
@@ -119,5 +120,38 @@ func TestAgentModelLineAllHidden(t *testing.T) {
 	provider.SetHiddenModels("codex", nil)
 	if c := line(); c == nil || c.Shown != c.Listed {
 		t.Fatalf("put back: %+v", c)
+	}
+}
+
+// Cursor Private Inference has no field picking among the catalog, yet its
+// own picker is the gateway's list as its key is shown it (mamba on
+// Discord: its models couldn't be picked in magpie), so its row counts the
+// models shown, as Claude Desktop's does, and its list picks them.
+func TestCursorLocalModelLine(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	if err := provider.Save(provider.Provider{ID: "relay", Name: "Relay", Key: "k", Chat: "http://127.0.0.1:1/v1", Models: []string{"m1", "m2"}}); err != nil {
+		t.Fatal(err)
+	}
+	a, err := agent.Find(agent.CursorLocalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if takesCatalog(agentFields(a, a.Values())) {
+		t.Fatal("a field of its picks among the catalog; the case isn't reached")
+	}
+	line := func() *modelCountJSON { return agentModelCount(a, agentFields(a, a.Values())) }
+	c := line()
+	if c == nil || c.Shown != c.Listed || c.Listed < 2 {
+		t.Fatalf("no line, or not all shown: %+v", c)
+	}
+	if err := provider.SetHiddenModels(agent.CursorLocalID, []string{"relay/m2"}); err != nil {
+		t.Fatal(err)
+	}
+	if c := line(); c == nil || c.Shown != c.Listed-1 {
+		t.Fatalf("one taken out: %+v", c)
 	}
 }

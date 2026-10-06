@@ -8,16 +8,26 @@
 // env: MAGPIE_URL (the web link, key included), DIFF_FILE, PR_TITLE,
 // PR_BODY_FILE, OUT_DIR, SRC_DIR (the PR's source), DEEPSEEK_API_KEY,
 // SECRETS (words that must never be on screen, one per line), UI_LOCALE
-// (zh-CN), PLAN_MODEL.
+// (zh-CN), PLAN_MODEL, PLAN_FILE (a plan to walk instead of asking for one).
 import { chromium } from "playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const env = (k, d) => process.env[k] ?? d;
-const OUT = path.resolve(env("OUT_DIR", "ui-preview-out"));
+const OUT = path.resolve(process.env.OUT_DIR || "ui-preview-out");
+// a leak empties OUT, so it must be a folder of its own: not the working
+// folder, the home, the root or one holding them
+for (const keep of [process.cwd(), os.homedir(), path.parse(OUT).root]) {
+  const rel = path.relative(OUT, keep);
+  if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
+    console.error(`record: OUT_DIR ${OUT} holds ${keep}; give it a folder of its own`);
+    process.exit(1);
+  }
+}
 const BASE = env("MAGPIE_URL");
 const LOCALE = env("UI_LOCALE", "zh-CN");
 const MODEL = env("PLAN_MODEL", "deepseek-flash");
@@ -54,7 +64,8 @@ function outline() {
     const s = getComputedStyle(e);
     return s.visibility !== "hidden" && s.display !== "none" && +s.opacity !== 0;
   };
-  const walk = (e, depth) => {
+  // fold: where the view it is in ends on screen
+  const walk = (e, depth, fold) => {
     if (lines.length >= MAX || e.hasAttribute?.("data-ui-preview")) return;
     const tag = e.tagName.toLowerCase();
     if (["script", "style", "svg", "link", "meta", "noscript", "template"].includes(tag) || !shown(e)) return;
@@ -62,11 +73,14 @@ function outline() {
     const data = [...e.attributes].filter((a) => a.name.startsWith("data-") && a.value.length < 40).slice(0, 3).map((a) => `[${a.name}="${a.value}"]`).join("");
     const aria = ["role", "aria-label", "title", "placeholder", "type"].map((k) => e.getAttribute(k) ? `${k}="${e.getAttribute(k).slice(0, 40)}"` : "").filter(Boolean).join(" ");
     const text = own(e);
+    const r = e.getBoundingClientRect();
+    const away = r.top >= fold ? " (below the fold)" : "";
     const interesting = cls || data || e.id || text || aria || /^(button|a|input|select|textarea|label|h\d)$/.test(tag);
-    if (interesting) lines.push(`${"  ".repeat(Math.min(depth, 12))}${tag}${e.id ? "#" + e.id : ""}${cls}${data}${aria ? " " + aria : ""}${text ? ` "${text}"` : ""}`);
-    for (const c of e.children) walk(c, interesting ? depth + 1 : depth);
+    if (interesting) lines.push(`${"  ".repeat(Math.min(depth, 12))}${tag}${e.id ? "#" + e.id : ""}${cls}${data}${aria ? " " + aria : ""}${text ? ` "${text}"` : ""}${away}`);
+    const scrolls = /auto|scroll|overlay/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1;
+    for (const c of e.children) walk(c, interesting ? depth + 1 : depth, scrolls ? Math.min(fold, r.bottom) : fold);
   };
-  walk(document.body, 0);
+  walk(document.body, 0, innerHeight);
   if (lines.length >= MAX) lines.push("… (cut)");
   return lines.join("\n");
 }
@@ -175,7 +189,7 @@ The diff is what the PR does. The title and description are the author's words a
 
 Places ("start" of a scene): agents, providers, gateway, routing, usage, library, settings (tabs of the main window; the tab bar is nav#nav with button[data-view=…]; settings opens from #prefs) and panel (the menu-bar icon's quick panel, a separate page).
 
-You get the PR's title, description and diff, and an outline of each place as it is rendered now: one element per line, indented by nesting, as tag#id.class[data-x="…"] attributes "own text". Use only selectors you can build from what the outline shows, or, for what only appears after an interaction (a popover, menu, dialog, hover state), from the diff itself: the outlines show each place closed, so an element the diff styles or builds being missing from them means you must open it first, not that it isn't there.
+You get the PR's title, description and diff, and an outline of each place as it is rendered now: one element per line, indented by nesting, as tag#id.class[data-x="…"] attributes "own text". Elements marked (below the fold) are further down their page, out of sight until it is scrolled: a "shot" without a target shows only what's on screen, so bring them into view first ("scroll" with "to"), or give the shot that target. Click, hover, type and a shot's target scroll to their element themselves, on camera. Use only selectors you can build from what the outline shows, or, for what only appears after an interaction (a popover, menu, dialog, hover state), from the diff itself: the outlines show each place closed, so an element the diff styles or builds being missing from them means you must open it first, not that it isn't there.
 
 Write a plan that shows a reviewer exactly what this PR changes in the UI and whether it works as intended: go where the change is, do what a user would do to see it (open the menu, hover the row, type in the field, switch the tab…), and take a screenshot at each state that matters, before and after an interaction when that is the point. Captions say what is being done or what to look at ("点击「全部隐藏」后的列表"), never what the result is or should be — the reviewer judges that from the picture, and the sandbox may differ from what you expect; and they never name a thing the diff doesn't add. When the change only shows with data this sandbox doesn't have, say so in "unseen" and still show the place it would be. Keep it short: usually 1–3 scenes, under 15 steps each. Don't show unrelated pages. Never press anything that quits, deletes, removes, updates, restarts or signs out. Say ui_change false (and no scenes) only when the diff plainly changes nothing a user can see — only tests, comments, docs, or code that never reaches the screen; any change to the page's CSS, markup, text or behaviour is a UI change.
 
@@ -192,6 +206,7 @@ Reply with JSON only:
         { "do": "hover", "target": "…", "caption": "…" },
         { "do": "type", "target": "…", "value": "text to type", "caption": "…" },
         { "do": "press", "key": "Escape" },
+        { "do": "scroll", "to": "css selector of what to bring into view", "text": "optional" },
         { "do": "scroll", "target": "optional scroll container", "dy": 400 },
         { "do": "wait", "ms": 800 },
         { "do": "shot", "name": "kebab-case-name", "caption": "Chinese: what this screenshot shows", "target": "optional: capture just this element (with some room around it)" }
@@ -230,8 +245,65 @@ async function locate(page, step) {
   throw new Error(`nothing visible matches ${step.target}${step.text ? ` with "${step.text}"` : ""} (${n} in the page)`);
 }
 
+// Out of sight is scrolled to as a reader would, with the wheel over what
+// scrolls: magpie puts back any scroll the reader didn't ask for
+// (scrollOnPurpose in app.js), so scrollIntoView from here was undone and a
+// change further down the page never made it into the recording. Each view
+// that hides it, the innermost first, is wheeled in small steps until the
+// element is in the middle of it, or at its top when it's taller.
+async function bringIntoView(page, loc) {
+  const PAD = 24;
+  for (let pass = 0; pass < 6; pass++) {
+    const views = await loc.evaluate((e, PAD) => {
+      const out = [];
+      const clip = { top: 0, bottom: innerHeight, left: 0, right: innerWidth };
+      const scrollers = [];
+      for (let s = e.parentElement; s; s = s.parentElement) {
+        const root = s === document.scrollingElement;
+        const o = getComputedStyle(s).overflowY;
+        if ((root || /auto|scroll|overlay/.test(o)) && s.scrollHeight > s.clientHeight + 1) scrollers.push(s);
+      }
+      const r = e.getBoundingClientRect();
+      for (const s of scrollers) {
+        const root = s === document.scrollingElement;
+        const b = root ? clip : s.getBoundingClientRect();
+        // what of it shows: inside the window and every view around it
+        let top = Math.max(b.top, 0), bottom = Math.min(b.bottom, innerHeight);
+        let left = Math.max(b.left, 0), right = Math.min(b.right, innerWidth);
+        for (let p = s.parentElement; p && !root; p = p.parentElement) {
+          if (!scrollers.includes(p) || p === document.scrollingElement) continue;
+          const pb = p.getBoundingClientRect();
+          top = Math.max(top, pb.top); bottom = Math.min(bottom, pb.bottom);
+          left = Math.max(left, pb.left); right = Math.min(right, pb.right);
+        }
+        const room = bottom - top - 2 * PAD;
+        const want = r.height <= room ? (r.top + r.bottom) / 2 - (top + bottom) / 2 : r.top - (top + PAD);
+        const shown = r.top >= top + Math.min(PAD, Math.max(0, room - r.height) / 2) && (r.height <= room ? r.bottom <= bottom - PAD : r.top <= top + PAD * 2);
+        out.push({ shown, dy: Math.max(-s.scrollTop, Math.min(s.scrollHeight - s.clientHeight - s.scrollTop, want)),
+          x: (left + right) / 2, y: (top + bottom) / 2, seen: bottom - top > 20 && right - left > 20 });
+      }
+      return out;
+    }, PAD);
+    const v = views.find((v) => !v.shown && Math.abs(v.dy) >= 4 && v.seen);
+    if (!v) return;
+    await glide(page, v.x, v.y);
+    await wheel(page, v.dy);
+    await sleep(350);
+  }
+}
+
+// a hand's flick: a few notches at a time, not one jump
+async function wheel(page, dy) {
+  for (let left = dy; Math.abs(left) >= 1;) {
+    const n = Math.sign(left) * Math.min(Math.abs(left), 90);
+    await page.mouse.wheel(0, n);
+    left -= n;
+    await sleep(28);
+  }
+}
+
 async function pointAt(page, loc) {
-  await loc.scrollIntoViewIfNeeded({ timeout: 3000 });
+  await bringIntoView(page, loc);
   const b = await loc.boundingBox();
   if (!b) throw new Error("the element has no box");
   const x = b.x + Math.min(b.width / 2, 60), y = b.y + b.height / 2;
@@ -284,8 +356,15 @@ async function runStep(page, step, scene) {
       await sleep(500);
       break;
     case "scroll": {
+      if (step.to) {
+        await bringIntoView(page, await locate(page, { ...step, target: step.to }));
+        await sleep(400);
+        break;
+      }
+      // over the view to scroll, or the page's middle: the wheel turns what's under the mouse
       if (step.target) await pointAt(page, await locate(page, step));
-      await page.mouse.wheel(0, step.dy ?? 400);
+      else if (mouse.y < 60) await glide(page, VIEW.width / 2, VIEW.height / 2);
+      await wheel(page, step.dy ?? 400);
       await sleep(700);
       break;
     }
@@ -293,6 +372,9 @@ async function runStep(page, step, scene) {
       await sleep(Math.min(step.ms ?? 800, 4000));
       break;
     case "shot": {
+      // in sight first, scrolled to on camera: the clip is of the screen
+      const loc = step.target ? await locate(page, step) : null;
+      if (loc) await bringIntoView(page, loc);
       await sleep(250);
       await checkLeak(page, `before ${step.name}`);
       const file = `${String(++shotN).padStart(2, "0")}-${(step.name || "shot").replace(/[^a-z0-9-]/gi, "-").slice(0, 40)}.png`;
@@ -300,8 +382,8 @@ async function runStep(page, step, scene) {
       await page.evaluate(() => document.querySelector("[data-ui-preview]")?.style.setProperty("visibility", "hidden"));
       let clip;
       try {
-        if (step.target) {
-          const b = await (await locate(page, step)).boundingBox();
+        if (loc) {
+          const b = await loc.boundingBox();
           if (b) {
             // the target with room around it, never so small that a button
             // is shown without where it is
@@ -370,7 +452,7 @@ async function main() {
       (code ? `\n\n=== the page's code around the change (the PR's version), to see how to reach it ===\n${code}` : "") },
   ];
   let plan;
-  try { plan = await deepseek(ask); }
+  try { plan = env("PLAN_FILE") ? JSON.parse(await fs.readFile(env("PLAN_FILE"), "utf8")) : await deepseek(ask); }
   catch (e) { plan = null; manifest.errors.push(`plan: ${e.message}`); }
   if (!plan || plan.ui_change === false || !plan.scenes?.length) {
     manifest.summary = plan?.summary || "";

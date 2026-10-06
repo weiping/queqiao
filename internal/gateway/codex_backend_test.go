@@ -62,7 +62,7 @@ func TestCodexOwnModelPassesThrough(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"input_tokens":9`) {
 		t.Fatalf("%d %s", code, body)
 	}
-	if u := usage.Load(time.Time{}); len(u) != 1 || u[0].Input != 9 || u[0].Output != 2 || u[0].Provider != "openai" {
+	if u := usage.Load(time.Time{}); len(u) != 1 || u[0].Input != 9 || u[0].Output != 2 || u[0].Provider != "openai" || u[0].ResponseID != "r1" {
 		t.Errorf("usage %+v", u)
 	}
 	if path != "/backend-api/codex/responses" || head.Get("Authorization") != "Bearer chatgpt-token" || head.Get("chatgpt-account-id") != "acct-1" {
@@ -750,5 +750,35 @@ func TestCodexOwnModelKindAccounting(t *testing.T) {
 				t.Fatalf("usage: %+v", recs)
 			}
 		})
+	}
+}
+
+// A turn on one of Codex's own models logs the reasoning Codex asked for,
+// as the others' turns do: the request log's reasoning column was blank
+// for every one (Karen, #feedback), its body sent zstd as Codex sends it.
+func TestCodexOwnModelLogsEffort(t *testing.T) {
+	setup(t, provider.Chat, &fake{t: t})
+	var got []byte
+	chatgpt(t, func(w http.ResponseWriter, r *http.Request) {
+		got, _ = io.ReadAll(r.Body)
+		w.Header()["Content-Type"] = nil
+		io.WriteString(w, sse(`data: {"type":"response.completed","response":{"id":"r1","usage":{"input_tokens":9,"output_tokens":2}}}`))
+	})
+	enc, _ := zstd.NewWriter(nil)
+	z := enc.EncodeAll([]byte(`{"model":"gpt-5.5","stream":true,"input":"hi","reasoning":{"effort":"xhigh","summary":"auto"}}`), nil)
+	s := New()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", CodexPath+"/responses", bytes.NewReader(z))
+	req.Header.Set("Content-Encoding", "zstd")
+	req.Header.Set("Authorization", "Bearer chatgpt-token")
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != 200 || !strings.Contains(string(got), `"effort":"xhigh"`) {
+		t.Fatalf("%d %s, sent %s", rec.Code, rec.Body, got)
+	}
+	if u := usage.Load(time.Time{}); len(u) != 1 || u[0].Effort != "xhigh" {
+		t.Errorf("usage %+v", u)
+	}
+	if rs := s.Trace(t.Context(), 0, 0).Routes; len(rs) != 1 || rs[0].Effort != "xhigh" || rs[0].Tries[0].Effort != "xhigh" {
+		t.Errorf("trace %+v", rs)
 	}
 }

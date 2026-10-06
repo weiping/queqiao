@@ -71,11 +71,18 @@ type held struct {
 	cost   float64
 }
 
+// A reservation stays in the window where the request began, even if it
+// finishes after the next one has started.
+type window struct {
+	key   string
+	start int64 // the window's start as Unix seconds
+}
+
 var state = struct {
 	sync.Mutex
 	sums map[string]*sums // by usage.Path() and key
-	held map[string]*held
-}{sums: map[string]*sums{}, held: map[string]*held{}}
+	held map[window]*held
+}{sums: map[string]*sums{}, held: map[window]*held{}}
 
 func slot(keyID string) string { return usage.Path() + "\x00" + keyID }
 
@@ -111,7 +118,7 @@ func Forget() {
 	state.Lock()
 	defer state.Unlock()
 	state.sums = map[string]*sums{}
-	state.held = map[string]*held{}
+	state.held = map[window]*held{}
 }
 
 // Append writes rec to usage.jsonl and, for a key's call, counts it
@@ -186,7 +193,7 @@ func Of(k access.Key, now time.Time) *Status {
 	start, reset := access.Window(k.Limit.Period, now)
 	s := read(k.ID, start)
 	state.Lock()
-	h := state.held[slot(k.ID)]
+	h := state.held[window{slot(k.ID), start.Unix()}]
 	st := status(k.ID, k.Limit, s, h, reset)
 	state.Unlock()
 	return &st
@@ -235,7 +242,7 @@ func Reserve(who access.Identity, body int64, model string, now time.Time) (rele
 	start, reset := access.Window(l.Period, now)
 	state.Lock()
 	defer state.Unlock()
-	k := slot(who.KeyID)
+	k := window{slot(who.KeyID), start.Unix()}
 	s := sumsFor(who.KeyID, start)
 	h := state.held[k]
 	if h == nil {

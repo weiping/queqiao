@@ -1,7 +1,9 @@
 package gui
 
 import (
+	"cmp"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -18,6 +20,24 @@ import (
 type modelCountJSON struct {
 	Shown  int `json:"shown"`
 	Listed int `json:"listed"`
+	// By is the models shown by whose they are, a connected agent's
+	// expanded row's chips (OpenAI 6 · OpenRouter 24)
+	By []modelGroupJSON `json:"by,omitempty"`
+	// Names are the first few models shown by name, for a row that says
+	// which it lists rather than how many (Claude Desktop's)
+	Names []string `json:"names,omitempty"`
+}
+
+// countNames is how many models' names modelCount gives.
+const countNames = 3
+
+// modelGroupJSON is how many of the models shown one provider (or the
+// routing groups) gives.
+type modelGroupJSON struct {
+	Name  string   `json:"name"`
+	Icon  string   `json:"icon,omitempty"`
+	Icons []string `json:"icons,omitempty"`
+	N     int      `json:"n"`
 }
 
 // agentModelJSON is a model an agent may be shown, as the list draws it.
@@ -35,6 +55,9 @@ type agentModelJSON struct {
 	Hidden  bool   `json:"hidden,omitempty"`
 	// InUse: the agent is set to it, so it can't be taken out
 	InUse bool `json:"inUse,omitempty"`
+	// Own: one of Codex's own, a ChatGPT account's, which Codex lists
+	// ahead of magpie's until the user puts them in an order (#855)
+	Own bool `json:"own,omitempty"`
 }
 
 // takesCatalog reports whether an agent picks among magpie's catalog: some
@@ -64,11 +87,13 @@ func agentFields(a *agent.Agent, vals map[string]string) []fieldJSON {
 }
 
 // agentModelCount is the line under an agent's name, nil for an agent that
-// doesn't pick among the catalog. Its pickers list only the models shown, so
+// doesn't pick among the catalog nor has its menu from the gateway's list
+// (agent.ListsModels). Its pickers list only the models shown, so
 // with every one taken out they have no catalog entry left, yet the line is
 // the one way to put them back (#356): it stays while any is hidden.
-func agentModelCount(id string, fields []fieldJSON) *modelCountJSON {
-	if takesCatalog(fields) {
+func agentModelCount(a *agent.Agent, fields []fieldJSON) *modelCountJSON {
+	id := a.ListsFor()
+	if takesCatalog(fields) || a.ListsModels {
 		return modelCount(id)
 	}
 	if len(provider.HiddenModels(id)) == 0 {
@@ -84,10 +109,26 @@ func modelCount(id string) *modelCountJSON {
 	listed, _ := provider.ListedFor(id)
 	off := provider.HiddenModels(id)
 	c := &modelCountJSON{Listed: len(listed)}
+	at := map[string]int{}
 	for _, e := range listed {
-		if !off[e.ID] {
-			c.Shown++
+		if off[e.ID] {
+			continue
 		}
+		c.Shown++
+		if len(c.Names) < countNames {
+			c.Names = append(c.Names, cmp.Or(e.Name, e.Model, e.ID))
+		}
+		g := modelGroupJSON{Name: e.Provider.Name, Icon: e.Provider.Icon}
+		if e.Group != "" {
+			g = modelGroupJSON{Name: agent.RoutingGroups, Icons: e.Icons}
+		}
+		i, ok := at[g.Name]
+		if !ok {
+			i = len(c.By)
+			at[g.Name] = i
+			c.By = append(c.By, g)
+		}
+		c.By[i].N++
 	}
 	return c
 }
@@ -103,7 +144,7 @@ func usedBy(a *agent.Agent, vals map[string]string, e provider.Entry) bool {
 		if v == e.ID || strings.HasSuffix(v, "/"+e.ID) {
 			return true
 		}
-		if acc := e.Provider.Account; e.Group == "" && acc != nil && acc.Agent == a.ID && v == e.Model {
+		if acc := e.Provider.Account; e.Group == "" && acc != nil && acc.Agent == a.ListsFor() && v == e.Model {
 			return true
 		}
 	}
@@ -111,13 +152,14 @@ func usedBy(a *agent.Agent, vals map[string]string, e provider.Entry) bool {
 }
 
 func agentModelList(a *agent.Agent) []agentModelJSON {
-	listed, _ := provider.ListedFor(a.ID)
-	off := provider.HiddenModels(a.ID)
+	id := a.ListsFor()
+	listed, _ := provider.ListedFor(id)
+	off := provider.HiddenModels(id)
 	vals := a.Values()
 	out := []agentModelJSON{}
 	for _, e := range listed {
 		m := agentModelJSON{ID: e.ID, Name: e.Name, Group: e.Provider.Name, Icon: e.Provider.Icon, Context: e.Context,
-			Hidden: off[e.ID], InUse: usedBy(a, vals, e)}
+			Hidden: off[e.ID], InUse: usedBy(a, vals, e), Own: id == "codex" && provider.CodexOwn(e)}
 		if m.Name == "" {
 			m.Name = e.Model
 		}
@@ -135,6 +177,11 @@ func agentModelList(a *agent.Agent) []agentModelJSON {
 	return out
 }
 
+// orderable reports whether the agent's model list is put in the order the
+// user drags it into: Codex's, whose /model lists the models by the
+// priority magpie gives them (#855).
+func orderable(id string) bool { return id == "codex" }
+
 func agentModelsAPI(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/agent-models/{id}", func(rw http.ResponseWriter, r *http.Request) {
 		a, err := agent.Find(r.PathValue("id"))
@@ -142,12 +189,18 @@ func agentModelsAPI(mux *http.ServeMux) {
 			fail(rw, err)
 			return
 		}
-		writeJSON(rw, map[string]any{"models": agentModelList(a)})
+		writeJSON(rw, map[string]any{"models": agentModelList(a), "orderable": orderable(a.ListsFor()), "ordered": len(provider.ModelOrder(a.ListsFor())) > 0})
 	})
 	// hidden is every entry to take out of the agent's lists; the others
 	// are shown, and one the agent is set to is kept in whatever is asked
+	//
+	// order, instead, is the order the agent's list puts them in (#855):
+	// the ones named first, as named; none puts back magpie's own
 	mux.HandleFunc("POST /api/agent-models/{id}", func(rw http.ResponseWriter, r *http.Request) {
-		var in struct{ Hidden []string }
+		var in struct {
+			Hidden []string
+			Order  *[]string
+		}
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 			fail(rw, err)
 			return
@@ -155,6 +208,18 @@ func agentModelsAPI(mux *http.ServeMux) {
 		a, err := agent.Find(r.PathValue("id"))
 		if err != nil {
 			fail(rw, err)
+			return
+		}
+		if in.Order != nil {
+			if !orderable(a.ListsFor()) {
+				fail(rw, errors.New(a.Name+"'s model list can't be put in an order"))
+				return
+			}
+			if err := provider.SetModelOrder(a.ListsFor(), *in.Order); err != nil {
+				fail(rw, err)
+				return
+			}
+			writeJSON(rw, map[string]any{"models": agentModelList(a), "ordered": len(provider.ModelOrder(a.ListsFor())) > 0})
 			return
 		}
 		used := map[string]bool{}
@@ -167,10 +232,10 @@ func agentModelsAPI(mux *http.ServeMux) {
 				hidden = append(hidden, id)
 			}
 		}
-		if err := provider.SetHiddenModels(a.ID, hidden); err != nil {
+		if err := provider.SetHiddenModels(a.ListsFor(), hidden); err != nil {
 			fail(rw, err)
 			return
 		}
-		writeJSON(rw, map[string]any{"models": agentModelList(a), "count": modelCount(a.ID)})
+		writeJSON(rw, map[string]any{"models": agentModelList(a), "count": modelCount(a.ListsFor())})
 	})
 }

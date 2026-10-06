@@ -43,8 +43,8 @@ function serve(lang, panel) {
 }
 
 const words = {
-  en: { hide: "Hide accounts", hidden: "Accounts hidden" },
-  zh: { hide: "账号打码", hidden: "账号已打码" },
+  en: { hide: "Hide accounts", hidden: "Accounts hidden", tip: /^Mask the accounts/, back: /click to show them/ },
+  zh: { hide: "账号打码", hidden: "账号已打码", tip: /^给本页的账号/, back: /点击显示/ },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
@@ -69,6 +69,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.waitForSelector(".subscription-account .user");
       const btn = page.locator("#usageMask");
       assert.equal((await btn.textContent()).trim(), w.hide);
+      // the button has a tooltip, and once on it says how to have them back (#653)
+      assert.match(await btn.getAttribute("title"), w.tip);
       // a sentence and a tooltip naming the accounts, and a word with one inside
       await page.evaluate(() => {
         const d = document.createElement("div");
@@ -79,6 +81,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       });
       await btn.click();
       assert.equal((await btn.textContent()).trim(), w.hidden);
+      assert.match(await btn.getAttribute("title"), w.back);
+      assert.match(await page.locator("#rtMask").getAttribute("title"), w.back);
       await page.waitForFunction(() => document.querySelectorAll("#sample .pii").length === 2);
       const got = await page.evaluate(() => ({
         users: [...document.querySelectorAll(".subscription-account .user")].map((u) => ({ raw: u.querySelector(".pii")?.dataset.raw ?? null, text: u.textContent, title: u.title })),

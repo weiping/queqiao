@@ -16,6 +16,8 @@ func TestMainURL(t *testing.T) {
 		{mainView(url.Values{"view": {"routing"}, "req": {"42"}}), "/?view=routing&req=42&lang=en"},
 		{mainView(url.Values{"view": {"settings"}}), "/?view=settings&lang=en"},
 		{mainView(url.Values{"view": {"usage"}, "tab": {"requests"}, "provider": {"relay team"}, "agent": {"claude-desktop"}}), "/?view=usage&tab=requests&provider=relay+team&agent=claude-desktop&lang=en"},
+		{mainView(url.Values{"view": {"usage"}, "tab": {"usage"}, "provider": {"codex"}}), "/?view=usage&tab=usage&provider=codex&lang=en"},
+		{mainView(url.Values{"view": {"usage"}, "tab": {"usage"}, "card": {"codex|a+b&c@test"}}), "/?view=usage&tab=usage&card=codex%7Ca%2Bb%26c%40test&lang=en"},
 		{argView("settings"), "/?view=settings&lang=en"},
 		{argView("usage&tab=x"), "/?view=usage%26tab%3Dx&lang=en"},
 	} {
@@ -29,6 +31,21 @@ func TestMainURL(t *testing.T) {
 		}
 		if c.view == "routing&req=42" && (u.Query().Get("view") != "routing" || u.Query().Get("req") != "42") {
 			t.Errorf("%q: view %q req %q", got, u.Query().Get("view"), u.Query().Get("req"))
+		}
+	}
+}
+
+// Quota destinations validate provider names and escape account IDs.
+func TestQuotaView(t *testing.T) {
+	for _, c := range []struct{ id, want string }{
+		{"codex", "usage&tab=usage&provider=codex"},
+		{"relay team", "usage&tab=usage&provider=relay+team"},
+		{"codex|a+b@例子.test", "usage&tab=usage&provider=codex&card=codex%7Ca%2Bb%40%E4%BE%8B%E5%AD%90.test"},
+		{"bad&name", "usage&tab=usage"},
+		{"", "usage&tab=usage"},
+	} {
+		if got := quotaView(c.id); got != c.want {
+			t.Errorf("quotaView(%q): %q, want %q", c.id, got, c.want)
 		}
 	}
 }

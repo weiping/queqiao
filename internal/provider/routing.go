@@ -24,6 +24,9 @@ const (
 	Rotate    = "rotate"
 	LeastUsed = "usage"
 	Pace      = "pace"
+	// Weighted spreads a provider's requests over its keys by each key's
+	// weight (KeyAccount.Weight, #841), smoothly: 3 and 1 go a, a, b, a…
+	Weighted = "weight"
 )
 
 // SetRouting changes how a provider's requests spread over its keys or
@@ -34,6 +37,18 @@ func SetRouting(id, routing string) error {
 		return err
 	}
 	p.Routing = routing
+	return Save(*p)
+}
+
+// SetSink sends a provider's keys or accounts rate limited with quota
+// left to the back of its order, or lets them keep their place
+// (Provider.Sink).
+func SetSink(id string, sink bool) error {
+	p, err := Find(id)
+	if err != nil {
+		return err
+	}
+	p.Sink = sink
 	return Save(*p)
 }
 
@@ -88,12 +103,65 @@ type Allowance []Limit
 
 // Limit is one window of an allowance.
 type Limit struct {
-	Used    float64       // share used, 0–100
-	Resets  time.Time     // zero when not known
-	Span    time.Duration // how long the window runs; zero when not known
-	Model   string        // the only models it counts, by a word in their ids
-	matches func(string) bool
-	partial bool // of a reading that may leave windows out (QuotaWindow.partial)
+	Used   float64       // share used, 0–100
+	Resets time.Time     // zero when not known
+	Span   time.Duration // how long the window runs; zero when not known
+	Model  string        // the only models it counts, by a word in their ids
+	// Amount of Of in Unit: the window's own count, used, when the vendor
+	// counts it so (QuotaWindow.Amount)
+	Amount, Of float64
+	Unit       string
+	matches    func(string) bool
+	partial    bool // of a reading that may leave windows out (QuotaWindow.partial)
+	// ResetRunsOut is when the reset the account spends by itself before
+	// it runs out does (resetRunsOut): spent then, it starts this window
+	// again — at Restarts, which routing takes for the window's renewal
+	// when it is the sooner. Zero when none will be spent so.
+	ResetRunsOut time.Time
+}
+
+// Restarts is when an auto-used reset starts the account's windows again,
+// as the Codex reset about to run out is spent (expiringResetSpent):
+// resetExpiryLead before it runs out, or now when the account is held up
+// past then. What they have left then is lost, as at their own reset, so
+// Weekly pace and Smart take it for their renewal when it comes sooner
+// (#717, #718). Zero when none will be.
+func (a Allowance) Restarts(now time.Time) time.Time {
+	for _, l := range a {
+		if !l.ResetRunsOut.IsZero() {
+			stopped, back := a.heldUp()
+			return expiringResetSpent(l.ResetRunsOut, now, stopped, back)
+		}
+	}
+	return time.Time{}
+}
+
+// heldUp is usedUp and BackAt by an allowance: whether a window that
+// stops the account, for every model, is used up, and when the last of
+// those starts again (zero when one doesn't say).
+func (a Allowance) heldUp() (stopped bool, back time.Time) {
+	for _, l := range a {
+		if l.Model != "" || l.matches != nil || l.Used < 100 {
+			continue
+		}
+		if l.Resets.IsZero() {
+			return true, time.Time{}
+		}
+		if !stopped || l.Resets.After(back) {
+			back = l.Resets
+		}
+		stopped = true
+	}
+	return stopped, back
+}
+
+// restarted is when a window that renews at renews (zero: not known) is
+// started again: at restart (Restarts) when that is the sooner.
+func restarted(renews, restart time.Time) time.Time {
+	if !restart.IsZero() && (renews.IsZero() || restart.Before(renews)) {
+		return restart
+	}
+	return renews
 }
 
 func (l Limit) applies(model string) bool {
@@ -129,12 +197,34 @@ func (a Allowance) For(model string, now time.Time) (used float64, renews []time
 	return used, renews
 }
 
+// Count is the count of the window For's share is of — the fullest that
+// counts model — when the vendor counts it (WorkBuddy's credits): how much
+// of of is used, in unit; of is zero when it isn't counted so. A window
+// whose reset has passed is empty again.
+func (a Allowance) Count(model string, now time.Time) (amount, of float64, unit string) {
+	model = strings.ToLower(model)
+	used := -1.0
+	for _, l := range a {
+		if !l.applies(model) {
+			continue
+		}
+		if !l.Resets.IsZero() && !l.Resets.After(now) {
+			l.Used, l.Amount = 0, 0
+		}
+		if l.Used > used {
+			used, amount, of, unit = l.Used, l.Amount, l.Of, l.Unit
+		}
+	}
+	return amount, of, unit
+}
+
 // Renewal is For's renews as routing ranks them: a window not started,
 // or whose reset has passed, that says how long it runs is taken to
 // renew that long from now — a five hours not started renews within five
 // hours, the soonest of an account that has nothing longer (#576).
 func (a Allowance) Renewal(model string, now time.Time) []time.Time {
 	model = strings.ToLower(model)
+	restart := a.Restarts(now)
 	var ls []Limit
 	for _, l := range a {
 		if !l.applies(model) {
@@ -146,6 +236,7 @@ func (a Allowance) Renewal(model string, now time.Time) []time.Time {
 				l.Resets = now.Add(l.Span)
 			}
 		}
+		l.Resets = restarted(l.Resets, restart)
 		ls = append(ls, l)
 	}
 	sort.SliceStable(ls, func(i, j int) bool {
@@ -172,6 +263,33 @@ func (a Allowance) Full(model string, share float64, now time.Time) time.Time {
 		}
 	}
 	return t
+}
+
+// Pooled says whether a refusal of model for its allowance leaves the
+// account's other models alone: the windows that count model and are full
+// at share are each of some models only (Opus's own week, Cursor's Other
+// Models pool) — or, none known full, no window of the whole account
+// counts it, only pools. Then it is that model which is out, not the
+// account: Cursor's Other Models used up leaves Auto and Composer in
+// theirs (Xiaopodev on X).
+func (a Allowance) Pooled(model string, share float64, now time.Time) bool {
+	model = strings.ToLower(model)
+	full, pooled, whole := false, false, false
+	for _, l := range a {
+		if !l.applies(model) {
+			continue
+		}
+		scoped := l.Model != "" || l.matches != nil
+		if l.Used >= share && (l.Resets.IsZero() || l.Resets.After(now)) {
+			if !scoped {
+				return false
+			}
+			full = true
+		}
+		pooled = pooled || scoped
+		whole = whole || !scoped
+	}
+	return full || pooled && !whole
 }
 
 // budgetSpan is the shortest window that is a budget rather than a rate
@@ -206,9 +324,21 @@ const FreshPace = 100 / (7 * 24.0)
 // sooner. Where the reading may leave a week out (a Claude account only
 // heard of as Claude Code answered, partial) it is instead taken to have
 // a week not started with the share its fullest window has used: those
-// go by what they have used, among the rest as the fresh are.
+// go by what they have used, among the rest as the fresh are. An
+// account whose windows an auto-used reset starts again sooner than they
+// renew (Restarts) goes by that instead, and due is then that time: what
+// it has left is lost there.
 func (a Allowance) Pace(model string, now time.Time) (pace float64, due time.Time) {
 	model = strings.ToLower(model)
+	restart := a.Restarts(now)
+	// until is how long a window runs from now and renews when; a restart
+	// sooner cuts it short
+	cut := func(until time.Duration, renews time.Time) (time.Duration, time.Time) {
+		if !restart.IsZero() && restart.Before(now.Add(until)) {
+			return restart.Sub(now), restart
+		}
+		return until, renews
+	}
 	any, used := false, 0.0
 	short, partial, shortPace, shortDue := false, false, 0.0, time.Time{}
 	for _, l := range a {
@@ -226,6 +356,7 @@ func (a Allowance) Pace(model string, now time.Time) (pace float64, due time.Tim
 			if l.Resets.After(now) {
 				until, renews = l.Resets.Sub(now), l.Resets
 			}
+			until, renews = cut(until, renews)
 			if p := (100 - u) / max(until, time.Hour).Hours(); !short || p < shortPace {
 				shortPace, shortDue, short = p, renews, true
 			}
@@ -238,6 +369,7 @@ func (a Allowance) Pace(model string, now time.Time) (pace float64, due time.Tim
 		if l.Resets.After(now) {
 			until, renews = l.Resets.Sub(now), l.Resets
 		}
+		until, renews = cut(until, renews)
 		if p := (100 - u) / max(until, time.Hour).Hours(); !any || p < pace {
 			pace, due, any = p, renews, true
 		}
@@ -273,7 +405,7 @@ func Allowances(agent string) map[string]Allowance {
 				if q.Error != "" || len(q.Windows) == 0 {
 					continue
 				}
-				all[user] = allowanceOf(q.Windows, time.Now())
+				all[user] = allowanceOf(q.Windows, time.Now()).restartedBy(resetRunsOut(agent, user, q.Windows, q.Resets))
 			}
 			c.Lock()
 			c.m[agent], c.at[agent] = all, time.Now()
@@ -327,8 +459,10 @@ func renewedNow(agent, user string) {
 // allowance rather than trust what it last said: the account just
 // answered that it has run out.
 func StaleAllowance(agent, user string) {
+	key := agent + "/" + strings.ToLower(user)
 	loginUsageCache.Lock()
-	delete(loginUsageCache.m, agent+"/"+strings.ToLower(user))
+	delete(loginUsageCache.m, key)
+	delete(loginUsageCache.pending, key) // nor a reading asked for before
 	loginUsageCache.Unlock()
 	// the built-in keeps Grok's usage by home; a Grok moved to its plugin
 	// keeps it as "plugin:grok"'s, the line above
@@ -347,6 +481,16 @@ func StaleAllowance(agent, user string) {
 		usedCache.at[agent] = time.Time{}
 	}
 	usedCache.Unlock()
+}
+
+// restartedBy marks every window as started again by a reset spent
+// before it runs out at runsOut (Limit.ResetRunsOut); zero leaves a as it
+// is.
+func (a Allowance) restartedBy(runsOut time.Time) Allowance {
+	for i := range a {
+		a[i].ResetRunsOut = runsOut
+	}
+	return a
 }
 
 // allowanceOf keeps the windows that can stop an account.
@@ -377,7 +521,7 @@ func allowanceOf(ws []QuotaWindow, now time.Time) Allowance {
 		if w.Aside {
 			continue
 		}
-		l := Limit{Used: w.Used, Span: w.Span, Model: w.Model, matches: w.matches, partial: w.partial}
+		l := Limit{Used: w.Used, Span: w.Span, Model: w.Model, Amount: w.Amount, Of: w.Limit, Unit: w.Unit, matches: w.matches, partial: w.partial}
 		if ids := families[w.Model]; ids != nil && w.Family != "" && w.matches == nil {
 			l.Model = ""
 			l.matches = func(model string) bool { return ids[model] }

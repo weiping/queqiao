@@ -2,9 +2,12 @@ package gateway
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -22,6 +25,9 @@ type cToolCall struct {
 		Name      string `json:"name,omitempty"`
 		Arguments string `json:"arguments,omitempty"`
 	} `json:"function"`
+	// Gemini's OpenAI-compatible API gives a call's thought signature
+	// here, and wants it back (gemini_signature.go)
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"`
 }
 
 type cRequest struct {
@@ -91,7 +97,8 @@ func parseChat(body []byte) (*Request, error) {
 			}
 			msg.Parts = append(msg.Parts, chatParts(m.Content)...)
 			for _, tc := range m.ToolCalls {
-				msg.Parts = append(msg.Parts, Part{Kind: ToolCall, ID: tc.ID, Name: tc.Function.Name, Args: parseArgs(tc.Function.Arguments)})
+				msg.Parts = append(msg.Parts, Part{Kind: ToolCall, ID: tc.ID, Name: tc.Function.Name, Args: parseArgs(tc.Function.Arguments),
+					Signature: googleSignature(tc.ExtraContent)})
 			}
 			r.Messages = append(r.Messages, msg)
 		case "tool":
@@ -142,6 +149,11 @@ func chatParts(raw json.RawMessage) []Part {
 		ImageURL struct {
 			URL string `json:"url"`
 		} `json:"image_url"`
+		File struct {
+			FileData string `json:"file_data"`
+			FileID   string `json:"file_id"`
+			Filename string `json:"filename"`
+		} `json:"file"`
 	}
 	json.Unmarshal(raw, &items)
 	var out []Part
@@ -151,9 +163,35 @@ func chatParts(raw json.RawMessage) []Part {
 			out = append(out, Part{Kind: Text, Text: it.Text})
 		case "image_url":
 			out = append(out, imagePart(it.ImageURL.URL))
+		case "file":
+			if p, ok := chatFile(it.File.FileData, it.File.FileID, it.File.Filename); ok {
+				out = append(out, p)
+			}
 		}
 	}
 	return out
+}
+
+// chatFile is a Chat Completions file part (a PDF, say) as a file of the
+// request's, which a Gemini upstream is given as inline data and the
+// others are told of (attachmentText), rather than left out for the model
+// to answer as if it had read it (#934). Its data is a data: URL, or the
+// bare base64 some clients send; one named only by its OpenAI file id is
+// kept as that id.
+func chatFile(data, id, name string) (Part, bool) {
+	mt, _, _ := strings.Cut(mime.TypeByExtension(strings.ToLower(path.Ext(name))), ";")
+	switch {
+	case strings.HasPrefix(data, "data:"):
+		if p := imagePart(data); p.Data != "" {
+			return Part{Kind: File, MediaType: cmp.Or(p.MediaType, mt, "application/octet-stream"), Data: p.Data}, true
+		}
+	case data != "":
+		return Part{Kind: File, MediaType: cmp.Or(mt, "application/octet-stream"), Data: data}, true
+	}
+	if id != "" {
+		return Part{Kind: File, MediaType: cmp.Or(mt, "application/octet-stream"), URL: id}, true
+	}
+	return Part{}, false
 }
 
 // imagePart reads a data: URL into an inline image, or keeps the URL.
@@ -184,6 +222,9 @@ func buildChat(r *Request, model, host string, rejectTemp bool) []byte {
 	// served (#388), as Command Code's plugin does for a Go key, as the
 	// built-in replayed it to /alpha/generate
 	replay := strings.Contains(host, "deepseek") || strings.Contains(strings.ToLower(model), "deepseek") || host == provider.CommandCodePlanID
+	// Gemini wants each step's thought signature back on its first call
+	// (#687), and one it can't check for a step it didn't sign
+	gemini := geminiCompat(host, model)
 	// A tool message holds text only, so the images tools returned go to
 	// the model in a user message after the tool messages, as the start of
 	// the user's own message when one comes next: some models' chat
@@ -211,12 +252,18 @@ func buildChat(r *Request, model, host string, rejectTemp bool) []byte {
 			seen = nil
 		}
 	}
-	for _, m := range r.Messages {
+	for i, m := range r.Messages {
 		if m.Role == "assistant" {
 			showSeen()
 			am := map[string]any{"role": "assistant"}
 			var calls []map[string]any
 			var think string
+			signed := false
+			for _, p := range m.Parts {
+				if p.Kind == ToolCall && p.Signature != "" {
+					signed = true
+				}
+			}
 			for _, p := range m.Parts {
 				switch p.Kind {
 				case ToolCall:
@@ -225,8 +272,18 @@ func buildChat(r *Request, model, host string, rejectTemp bool) []byte {
 						id = "call_" + newID()
 					}
 					names[id] = p.Name
-					calls = append(calls, map[string]any{"id": id, "type": "function",
-						"function": map[string]any{"name": p.Name, "arguments": argsString(p)}})
+					call := map[string]any{"id": id, "type": "function",
+						"function": map[string]any{"name": p.Name, "arguments": argsString(p)}}
+					if gemini {
+						// a later call of a signed step goes without: Gemini
+						// signs the first
+						if sig := p.Signature; sig != "" {
+							call["extra_content"] = googleExtra(sig)
+						} else if !signed {
+							call["extra_content"] = googleExtra(skipSignature)
+						}
+					}
+					calls = append(calls, call)
 				case Thinking:
 					think += p.Text
 				}
@@ -238,7 +295,24 @@ func buildChat(r *Request, model, host string, rejectTemp bool) []byte {
 			if len(calls) > 0 {
 				am["tool_calls"] = calls
 			}
-			if replay && think != "" {
+			// a reply cut short and sent back to go on from (Resume) is marked
+			// with the upstream's own prefill mode — DeepSeek's prefix, Kimi's
+			// partial (continuation.go; an upstream without one is never asked
+			// to go on) — and its reasoning goes with it where the upstream
+			// reads reasoning_content back, so the going on picks the thought
+			// up where it was cut
+			if r.Resume && i == len(r.Messages)-1 {
+				mode := chatPrefill(host, model)
+				switch mode {
+				case "prefix":
+					am["prefix"] = true
+				case "partial":
+					am["partial"] = true
+				}
+				if think != "" && mode != "" {
+					am["reasoning_content"] = think
+				}
+			} else if think != "" && replay {
 				am["reasoning_content"] = think
 			}
 			msgs = append(msgs, am)
@@ -806,7 +880,9 @@ func (d *chatDecoder) decode(data string, emit func(Event)) error {
 			// next one.
 			if idx != d.tool || (tc.ID != "" && tc.ID != d.toolID) {
 				d.tool, d.toolID = idx, tc.ID
-				emit(Event{Kind: KToolStart, ID: tc.ID, Name: tc.Function.Name})
+				// a call Gemini signed goes to the client with an id
+				// carrying the signature, which comes back with it
+				emit(Event{Kind: KToolStart, ID: signedID(tc.ID, googleSignature(tc.ExtraContent)), Name: tc.Function.Name})
 			}
 			if tc.Function.Arguments != "" {
 				emit(Event{Kind: KToolArgs, Text: tc.Function.Arguments})

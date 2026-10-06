@@ -35,16 +35,38 @@ func OTelSession(agent, session string) bool {
 	return err == nil && e.sessionObserved(agent, session, config)
 }
 
-func (e *otelExporter) sessionObserved(agent, session string, config settings.OTel) bool {
-	a := e.sessions.Load()
-	if !config.Enabled || !config.Sessions || a == nil || !reflect.DeepEqual(a.config, config) {
+// OTelSessionFresh resolves a cached miss once before the gateway exports its
+// first attempt. Requests without a native ID retain observed-agent readiness.
+func OTelSessionFresh(agent, session string) bool {
+	if OTelSession(agent, session) {
+		return true
+	}
+	e := otel.Load()
+	if e == nil || session == "" {
 		return false
 	}
-	at := a.agents[agent]
-	if session != "" {
-		at = a.seen[observedSession{agent, session}]
+	config, err := settings.OTelExport()
+	return err == nil && config.Enabled && config.Sessions && e.identities.VisibleFresh(agent, session)
+}
+
+func (e *otelExporter) sessionObserved(agent, session string, config settings.OTel) bool {
+	if !config.Enabled || !config.Sessions {
+		return false
 	}
-	return time.Since(at) < 5*time.Minute
+	a := e.sessions.Load()
+	if a != nil && reflect.DeepEqual(a.config, config) {
+		at := a.agents[agent]
+		if session != "" {
+			at = a.seen[observedSession{agent, session}]
+		}
+		if time.Since(at) < 5*time.Minute {
+			return true
+		}
+	}
+	if session == "" {
+		return false
+	}
+	return e.identities.Visible(agent, session)
 }
 
 func sessionBody(body string, config settings.OTel) string {
@@ -69,10 +91,19 @@ func sessionRecord(s sessions.TraceSpan, config settings.OTel) Record {
 	}
 	typ := s.Kind
 	return Record{Agent: s.Agent, Model: s.Model, Served: s.Served, Provider: s.Provider, Time: s.Start, Millis: s.End.Sub(s.Start).Milliseconds(), Status: status,
-		Input: s.Tokens.Input, Output: s.Tokens.Output, CacheRead: s.Tokens.CacheRead, CacheWrite: s.Tokens.CacheWrite, Reasoning: s.Reasoning,
+		Input: s.Tokens.Input, Output: s.Tokens.Output, CacheRead: s.Tokens.CacheRead, CacheWrite: s.Tokens.CacheWrite, CacheWrite1h: s.Tokens.CacheWrite1h, Reasoning: s.Reasoning,
 		BodyIn: sessionBody(s.Input, config), BodyOut: sessionBody(s.Output, config),
 		OTel: &OTelSpan{TraceID: sessions.TraceID(s.Agent, s.Session, s.Turn), SpanID: s.ID, ParentID: s.Parent, Root: s.Parent == "", End: s.End,
 			Name: s.Name, Type: typ, SessionID: s.Session, TraceName: s.Agent + " interaction", Session: true, Inferred: s.Inferred, Update: s.Update}}
+}
+
+func (e *otelExporter) offerSession(s sessions.TraceSpan, config settings.OTel) {
+	// OTLP spans are complete observations, not mutable start/end events.
+	// Sending the empty start root and later reusing its ID can leave Langfuse
+	// displaying the empty copy even though the completed copy has bodies.
+	if !s.Pending {
+		e.offer(otelItem{record: sessionRecord(s, config), config: config})
+	}
 }
 
 func (e *otelExporter) watchSessions(ctx context.Context, started time.Time) {
@@ -82,6 +113,7 @@ func (e *otelExporter) watchSessions(ctx context.Context, started time.Time) {
 	var prior settings.OTel
 	if config, err := settings.OTelExport(); err == nil && config.Enabled && config.Sessions {
 		reader = sessions.NewTraceReader(started)
+		reader.SetSessionIndex(&e.identities)
 		prior = config
 	}
 	for {
@@ -98,6 +130,7 @@ func (e *otelExporter) watchSessions(ctx context.Context, started time.Time) {
 		}
 		if reader == nil || !reflect.DeepEqual(config, prior) {
 			reader = sessions.NewTraceReader(time.Now())
+			reader.SetSessionIndex(&e.identities)
 			prior = config
 			e.sessions.Store(nil)
 		}
@@ -115,6 +148,9 @@ func (e *otelExporter) watchSessions(ctx context.Context, started time.Time) {
 				}
 			}
 		}
+		for _, identity := range reader.VisibleSessions() {
+			available.seen[observedSession{identity.Agent, identity.ID}] = time.Now()
+		}
 		for _, s := range spans {
 			if s.End.After(available.agents[s.Agent]) {
 				available.agents[s.Agent] = s.End
@@ -129,7 +165,7 @@ func (e *otelExporter) watchSessions(ctx context.Context, started time.Time) {
 			if ctx.Err() != nil {
 				return
 			}
-			e.offer(otelItem{record: sessionRecord(s, config), config: config})
+			e.offerSession(s, config)
 		}
 	}
 }

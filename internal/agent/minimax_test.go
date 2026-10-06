@@ -119,6 +119,7 @@ func readMiniMax(t *testing.T, path string) (miniMaxFile, string) {
 // default and variant they had.
 func TestMiniMaxCode(t *testing.T) {
 	home, path := miniMaxHome(t)
+	visionOff(t) // flash is text-only only while no model describes images to it
 	a := miniMax(home)
 	if a.Path != path || !a.Detected() {
 		t.Fatalf("path %q, detected %v", a.Path, a.Detected())

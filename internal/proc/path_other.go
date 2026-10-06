@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yetone/magpie/internal/agentenv"
 )
 
 // UserPath gives the desktop app the PATH a terminal of the user's has. One
@@ -18,18 +20,52 @@ import (
 // or codex installed with a custom npm prefix (~/.npm-global/bin), nvm, bun,
 // volta or asdf wasn't found: the agent wasn't seen and its subscription
 // couldn't be used. The folders those tools use are added at once, when they
-// exist; the login shell's own PATH is asked for in the background and
-// added after, since a slow profile mustn't hold the window up.
+// exist; the login shell's own PATH is asked for after.
+//
+// The same call brings the agents' own variables (agentenv.Vars:
+// PI_CODING_AGENT_DIR, CODEX_HOME, CLAUDE_CONFIG_DIR, ...) the profile sets
+// and the app wasn't started with, so that magpie writes an agent's config
+// into the folder the agent reads, not its default one in the home (atie on
+// Discord: Pi's models.json went to ~/.pi/agent with PI_CODING_AGENT_DIR set
+// in the shell). One already in magpie's environment is kept. One holding a
+// relative path is lent to the programs magpie starts all the same, but
+// magpie itself reads them through appdir.LookupEnv, which passes such a
+// value over, as it does the ones magpie started with. Those are read
+// as magpie starts (the library is synced into the agents at once), so the
+// answer is waited for, but no more than shellWait: a slow profile mustn't
+// hold the window up, and what it says later is still taken.
 func UserPath() {
 	addPath(userDirs(false))
+	done := make(chan struct{})
 	go func() {
-		if p := shellPath(); p != "" {
+		defer close(done)
+		p, vars := shellEnv()
+		setUnset(vars)
+		if p != "" {
 			addPath(filepath.SplitList(p))
 			login.Lock()
 			login.dirs, login.at = filepath.SplitList(p), time.Now()
 			login.Unlock()
 		}
 	}()
+	select {
+	case <-done:
+	case <-time.After(shellWait):
+	}
+}
+
+// shellWait is how long UserPath waits for the login shell before going on
+// without it.
+const shellWait = 2 * time.Second
+
+// setUnset sets each variable magpie's environment doesn't have, to a value
+// that isn't empty.
+func setUnset(vars map[string]string) {
+	for k, v := range vars {
+		if _, set := os.LookupEnv(k); !set && v != "" {
+			os.Setenv(k, v)
+		}
+	}
 }
 
 var login struct {
@@ -48,7 +84,7 @@ func LoginPath() []string {
 	if login.dirs != nil && time.Since(login.at) < time.Minute {
 		return login.dirs
 	}
-	p := shellPath()
+	p, _ := shellEnv()
 	if p == "" {
 		return nil
 	}
@@ -120,9 +156,10 @@ func npmPrefix(home string) string {
 	return ""
 }
 
-// shellPath asks the user's login shell for its PATH; "" when it can't say
+// shellEnv asks the user's login shell for its PATH and the values it has
+// for agentenv.Vars ("" for one it hasn't); "" and nil when it can't say
 // within a few seconds.
-func shellPath() string {
+func shellEnv() (string, map[string]string) {
 	sh := os.Getenv("SHELL")
 	if sh == "" || !filepath.IsAbs(sh) {
 		sh = "/bin/zsh"
@@ -130,25 +167,97 @@ func shellPath() string {
 			sh = "/bin/sh"
 		}
 	}
+	return askShell(sh)
+}
+
+// askShell runs sh as a terminal opens it and reads what shellEnv says.
+func askShell(sh string) (string, map[string]string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	// interactive too, since many put PATH in .zshrc/.bashrc; the marker
-	// tells PATH apart from whatever the profile prints
-	const mark = "__magpie_path__"
-	cmd := CommandContext(ctx, sh, "-ilc", "printf '"+mark+"%s"+mark+"' \"$PATH\"")
+	// interactive too, since many put PATH in .zshrc/.bashrc
+	cmd := CommandContext(ctx, sh, "-ilc", shellProbe(sh))
 	cmd.Stdin = nil
 	out, _ := cmd.Output()
-	s := string(out)
+	return parseShellEnv(string(out), shellMark)
+}
+
+// ShellPath is the PATH the shell sh (zsh, bash, fish) has in a terminal
+// opened now, whether or not it is the login shell; nil when it doesn't
+// say within a few seconds.
+func ShellPath(sh string) []string {
+	p, _ := askShell(sh)
+	if p == "" {
+		return nil
+	}
+	return filepath.SplitList(p)
+}
+
+// shellMark tells shellEnv's answer apart from whatever the profile prints.
+const shellMark = "__magpie_path__"
+
+// shellProbe is the command the login shell sh runs to print its PATH and
+// agentenv.Vars, between two marks. A NUL (which no variable can hold)
+// parts the values: PATH first, then each of agentenv.Vars in order.
+//
+// A POSIX shell (zsh, bash, fish too) expands "$PATH" itself. nushell
+// doesn't: a double-quoted string is literal there, so it printed "$PATH",
+// "$CLAUDE_CONFIG_DIR", ... and magpie set each variable to its own name
+// (#738: then Claude sign-in failed with "mkdir $CLAUDE_CONFIG_DIR:
+// read-only file system", and the account lapsed minutes later, Claude
+// Code's sign-in looked for under that folder). nushell has no POSIX
+// quoting to ask with, and its PATH is a list, so it is asked to run
+// /bin/sh with the same printf: nushell hands it the environment as a
+// child sees it, PATH joined back into one string, and sh expands the
+// references. The outer command is in nushell's single quotes, where a
+// backslash is a backslash, and the printf format in sh's double quotes,
+// where \0 reaches printf as it is.
+func shellProbe(sh string) string {
+	format, args := shellMark+"%s", ` "$PATH"`
+	for _, v := range agentenv.Vars {
+		format += `\0%s`
+		args += ` "$` + v + `"`
+	}
+	if filepath.Base(sh) == "nu" {
+		return `^/bin/sh -c 'printf "` + format + shellMark + `"` + args + `'`
+	}
+	return "printf '" + format + shellMark + "'" + args
+}
+
+// parseShellEnv reads shellEnv's answer out of what the shell printed. The
+// variables are nil when their count isn't agentenv.Vars' (a printf that
+// doesn't know \0); PATH alone is still taken then. A value that is the
+// variable's own reference ("$CODEX_HOME") is a shell that printed the
+// text instead of expanding it (nushell before shellProbe knew it; a shell
+// with other quoting still), not a folder: it counts as unset, as does a
+// PATH of "$PATH".
+func parseShellEnv(s, mark string) (string, map[string]string) {
 	i := strings.Index(s, mark)
 	if i < 0 {
-		return ""
+		return "", nil
 	}
 	s = s[i+len(mark):]
 	j := strings.Index(s, mark)
 	if j < 0 {
-		return ""
+		return "", nil
 	}
-	return s[:j]
+	f := strings.Split(s[:j], "\x00")
+	if f[0] == "$PATH" {
+		f[0] = ""
+	}
+	if len(f) != len(agentenv.Vars)+1 {
+		if len(f) == 1 {
+			return f[0], nil
+		}
+		return "", nil
+	}
+	vars := make(map[string]string, len(agentenv.Vars))
+	for k, v := range agentenv.Vars {
+		if f[k+1] == "$"+v {
+			f[k+1] = ""
+		}
+		vars[v] = f[k+1]
+	}
+	return f[0], vars
 }
 
 // addPath adds the folders PATH lacks, after the ones it has.

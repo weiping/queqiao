@@ -69,7 +69,7 @@ func newS3(c Config) (*s3, error) {
 		key = p + "/" + key
 	}
 	s := &s3{endpoint: e, bucket: u.Host, key: key, pathStyle: c.PathStyle,
-		sig: signer{id: strings.TrimSpace(c.User), secret: c.Password, region: region, service: "s3"}, client: http.DefaultClient, now: time.Now}
+		sig: signer{id: strings.TrimSpace(c.User), secret: c.Password, region: region, service: "s3"}, client: syncClient, now: time.Now}
 	// a bucket can't go before an address or localhost, nor one with a dot
 	// in it before a certificate for *.host: the bucket goes in the path
 	host := e.Hostname()

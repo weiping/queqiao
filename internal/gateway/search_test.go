@@ -332,9 +332,32 @@ func TestDeepSeekSearchesOnResponses(t *testing.T) {
 	if !searchesItself(p, provider.Responses) {
 		t.Error("DeepSeek doesn't search by itself on its Responses API")
 	}
-	for _, proto := range []provider.Protocol{provider.Chat, provider.Anthropic} {
-		if searchesItself(p, proto) {
-			t.Errorf("DeepSeek searches by itself on %s", proto)
+	// its Anthropic API searches too (TestDeepSeekNativeSearchResults)
+	if searchesItself(p, provider.Chat) {
+		t.Error("DeepSeek searches by itself on its Chat API")
+	}
+}
+
+// Zhipu's and Z.ai's Responses APIs take the hosted web_search tool: a GLM
+// provider searches by itself there, not on its other APIs.
+func TestZhipuSearchesOnResponses(t *testing.T) {
+	presets := map[string]string{
+		"zhipu": "https://open.bigmodel.cn/api/v1",
+		"zai":   "https://api.z.ai/api/v1",
+	}
+	for id, responses := range presets {
+		p, err := provider.FromPreset(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.Responses = responses
+		if !searchesItself(p, provider.Responses) {
+			t.Errorf("%s doesn't search by itself on its Responses API", p.Name)
+		}
+		for _, proto := range []provider.Protocol{provider.Chat, provider.Anthropic} {
+			if searchesItself(p, proto) {
+				t.Errorf("%s searches by itself on %s", p.Name, proto)
+			}
 		}
 	}
 }

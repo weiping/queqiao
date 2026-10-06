@@ -30,7 +30,7 @@ func TestMoveAsideTriesAgain(t *testing.T) {
 	exe := filepath.Join(t.TempDir(), "magpie-windows-amd64.exe")
 	os.WriteFile(exe, []byte("v1"), 0o755)
 	calls := fakeRename(t, 2, errSharingViolation)
-	if err := moveAside(exe); err != nil {
+	if _, err := moveAside(exe); err != nil {
 		t.Fatal(err)
 	}
 	if *calls != 3 {
@@ -47,7 +47,7 @@ func TestMoveAsideSaysWhy(t *testing.T) {
 	exe := filepath.Join(t.TempDir(), "magpie-windows-amd64.exe")
 	os.WriteFile(exe, []byte("v1"), 0o755)
 	calls := fakeRename(t, 100, errSharingViolation)
-	err := moveAside(exe)
+	_, err := moveAside(exe)
 	if err == nil {
 		t.Fatal("moved")
 	}
@@ -66,7 +66,8 @@ func TestMoveAsideSaysWhy(t *testing.T) {
 
 	// a folder magpie may not change says so
 	fakeRename(t, 100, os.ErrPermission)
-	if msg := moveAside(exe).Error(); !strings.Contains(msg, "doesn't let magpie change files in "+filepath.Dir(exe)) {
+	_, err = moveAside(exe)
+	if msg := err.Error(); !strings.Contains(msg, "doesn't let magpie change files in "+filepath.Dir(exe)) {
 		t.Errorf("%q", msg)
 	}
 

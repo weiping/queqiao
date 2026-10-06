@@ -119,13 +119,19 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.locator(".rename-in").press("Enter");
       await page.locator(".accts .acc .rename", { hasText: "Workspace" }).waitFor();
       assert.equal(posts.at(-1).action, "rename");
+      await backup().hover();
       await backup().getByRole("button", { name: w.remove, exact: true }).click();
+      const confirmation = page.getByRole("alertdialog");
+      assert.match(await confirmation.textContent(), /Backup/);
+      await confirmation.getByRole("button", { name: w.remove, exact: true }).click();
       await page.waitForFunction(() => ![...document.querySelectorAll(".accts .acc")].some((r) => r.textContent.includes("Backup")));
 
+      await page.locator("#modal").getByRole("button", { name: lang === "zh" ? "取消" : "Cancel", exact: true }).click();
+      await page.locator("#modal").waitFor({ state: "hidden" });
       await page.locator('nav [data-view="usage"]').click();
       await page.locator("#usageKeys .row").first().waitFor();
       assert.deepEqual(await page.locator("#usageKeys .name").allTextContents(), ["Server", "Laptop"]);
-      assert.deepEqual(await page.locator("#usageKeys .num b").allTextContents(), lang === "zh" ? ["2200", "1100"] : ["2.2K", "1.1K"]);
+      assert.deepEqual(await page.locator("#usageKeys .num b").allTextContents(), ["2.2K", "1.1K"]);
       assert.deepEqual(await page.locator("#usageKeys .cost").allTextContents(), ["≈$0.400", "≈$0.200"]);
       assert(!/Workspace|Personal/.test(await page.locator("#usageKeys").textContent()));
       await page.locator("#usageTab .opt").nth(1).click();

@@ -15,6 +15,7 @@
 package davsync
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -31,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yetone/magpie/internal/access"
 	"github.com/yetone/magpie/internal/agent"
 	"github.com/yetone/magpie/internal/backup"
 	"github.com/yetone/magpie/internal/edit"
@@ -73,6 +75,27 @@ type Config struct {
 	// WebDAV folder's while an S3 bucket is synced to, or the other way):
 	// moving back finds it as it was, its password too. Nothing syncs to it.
 	Other *Server `json:"other,omitempty"`
+	// AutoEvery is how many minutes apart the gateway's magpie syncs by
+	// itself: 0 is Every's 3, Manual never — then only Sync now syncs
+	// (#847). Set by SetAuto alone; Configure keeps it.
+	AutoEvery int `json:"autoEvery,omitempty"`
+}
+
+// Manual is AutoEvery's never: sync runs only when asked.
+const Manual = -1
+
+// AutoChoices are the minutes SetAuto takes, Manual first.
+var AutoChoices = []int{Manual, 3, 15, 30, 60}
+
+// auto is how often c syncs by itself; 0 when it doesn't.
+func (c Config) auto() time.Duration {
+	switch {
+	case c.AutoEvery == Manual:
+		return 0
+	case c.AutoEvery > 0:
+		return time.Duration(c.AutoEvery) * time.Minute
+	}
+	return Every
 }
 
 // Server is where a Config syncs to, without what it syncs or the
@@ -125,6 +148,9 @@ type Notice struct {
 	Here  []string  `json:"here,omitempty"`  // this computer's parts, replaced by the server's
 	There []string  `json:"there,omitempty"` // the server's parts, replaced by this computer's
 	Saved string    `json:"saved,omitempty"` // the folder the replaced copies are kept in
+	// Restored is a Restore's notice: Here are the parts it brought in,
+	// what was here before kept in Saved, which Undo brings back
+	Restored bool `json:"restored,omitempty"`
 }
 
 // state is what the last sync saw: the parts here and on the server, by
@@ -141,6 +167,9 @@ type state struct {
 	Local  map[string]string `json:"local,omitempty"`
 	Remote map[string]string `json:"remote,omitempty"`
 	Usage  *usageState       `json:"usage,omitempty"`
+	// Undo is the file the last Restore kept this computer's setup in, from
+	// just before it: Undo brings it back
+	Undo string `json:"undo,omitempty"`
 }
 
 func path(name string) string { return filepath.Join(settings.Dir(), name) }
@@ -195,6 +224,7 @@ func Configure(c Config) error {
 			// the other kind's server is kept: the one moved from, or the
 			// one kept before
 			c.Other = old.Other
+			c.AutoEvery = old.AutoEvery // SetAuto's, not the form's
 			if old.S3() != c.S3() {
 				o := old.where()
 				c.Other = &o
@@ -295,11 +325,22 @@ func (c Config) sameAccount(o Config) bool {
 		strings.TrimSpace(c.User) == strings.TrimSpace(o.User)
 }
 
-// Off turns sync off. The file on the server stays.
+// Off turns sync off. The file on the server stays, and so does what this
+// computer last synced with it: turned on again to the same server, it is
+// not a new computer, so what was changed here while it was off goes up
+// rather than the server's older setup coming down over it (#939: every
+// agent back to how it was when sync was turned off). How the last sync
+// went, its notice and a restore's undo go.
 func Off() error {
 	return locked(func() error {
-		os.Remove(path("sync-state.json"))
-		os.Remove(path(cacheName))
+		st := loadState()
+		if st.Local == nil {
+			os.Remove(path("sync-state.json"))
+			os.Remove(path(cacheName))
+		} else {
+			st.Error, st.Notice, st.Undo, st.Usage = "", nil, "", nil
+			saveState(st)
+		}
 		usage.DropAllShared() // the others' usage came by sync: it goes with it (#542)
 		if err := os.Remove(path("sync.json")); err != nil && !os.IsNotExist(err) {
 			return err
@@ -331,6 +372,11 @@ type View struct {
 	// Other is the other kind's server, kept for moving back to: not
 	// synced to
 	Other *OtherView `json:"other,omitempty"`
+	// Auto is how many minutes apart it syncs by itself; 0 never: only when
+	// asked
+	Auto int `json:"auto"`
+	// Undo is whether the last Restore can be undone
+	Undo bool `json:"undo,omitempty"`
 }
 
 // OtherView is the other kind's server as the Settings page shows it.
@@ -353,9 +399,11 @@ func Status() View {
 	st := loadState()
 	v := View{On: true, URL: c.URL, User: c.User, PasswordSet: c.Password != "", PassphraseSet: c.Passphrase != "",
 		Keys: c.Keys, Agents: c.Agents, Library: c.library(), Error: st.Error, Notice: st.Notice,
-		Kind: strings.ToLower(c.Kind()), Endpoint: c.Endpoint, Region: c.Region, PathStyle: c.PathStyle}
+		Kind: strings.ToLower(c.Kind()), Endpoint: c.Endpoint, Region: c.Region, PathStyle: c.PathStyle,
+		Auto: int(c.auto() / time.Minute)}
 	if st.Key == stateKey(c) {
 		v.Last = st.Last
+		v.Undo = st.Undo != "" && isFile(st.Undo)
 		if c.Usage && st.Usage != nil {
 			v.UsageError = st.Usage.Error
 		}
@@ -368,11 +416,11 @@ func Status() View {
 	return v
 }
 
-// Dismiss clears the notice.
+// Dismiss clears the notice, and with a restore's, its undo.
 func Dismiss() error {
 	return locked(func() error {
 		st := loadState()
-		st.Notice = nil
+		st.Notice, st.Undo = nil, "" // a restore's undo goes with its notice
 		saveState(st)
 		return nil
 	})
@@ -426,6 +474,29 @@ func cached(want string) []byte {
 	return b
 }
 
+// keepDamaged writes a server file that couldn't be read aside under the
+// sync folder, so the damage is inspectable rather than silently replaced.
+// It keeps the newest few: a sync that rebuilds on every tick (a server
+// that always answers the same unreadable way) would otherwise pile up a
+// copy each time. The name is sorted by time, so the oldest are the first
+// to go.
+func keepDamaged(data []byte) {
+	dir := path("sync")
+	if os.MkdirAll(dir, 0o700) != nil {
+		return
+	}
+	name := filepath.Join(dir, time.Now().Format("2006-01-02-150405")+"-server-damaged"+backup.Ext)
+	if edit.WriteAtomic(name, data) != nil {
+		return
+	}
+	old, _ := filepath.Glob(filepath.Join(dir, "*-server-damaged"+backup.Ext))
+	slices.Sort(old) // names begin with the time, so oldest first
+	for len(old) > 3 {
+		os.Remove(old[0])
+		old = old[1:]
+	}
+}
+
 func sum(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
@@ -444,7 +515,11 @@ func syncNow(ctx context.Context, force bool) error {
 	if _, ok := Load(); !ok { // off: no lock taken, so none made
 		return nil
 	}
-	unlock, err := lock(ctx)
+	// a sync has no time to end in (see stallAfter), a wait for another's
+	// does
+	lctx, lcancel := context.WithTimeout(ctx, wait)
+	unlock, err := lock(lctx)
+	lcancel()
 	if err != nil {
 		return err
 	}
@@ -488,45 +563,73 @@ const (
 // wait having been prev: Every, but longer for a server limiting requests
 // (429, 503) — as long as its Retry-After says, or else twice the last
 // wait, up to maxWait — so that a limit is not run into again and again.
-func backoff(err error, prev time.Duration) time.Duration {
+func backoff(err error, prev time.Duration) time.Duration { return backoffFrom(err, prev, Every) }
+
+// backoffFrom is backoff for a sync every base.
+func backoffFrom(err error, prev, base time.Duration) time.Duration {
 	var rl *rateLimited
 	if !errors.As(err, &rl) {
-		return Every
+		return base
 	}
 	if rl.after > 0 {
-		return min(max(rl.after, Every), limitWait)
+		return min(max(rl.after, base), max(limitWait, base))
 	}
-	return min(max(2*prev, 2*Every), maxWait)
+	return min(max(2*prev, 2*base), max(maxWait, base))
 }
 
-// Run syncs a little after it starts and every Every after that, until
-// ctx ends — less often while the server is limiting requests. A failure
-// is logged once, not on every try.
-func Run(ctx context.Context) {
-	t := time.NewTimer(20 * time.Second)
+// poll is how often Run looks at the setup: whether sync is on, by
+// itself, and how often (#847). Looking costs no request. A var for tests.
+var poll = time.Minute
+
+// Run syncs a little after it starts and every AutoEvery after that, until
+// ctx ends — less often while the server is limiting requests, and never
+// while sync is set to run only when asked. A failure is logged once, not
+// on every try.
+func Run(ctx context.Context) { run(ctx, 20*time.Second) }
+
+func run(ctx context.Context, first time.Duration) {
+	t := time.NewTimer(first)
 	defer t.Stop()
-	last, next := "", Every
+	last := ""
+	var tried time.Time // the last sync Run made
+	var gap time.Duration
+	limited := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
-		c, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		t.Reset(poll)
+		cfg, ok := Load()
+		every := cfg.auto()
+		if !ok || every == 0 {
+			continue
+		}
+		// a server limiting requests is waited for as backoff says; else the
+		// time set now, which may have changed since the last sync
+		w := every
+		if limited {
+			w = max(gap, every)
+		}
+		if !tried.IsZero() && time.Since(tried) < w {
+			continue
+		}
+		// no request is let stand still for long (stallAfter), but a large
+		// backup on a slow line takes what it takes: only an hour ends it
+		c, cancel := context.WithTimeout(ctx, time.Hour)
 		err := Now(c)
 		cancel()
+		tried = time.Now()
 		if msg := fmt.Sprint(err); err != nil && msg != last {
-			kind := "WebDAV"
-			if c, ok := Load(); ok {
-				kind = c.Kind()
-			}
-			log.Printf("syncing through %s: %s", kind, msg)
+			log.Printf("syncing through %s: %s", cfg.Kind(), msg)
 			last = msg
 		} else if err == nil {
 			last = ""
 		}
-		next = backoff(err, next)
-		t.Reset(next)
+		gap = backoffFrom(err, w, every)
+		var rl *rateLimited
+		limited = errors.As(err, &rl)
 	}
 }
 
@@ -553,6 +656,10 @@ func hashes(b backup.Bundle) map[string]string {
 		s = *b.Settings
 	}
 	s.KeepOwn(settings.Settings{}) // this computer's own: never synced
+	settingsHash := h(s)
+	if b.GatewayKeys != nil { // a missing store keeps older bundles' hash
+		settingsHash = h([]any{s, *b.GatewayKeys})
+	}
 	providers := []any{b.Providers, b.Icons, b.Groups}
 	if b.Searches != nil && len(*b.Searches) > 0 { // as before them, without one
 		providers = append(providers, *b.Searches)
@@ -560,9 +667,12 @@ func hashes(b backup.Bundle) map[string]string {
 	if len(b.Order) > 0 { // as before it, when never arranged
 		providers = append(providers, map[string][]string{"order": b.Order})
 	}
+	if len(b.GroupOrder) > 0 { // as before it, when never arranged
+		providers = append(providers, map[string][]string{"groupOrder": b.GroupOrder})
+	}
 	return map[string]string{
 		"providers": h(providers),
-		"settings":  h(s),
+		"settings":  settingsHash,
 		"profiles":  h(orEmpty(b.Profiles)),
 		"agents":    h(orEmpty(b.Agents)),
 		"library":   h(b.Library),
@@ -576,12 +686,29 @@ func orEmpty[V any](m map[string]V) map[string]V {
 	return m
 }
 
-// take puts from's part in to.
+// take puts from's part in to. The merged bundle is a sync one (BundleVersion):
+// its per-part markers, not the whole-bundle Keys bit, say which part
+// carries credentials, so a keyed providers upload no longer tells a reader
+// the settings and the library came with keys too. If an older writer drops
+// those markers, readers fall back to Keys even if the version stays 2.
 func take(to *backup.Bundle, from backup.Bundle, part string) {
+	// Preserve every legacy part's scope before a providers upload changes
+	// Keys for older readers. An untouched nil marker would otherwise inherit
+	// that new value and turn a redaction into a credential-bearing update.
+	if to.ProvidersKeys == nil {
+		to.ProvidersKeys = backup.Flag(to.Keys)
+	}
+	if to.SettingsKeys == nil {
+		to.SettingsKeys = backup.Flag(to.Keys)
+	}
+	if to.LibraryKeys == nil {
+		to.LibraryKeys = backup.Flag(to.Keys)
+	}
 	switch part {
 	case "providers":
+		keys := from.Keys || (from.ProvidersKeys != nil && *from.ProvidersKeys)
 		ps := from.Providers
-		if !from.Keys && to.Keys { // sent without keys: keep the ones the server has
+		if !keys && (to.Keys || (to.ProvidersKeys != nil && *to.ProvidersKeys)) { // sent without keys: keep the ones the server has
 			keys := map[string]provider.Provider{}
 			for _, p := range to.Providers {
 				keys[p.ID] = p
@@ -589,7 +716,7 @@ func take(to *backup.Bundle, from backup.Bundle, part string) {
 			ps = slices.Clone(ps)
 			for i, p := range ps {
 				if k, ok := keys[p.ID]; ok && p.Key == "" && len(p.Keys) == 0 {
-					ps[i].Key, ps[i].KeyName, ps[i].Keys, ps[i].KeyProtocol = k.Key, k.KeyName, k.Keys, k.KeyProtocol
+					ps[i].Key, ps[i].KeyName, ps[i].Keys, ps[i].KeyProtocol, ps[i].KeyWeight = k.Key, k.KeyName, k.Keys, k.KeyProtocol, k.KeyWeight
 					if p.BalanceToken == "" {
 						ps[i].BalanceToken = k.BalanceToken
 					}
@@ -597,7 +724,7 @@ func take(to *backup.Bundle, from backup.Bundle, part string) {
 			}
 		}
 		searches := from.Searches
-		if searches != nil && !from.Keys && to.Keys && to.Searches != nil { // the same for the search APIs
+		if searches != nil && !keys && (to.Keys || (to.ProvidersKeys != nil && *to.ProvidersKeys)) && to.Searches != nil { // the same for the search APIs
 			keys := map[string]string{}
 			for _, a := range *to.Searches {
 				keys[a.Vendor] = a.Key
@@ -610,25 +737,53 @@ func take(to *backup.Bundle, from backup.Bundle, part string) {
 			}
 			searches = &ss
 		}
-		to.Providers, to.Icons, to.Groups, to.Searches, to.Order = ps, from.Icons, from.Groups, searches, from.Order
-		to.Keys = to.Keys || from.Keys
+		to.Providers, to.Icons, to.Groups, to.Searches, to.Order, to.GroupOrder = ps, from.Icons, from.Groups, searches, from.Order, from.GroupOrder
+		to.ProvidersKeys = backup.Flag(keys || (to.ProvidersKeys != nil && *to.ProvidersKeys))
+		to.Keys = to.Keys || keys // the whole-bundle bit follows it, for a magpie that reads no per-part ones: it keeps the server's keys on its own upload then
 	case "settings":
-		to.Settings = from.Settings
+		keys := from.Keys || (from.SettingsKeys != nil && *from.SettingsKeys)
+		s := from.Settings
+		if s != nil && !keys && (to.Keys || (to.SettingsKeys != nil && *to.SettingsKeys)) && to.Settings != nil {
+			// Sent without keys: keep the ones the server has, as for providers.
+			copy := *s
+			copy.LANKey, copy.LANKeyID = to.Settings.LANKey, to.Settings.LANKeyID
+			copy.GitHubToken = to.Settings.GitHubToken
+			copy.OTel.Headers = nil
+			if strings.TrimRight(strings.TrimSpace(copy.OTel.Endpoint), "/") == to.Settings.OTel.Endpoint {
+				copy.OTel.Headers = to.Settings.OTel.Headers
+			}
+			s = &copy
+		}
+		if s != nil {
+			to.Settings = s
+		}
+		if keys && from.GatewayKeys != nil {
+			to.GatewayKeys = from.GatewayKeys // an explicit empty store clears it
+		}
+		to.SettingsKeys = backup.Flag(keys || (to.SettingsKeys != nil && *to.SettingsKeys))
 	case "profiles":
 		to.Profiles = from.Profiles
 	case "agents":
 		to.Agents = from.Agents
 	case "library":
+		keys := from.Keys || (from.LibraryKeys != nil && *from.LibraryKeys)
 		lib := from.Library
-		if lib != nil && !from.Keys && to.Keys { // sent without keys: keep the ones the server has
+		// An empty secret is not a clear: a keyed computer's library holds
+		// "" for a server it synced and never held a token for, and writes
+		// that over the token the keyless computer that set it up has. The
+		// server's value is kept for such an entry whatever the policy; a
+		// server taken out here is gone, as a part's own clearing works.
+		if lib != nil && (to.Keys || (to.LibraryKeys != nil && *to.LibraryKeys)) {
 			lib = lib.WithSecrets(to.Library, backup.Secret)
 		}
 		to.Library = lib
+		to.LibraryKeys = backup.Flag(keys || (to.LibraryKeys != nil && *to.LibraryKeys))
 	}
+	to.Version = backup.BundleVersion // the merged bundle is a sync one, whatever the server's file was
 }
 
 // changed is when a part was last changed here, as its files say.
-func changed(part string) time.Time {
+func changed(part string, keys bool) time.Time {
 	mtime := func(p string) time.Time {
 		if fi, err := os.Stat(p); err == nil {
 			return fi.ModTime()
@@ -639,7 +794,11 @@ func changed(part string) time.Time {
 	case "providers":
 		return mtime(provider.Path())
 	case "settings":
-		return mtime(settings.Path())
+		m := mtime(settings.Path())
+		if k := mtime(access.Path()); keys && k.After(m) {
+			m = k
+		}
+		return m
 	case "profiles":
 		return mtime(profile.Path())
 	case "library":
@@ -671,6 +830,9 @@ func bring(b backup.Bundle, part string) error {
 			return err
 		}
 		if err := provider.MirrorOrder(b.Order); err != nil {
+			return err
+		}
+		if err := provider.MirrorGroupOrder(b.GroupOrder); err != nil {
 			return err
 		}
 		if b.Searches == nil { // from a magpie before them: the ones here stay
@@ -734,6 +896,7 @@ func syncOnce(ctx context.Context, c Config, st *state) error {
 		}
 	}
 	etag := ver.ETag
+	rebuilt := false // a damaged server file replaced by this computer's merge
 	push := func(b backup.Bundle, etag string) error {
 		b.Created, b.App = time.Now().UTC(), "magpie"
 		sealed, err := backup.Seal(b, c.Passphrase)
@@ -765,7 +928,57 @@ func syncOnce(ctx context.Context, c Config, st *state) error {
 		return errors.New("the passphrase doesn't open the file on the server: it was sealed with another one; use the passphrase set on your other computers")
 	}
 	if err != nil {
-		return err
+		// The server's file can't be read as a backup: a write a relay or
+		// tunnel cut short, or one damaged since. Failing here would stop
+		// every sync after, because this computer's own setup is fine and
+		// could never be pushed over the unreadable file. But rebuilding
+		// must not lose another computer's newer setup that the damaged
+		// write swallowed, so this is not a place to push this computer's
+		// bundle as it is. It is a place to fall back to the last good copy
+		// of the server's file — the one this computer read whole before it
+		// broke — and merge over it as a normal sync would. That needs three
+		// things to hold, and any one missing means the error stands:
+		//   - this computer has synced before (st.Local): a fresh one has no
+		//     last-good copy and no right to rebuild what it never saw;
+		//   - the cached copy is the file this sync hashed (sum == st.Sum),
+		//     so it is the version the damage replaced, not some older one;
+		//   - the body really reads as a damaged backup, not as some other
+		//     answer a server gave (a captive portal's page): a body that
+		//     isn't backup-shaped at all is its own error, never rebuilt.
+		// The merge then runs with the cached copy as the remote and the
+		// damaged file's ETag as the version to replace, so the push is
+		// still checked against the server and another computer's parts
+		// survive the way they would on any sync.
+		if !errors.Is(err, backup.ErrCorrupt) || st.Local == nil {
+			return err
+		}
+		good := cached(st.Sum) // the version this computer last read whole
+		// The damaged body must be that version cut short — a prefix of it,
+		// which is what a relay that stops a long write leaves. But Seal
+		// writes with json.MarshalIndent, so every version starts with the
+		// same constant head up to the salt; a body cut inside that head is a
+		// prefix of every version, including an out-of-date computer's older
+		// cached copy. So the prefix check alone lets that computer rebuild
+		// and drop a newer one's data. Only a body reaching past the random
+		// fields — to the "data" key that follows them — is tied to the one
+		// version it was cut from. Requiring it keeps an out-of-date computer
+		// from rebuilding (its copy isn't the version that broke, so the body
+		// isn't its prefix and the error stands), and a body cut before the
+		// random fields stays an error for every computer, even the one that
+		// saw the good version: better to fail loud than rebuild blind. A
+		// sealed file holds a whole setup — hundreds of bytes at its very
+		// smallest — and a relay cuts a real write deep into the data, well
+		// past "data", so legit rebuilds still go.
+		if good == nil || !bytes.HasPrefix(good, data) || len(data) <= bytes.Index(good, []byte(`"data"`)) {
+			return err
+		}
+		remote, err = backup.Open(good, c.Passphrase)
+		if err != nil {
+			return err
+		}
+		keepDamaged(data) // the unreadable body, kept aside before it is replaced
+		data = good
+		rebuilt = true // push the merged result even if it matches the cached copy
 	}
 	R := hashes(remote)
 	first := st.Local == nil
@@ -790,7 +1003,7 @@ func syncOnce(ctx context.Context, c Config, st *state) error {
 				here = append(here, p)
 			}
 		case lc && rc: // both: the newer stays
-			if changed(p).After(remote.Created) {
+			if changed(p, c.Keys).After(remote.Created) {
 				take(&merged, local, p)
 				there = append(there, p)
 			} else {
@@ -839,8 +1052,11 @@ func syncOnce(ctx context.Context, c Config, st *state) error {
 	remember(data)
 	if len(here)+len(there) > 0 {
 		st.Notice = &Notice{At: time.Now(), Here: here, There: there, Saved: saved}
+		st.Undo = "" // a restore's undo goes with its notice
 	}
-	if !maps.Equal(M, R) {
+	// A rebuild always writes back: the server's file is the damaged one,
+	// so even a merge that matches the cached copy must replace it.
+	if rebuilt || !maps.Equal(M, R) {
 		if err := push(merged, etag); err != nil {
 			return err
 		}

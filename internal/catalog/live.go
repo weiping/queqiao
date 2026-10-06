@@ -127,8 +127,15 @@ func SaveLive(provider, base string, models []Model) error {
 // of their own up to date.
 var Changed func()
 
-// Touched tells Changed, if set.
+// Forget, when set, is told so first: the provider package drops the
+// catalog a request holds (provider.Hold).
+var Forget func()
+
+// Touched tells Forget and Changed, if set.
 func Touched() {
+	if Forget != nil {
+		Forget()
+	}
 	if Changed != nil {
 		Changed()
 	}
@@ -309,6 +316,9 @@ func fetchOne(ctx context.Context, url, key string, anthropic bool, headers map[
 			m.Output = int(n)
 		}
 		m.Efforts = levelsOf(r.Levels)
+		if r.WebSearch == "native" || r.WebSearch == "magpie" {
+			m.WebSearch = r.WebSearch
+		}
 		if input != nil {
 			m.Images = *input
 		}
@@ -371,6 +381,9 @@ type liveModel struct {
 	// with
 	Label string `json:"magpie_label"`
 	Kind  string `json:"kind"`
+	// how another magpie searches the web for the model: "native" or
+	// "magpie" (Model.WebSearch)
+	WebSearch string `json:"web_search"`
 	// the protocol family PipeLLM routes the model by: openai, anthropic
 	// or gemini
 	TypeTarget string `json:"type_target"`

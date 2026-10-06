@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/proc"
 )
 
@@ -39,7 +40,7 @@ func Detect() bool {
 	if runtime.GOOS != "linux" || ThemeDir() == "" {
 		return false
 	}
-	if os.Getenv("OMARCHY_PATH") != "" {
+	if appdir.Getenv("OMARCHY_PATH") != "" {
 		return true
 	}
 	home, _ := os.UserHomeDir()
@@ -57,7 +58,7 @@ func ThemeDir() string {
 		return d
 	}
 	home, _ := os.UserHomeDir()
-	state := os.Getenv("XDG_STATE_HOME")
+	state := appdir.Getenv("XDG_STATE_HOME")
 	if state == "" {
 		state = filepath.Join(home, ".local", "state")
 	}
@@ -327,26 +328,36 @@ func Vars(colors, shell map[string]string, font string, rounding, border int) (m
 var (
 	mu     sync.Mutex
 	cached Theme
-	seen   string // the files' stamp cached was read at
+	seen   string // the theme's files' stamp cached was read at
 	asked  time.Time
+	// the font and Hyprland's corners and border, asked of
+	// omarchy-font-current and hyprctl only when their own files change: a
+	// theme set reloads Hyprland, and hyprctl asked meanwhile can stall for
+	// seconds, so a new theme is read from its files alone
+	desk     string // the font's and Hyprland's files' stamp they were asked at
+	font     string
+	rounding int
+	border   int
 )
 
-// watched are the files whose change changes the look: the theme's, the
-// font's (omarchy-font-set writes fontconfig's) and Hyprland's config.
-func watched(dir string) []string {
-	home, _ := os.UserHomeDir()
-	cfg := os.Getenv("XDG_CONFIG_HOME")
-	if cfg == "" {
-		cfg = filepath.Join(home, ".config")
-	}
-	files := []string{
+// the files whose change changes the look: the theme's, and the font's
+// (omarchy-font-set writes fontconfig's) and Hyprland's config
+func themeFiles(dir string) []string {
+	return []string{
 		filepath.Join(dir, "colors.toml"),
 		filepath.Join(dir, "shell.toml"),
 		filepath.Join(filepath.Dir(dir), "theme.name"),
-		filepath.Join(cfg, "fontconfig", "fonts.conf"),
+	}
+}
+
+func deskFiles() []string {
+	home, _ := os.UserHomeDir()
+	cfg := appdir.Getenv("XDG_CONFIG_HOME")
+	if cfg == "" {
+		cfg = filepath.Join(home, ".config")
 	}
 	hypr, _ := filepath.Glob(filepath.Join(cfg, "hypr", "*"))
-	return append(files, hypr...)
+	return append([]string{filepath.Join(cfg, "fontconfig", "fonts.conf")}, hypr...)
 }
 
 func stampOf(files []string) string {
@@ -372,20 +383,23 @@ func Current() (Theme, bool) {
 		return cached, true
 	}
 	asked = time.Now()
-	stamp := stampOf(watched(dir))
-	if stamp == seen && cached.Stamp != "" {
+	stamp, d := stampOf(themeFiles(dir)), stampOf(deskFiles())
+	if stamp == seen && d == desk && cached.Stamp != "" {
 		return cached, true
+	}
+	if d != desk || cached.Stamp == "" {
+		font = fontName()
+		rounding, border = hyprInt("decoration:rounding", 0), hyprInt("general:border_size", 2)
+		desk = d
 	}
 	colors, _ := os.ReadFile(filepath.Join(dir, "colors.toml"))
 	shell, _ := os.ReadFile(filepath.Join(dir, "shell.toml"))
 	name, _ := os.ReadFile(filepath.Join(filepath.Dir(dir), "theme.name"))
-	font := fontName()
-	rounding, border := hyprInt("decoration:rounding", 0), hyprInt("general:border_size", 2)
 	vars, mode := Vars(Parse(colors), Parse(shell), font, rounding, border)
 	seen = stamp
 	cached = Theme{
 		Name: strings.TrimSpace(string(name)), Mode: mode, Vars: vars,
-		Stamp: fmt.Sprintf("%x", fnv(stamp+font+strconv.Itoa(rounding)+strconv.Itoa(border))),
+		Stamp: fmt.Sprintf("%x", fnv(stamp+d+font+strconv.Itoa(rounding)+strconv.Itoa(border))),
 	}
 	return cached, true
 }

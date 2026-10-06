@@ -103,10 +103,12 @@ func (s *sseWriter) quiet() time.Duration {
 }
 
 // comment writes an SSE comment, which every event stream reader skips:
-// no event, only the news that the stream is alive.
+// no event, only the news that the stream is alive. No blank line after
+// it: openai-go v2 (Crush) reads a blank line as an event even with no
+// data, and fails on it ("unexpected end of JSON input").
 func (s *sseWriter) comment(text string) {
 	s.begin()
-	io.WriteString(s.w, ": "+text+"\n\n")
+	io.WriteString(s.w, ": "+text+"\n")
 	s.flush()
 	s.wrote = time.Now()
 }

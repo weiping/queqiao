@@ -84,8 +84,8 @@ func TestSessionsCmd(t *testing.T) {
 	now := sessionsHome(t)
 
 	list := runSessions(t, now)
-	wantAll(t, list, "ago", "Codex", "it's", "Add a README", "Claude Code", "app", "Fix the login bug in auth.go", "latest 2")
-	if strings.Index(list, "Add a README") > strings.Index(list, "Fix the login") {
+	wantAll(t, list, "ago", "Codex", "it's", "Add a README", "Claude Code", "app", "Fix login bug", "latest 2")
+	if strings.Index(list, "Add a README") > strings.Index(list, "Fix login bug") {
 		t.Error("not the latest first")
 	}
 	if got := runSessions(t, now, "--folder", "app"); strings.Contains(got, "README") || !strings.Contains(got, "login") {
@@ -128,5 +128,14 @@ func TestSessionsCmd(t *testing.T) {
 	}
 	if err := sessionsTo(&b, []string{"--days", "week"}, now); err == nil {
 		t.Error("--days week taken")
+	}
+}
+
+// The hit rate is of all the prompts came to: what was written to the
+// cache counts in it, as Input leaves it out — a prompt written again at
+// every turn showed near 100% otherwise.
+func TestHitRateCountsCacheWrites(t *testing.T) {
+	if got := hitRate(sessions.Tokens{Input: 10, CacheRead: 20, CacheWrite: 70}); !strings.Contains(got, "(20% hit)") {
+		t.Errorf("hitRate = %q, want 20%%", got)
 	}
 }

@@ -113,6 +113,9 @@ func TestTranslatedStreamKeepsClientAlive(t *testing.T) {
 			idle := time.NewTimer(150 * time.Millisecond)
 			defer idle.Stop()
 			timedOut, completed, pings := false, false, 0
+			// openai-go v2 (Crush) reads every blank line as an event and
+			// fails on one with no data: "unexpected end of JSON input"
+			data, empty := false, 0
 		read:
 			for {
 				select {
@@ -122,6 +125,14 @@ func TestTranslatedStreamKeepsClientAlive(t *testing.T) {
 					}
 					if strings.Contains(line, c.ping) {
 						pings++
+					}
+					if line == "" {
+						if !data {
+							empty++
+						}
+						data = false
+					} else if strings.HasPrefix(line, "data:") {
+						data = true
 					}
 					if strings.Contains(line, c.done) {
 						completed = true
@@ -139,6 +150,9 @@ func TestTranslatedStreamKeepsClientAlive(t *testing.T) {
 			t.Logf("upstream_keepalives=%d downstream_keepalives=%d idle_timeout=%v completed=%v", upPings.Load(), pings, timedOut, completed)
 			if timedOut || !completed || pings < 3 {
 				t.Fatal("the client wasn't kept alive while the provider was")
+			}
+			if empty > 0 {
+				t.Fatalf("%d events with no data", empty)
 			}
 		})
 	}

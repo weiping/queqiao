@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yetone/magpie/internal/middleware"
 	"github.com/yetone/magpie/internal/plugin"
 	"github.com/yetone/magpie/internal/provider"
+	"github.com/yetone/magpie/internal/settings"
 )
 
 // OpenCode's provider plugins (internal/plugin): the providers they sign
@@ -78,6 +80,18 @@ type pluginEntryJSON struct {
 	Moved []string `json:"moved"`
 	// AutoUpdated is the update magpie made to it by itself lately
 	AutoUpdated *plugin.Updated `json:"autoUpdated,omitempty"`
+	// Middleware is the gateway middleware it has, run in the gateway
+	// rather than the host: its hooks, how often they ran and how long
+	// they took, and why it didn't load
+	Middleware *middleware.State `json:"middleware,omitempty"`
+	// OptionsExample is what its package suggests for its options, which
+	// the options editor starts from when none are set
+	OptionsExample map[string]any `json:"optionsExample,omitempty"`
+	// IsMiddleware is whether its package has gateway middleware, said of
+	// one switched off too, which Middleware leaves out; MiddlewareOnly is
+	// whether that is all it has, no provider to sign in to
+	IsMiddleware   bool `json:"isMiddleware,omitempty"`
+	MiddlewareOnly bool `json:"middlewareOnly,omitempty"`
 }
 
 // autoUpdatedFor is how long a plugin's row says magpie updated it.
@@ -94,10 +108,13 @@ type pluginsJSON struct {
 	// Movable are the built-ins with accounts a plugin could run, which
 	// its card and its row offer to move
 	Movable []provider.MoveCandidate `json:"movable"`
+	// Mirror is the 「国内镜像」 switch: the list, npm and Bun asked of
+	// mirrors in China first (settings.ChinaMirror)
+	Mirror bool `json:"mirror"`
 }
 
 func pluginsState(ctx context.Context, w Windows) pluginsJSON {
-	s := pluginsJSON{Plugins: []pluginEntryJSON{}, Bun: plugin.HasBun(), BunVer: plugin.BunInUse(), Movable: provider.MoveCandidates(), Picker: w != nil && !isWeb(w)}
+	s := pluginsJSON{Plugins: []pluginEntryJSON{}, Bun: plugin.HasBun(), BunVer: plugin.BunInUse(), Movable: provider.MoveCandidates(), Picker: w != nil && !isWeb(w), Mirror: settings.Load().ChinaMirror}
 	l := plugin.Load()
 	errs := map[string]string{}
 	names := map[string][]string{}
@@ -117,6 +134,7 @@ func pluginsState(ctx context.Context, w Windows) pluginsJSON {
 	}
 	// npm's newest, as it said last: asking it again is /api/plugins/npm's
 	known := plugin.InfoCached(npmNames(l.Plugins))
+	mws := middleware.States()
 	for _, e := range l.Plugins {
 		j := pluginEntryJSON{Entry: e, Error: errs[e.Spec], Providers: names[e.Spec], Version: plugin.Installed(e.Spec)}
 		if npmPlugin(e.Spec) {
@@ -130,6 +148,13 @@ func pluginsState(ctx context.Context, w Windows) pluginsJSON {
 		}
 		if u, ok := plugin.LastUpdated(plugin.Name(e.Spec), time.Now().Add(-autoUpdatedFor)); ok && !plugin.IsPath(e.Spec) {
 			j.AutoUpdated = &u
+		}
+		if m, ok := mws[e.Spec]; ok {
+			j.Middleware = &m
+		}
+		if file, only := plugin.Middleware(plugin.Target(e.Spec)); file != "" {
+			j.IsMiddleware, j.MiddlewareOnly = true, only
+			j.OptionsExample = plugin.OptionsExample(plugin.Target(e.Spec))
 		}
 		j.Moved = provider.MovedOnto(e.Spec)
 		if j.Moved == nil {
@@ -282,11 +307,26 @@ func pluginRoutes(mux *http.ServeMux, w Windows) {
 		c := plugin.CheckNow(ctx)
 		writeJSON(rw, map[string]any{"at": c.At, "plugins": c.Plugins, "state": pluginsState(ctx, w)})
 	})
+	// the 「国内镜像」 switch: what the page downloads (the list, npm's
+	// packages and answers, Bun) is asked of mirrors in China first
+	mux.HandleFunc("POST /api/plugins/mirror", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct{ On bool }
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&in); err != nil {
+			fail(rw, err)
+			return
+		}
+		if err := setChinaMirror(in.On); err != nil {
+			fail(rw, err)
+			return
+		}
+		writeJSON(rw, map[string]bool{"mirror": in.On})
+	})
 	// add, remove, update, turn on or off: each answers with the list
 	mux.HandleFunc("POST /api/plugins/{op}", func(rw http.ResponseWriter, r *http.Request) {
 		var in struct {
-			Spec string
-			Off  bool
+			Spec    string
+			Off     bool
+			Options map[string]any
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&in); err != nil && err != io.EOF {
 			fail(rw, err)
@@ -307,6 +347,8 @@ func pluginRoutes(mux *http.ServeMux, w Windows) {
 			err = plugin.Upgrade(ctx, plugin.Name(in.Spec))
 		case "off":
 			err = provider.SetPluginOff(ctx, in.Spec, in.Off)
+		case "options":
+			err = plugin.SetOptions(in.Spec, in.Options)
 		default:
 			http.NotFound(rw, r)
 			return
@@ -413,4 +455,21 @@ func pluginProviderByID(id string) (plugin.Provider, bool) {
 		}
 	}
 	return plugin.Provider{}, false
+}
+
+// setChinaMirror turns the 「国内镜像」 switch on or off; a plugin list
+// fetched from GitHub's slow address, or not at all, is asked again.
+func setChinaMirror(on bool) error {
+	s := settings.Load()
+	if s.ChinaMirror == on {
+		return nil
+	}
+	s.ChinaMirror = on
+	if err := settings.Save(s); err != nil {
+		return err
+	}
+	if on {
+		plugin.RefreshMarket()
+	}
+	return nil
 }

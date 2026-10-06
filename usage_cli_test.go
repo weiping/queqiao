@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/yetone/magpie/internal/provider"
+	"github.com/yetone/magpie/internal/sessions"
 	stats "github.com/yetone/magpie/internal/usage"
 )
 
@@ -69,5 +70,37 @@ func TestUsageProviderKeys(t *testing.T) {
 	}
 	if !strings.Contains(csv.String(), "provider_key_id,provider_key_name") || !strings.Contains(csv.String(), id+",Team") || strings.Contains(csv.String(), "fixture-provider-secret") {
 		t.Fatal(csv.String())
+	}
+}
+
+// magpie usage shows, beside the gateway's calls, those the agents made on
+// their own, read from their session files, as the window's Usage page
+// does (Kumo31 on Discord: Codex used outside magpie wasn't in it).
+func TestUsageShowsCallsNotThroughMagpie(t *testing.T) {
+	groupsHome(t)
+	now := time.Now()
+	stats.Append(stats.Record{Time: now.Add(-time.Minute), Agent: "claude", Provider: "relay", Model: "m", Input: 5, Status: 200})
+	old := stats.LogCalls
+	stats.LogCalls = func(time.Time) []sessions.Call {
+		return []sessions.Call{{Time: now.Add(-2 * time.Minute), Agent: "codex", Session: "c1", Model: "gpt-6-luna", Tokens: sessions.Tokens{Input: 1200, Output: 300}}}
+	}
+	t.Cleanup(func() { stats.LogCalls = old })
+	var b strings.Builder
+	if err := usageTo(&b, []string{"usage", "today"}); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	gw, own, ok := strings.Cut(out, "not through magpie")
+	if !ok || !strings.Contains(gw, "relay/m") || strings.Contains(gw, "gpt-6-luna") || !strings.Contains(own, "gpt-6-luna") || !strings.Contains(own, "1.5K") {
+		t.Fatal(out)
+	}
+
+	// a call of the agents' own from before this month shows under all
+	stats.LogCalls = func(time.Time) []sessions.Call {
+		return []sessions.Call{{Time: now.AddDate(0, 0, -40), Agent: "codex", Model: "gpt-6-luna", Tokens: sessions.Tokens{Input: 7}}}
+	}
+	b.Reset()
+	if err := usageTo(&b, []string{"usage", "all"}); err != nil || !strings.Contains(b.String(), "not through magpie") || !strings.Contains(b.String(), "gpt-6-luna") {
+		t.Fatal(b.String(), err)
 	}
 }

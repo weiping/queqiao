@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/edit"
 )
 
@@ -19,29 +21,41 @@ var zedCredential = saveZedCredential
 
 // Zed uses ~/.config on macOS, XDG on Linux and Roaming AppData on Windows.
 func zed(home, cfg string) *Agent {
+	bin := os.Getenv("MAGPIE_ZED_BIN")
+	if bin == "" {
+		bin = "zed"
+	}
+	processes := zedProcessNames()
+	if custom := appdir.Getenv("MAGPIE_ZED_CONFIG_DIR"); custom != "" {
+		return zedAtWith(custom, bin, processes)
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		cfg = filepath.Join(home, ".config")
 	case "windows":
-		cfg = os.Getenv("APPDATA")
+		cfg = appdir.Getenv("APPDATA")
 		if cfg == "" {
 			cfg = filepath.Join(home, "AppData", "Roaming")
 		}
-		return zedAt(filepath.Join(cfg, "Zed"))
+		return zedAtWith(filepath.Join(cfg, "Zed"), bin, processes)
 	}
-	return zedAt(filepath.Join(cfg, "zed"))
+	return zedAtWith(filepath.Join(cfg, "zed"), bin, processes)
 }
 
 func zedAt(dir string) *Agent {
+	return zedAtWith(dir, "zed", zedProcessNames())
+}
+
+func zedAtWith(dir, bin string, processes []string) *Agent {
 	path := filepath.Join(dir, "settings.json")
 	get := func(k string) string { v, _ := edit.GetJSON(path, k); return v }
 	model := pairGet(func(k string) (string, bool) { return edit.GetJSON(path, k) }, zedModel+".provider", zedModel+".model")
 	key := "zed:" + path + ":"
 	return atomic(&Agent{
-		ID: "zed", Name: "Zed", Icon: "zed", Bin: "zed", Dir: dir, Path: path,
+		ID: "zed", Name: "Zed", Icon: "zed", Bin: bin, Dir: dir, Path: path, Spelled: prefixed,
 		UA: []string{"zed"},
 		Notice: func() string {
-			if usesMagpie(model()) && Running(`(^|/)(zed|zeditor|zed-editor)( |$)`) {
+			if usesMagpie(model()) && Running(processes...) {
 				return "Restart Zed if it still asks for an API key: magpie has configured its gateway credential in the system credential store."
 			}
 			return ""
@@ -118,6 +132,24 @@ func zedAt(dir string) *Agent {
 	}, path, stashPath())
 }
 
+func zedProcessNames() []string {
+	value := os.Getenv("MAGPIE_ZED_PROCESS_NAMES")
+	if value == "" {
+		return []string{`(^|/)(zed|zeditor|zed-editor)( |$)`}
+	}
+	var out []string
+	for _, name := range strings.Split(value, ",") {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			out = append(out, `(^|/)`+regexp.QuoteMeta(name)+`( |$)`)
+		}
+	}
+	if len(out) == 0 {
+		return []string{`(^|/)(zed|zeditor|zed-editor)( |$)`}
+	}
+	return out
+}
+
 func zedProviderJSON() map[string]any {
 	models := []any{}
 	for _, m := range magpieModels("zed") {
@@ -125,6 +157,12 @@ func zedProviderJSON() map[string]any {
 		if context == 0 {
 			context = 128000 // Zed requires a context window for every custom model.
 		}
+		// Zed's max_tokens is the window a prompt and its reply share: it
+		// keeps max_output_tokens of it for the reply and lets the prompt
+		// fill the rest before it compacts. Context is what a prompt may
+		// hold, so the window is it and the reply together (#850); written
+		// as Context alone, a model whose reply may be as long as its
+		// prompt (glm-4.6) left Zed no room for a prompt at all.
 		entry := map[string]any{
 			"name": m.ID, "display_name": m.Name, "max_tokens": context,
 			"capabilities": map[string]any{
@@ -133,8 +171,13 @@ func zedProviderJSON() map[string]any {
 				"chat_completions": true,
 			},
 		}
-		if output := maxTokens(m); output > 0 {
-			entry["max_output_tokens"] = min(output, context)
+		if output := m.Output; output > 0 {
+			if m.Context == 0 {
+				// Keep the fallback reply cap when the prompt limit is unknown.
+				output = min(output, context)
+			}
+			entry["max_output_tokens"] = output
+			entry["max_tokens"] = context + output
 		}
 		models = append(models, entry)
 	}

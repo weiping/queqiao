@@ -31,14 +31,29 @@ var (
 // gateway takes to another of the model's endpoints.
 var copilotNotServed = regexp.MustCompile(`(?i)"model_not_supported"|requested model is not supported`)
 
+// copilotSessionGone is Copilot saying the request's Copilot-Session-Token
+// doesn't hold its model ("Requested model not available for session"),
+// which it says once the session is read (copilotAPIHeaders).
+var copilotSessionGone = regexp.MustCompile(`(?i)not available for session`)
+
 // copilotRefused notes a refusal of model for the account, and says whether
 // the request is worth sending again: when Auto picked the model, as Auto
 // then picks another.
 func copilotRefused(ctx context.Context, app copilotApp, model string, status int, body []byte) bool {
+	a, ok := ctx.Value(copilotAutoKey{}).(copilotAutoSession)
+	if status == 400 && copilotSessionGone.Match(body) && ok && a.Model == model && a.Token != "" {
+		// Auto's session isn't taken for its pick any more: it is let
+		// go, and the request sent with one asked anew
+		copilotAutoMu.Lock()
+		if cur, held := copilotAutoSessions[app.Token]; held && cur.Token == a.Token {
+			delete(copilotAutoSessions, app.Token)
+		}
+		copilotAutoMu.Unlock()
+		return true
+	}
 	if status != 400 || !copilotNotServed.Match(body) {
 		return false
 	}
-	a, ok := ctx.Value(copilotAutoKey{}).(copilotAutoSession)
 	// Auto's: the request the gateway resolved for it, or a model test
 	// asking for "auto" itself
 	auto := ok && a.Model == model || model == CopilotAuto
@@ -54,6 +69,9 @@ func copilotRefused(ctx context.Context, app copilotApp, model string, status in
 	}
 	if model == "" || model == CopilotAuto {
 		return false
+	}
+	if auto {
+		pickRefused(ctx, model, APIError(body, "400"))
 	}
 	copilotRefusedMu.Lock()
 	if copilotRefusedAt[app.Token] == nil {

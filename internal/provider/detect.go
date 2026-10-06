@@ -149,6 +149,37 @@ func (q Provider) detectOne(proto Protocol, m string, wait time.Duration) (Detec
 	}
 }
 
+// DetectDecide asks the System One API at p's decision URL (…/systemone
+// pasted whole is cut to its root) the smallest question for model, or
+// the one p is asked with when none is given, and says how it answered.
+func (p Provider) DetectDecide(ctx context.Context, model string) Detection {
+	p.Decide = strings.TrimSuffix(strings.TrimRight(strings.TrimSpace(p.Decide), "/"), "/systemone")
+	if p.Decide != "" && !strings.Contains(p.Decide, "://") {
+		p.Decide = "https://" + p.Decide
+	}
+	if model = strings.TrimSpace(model); model == "" {
+		model = p.Jev()
+	}
+	d := Detection{Result: Result{Protocol: "decide", Model: model}, Base: p.Decide}
+	switch {
+	case p.Decide == "":
+		d.Error = "no URL to ask"
+		return d
+	case strings.Contains(p.Decide, WorkspaceID):
+		d.Error = "give the workspace ID first"
+		return d
+	}
+	t0 := time.Now()
+	err := p.AskSystemOne(p.Via(ctx), model)
+	d.Millis = time.Since(t0).Milliseconds()
+	if err != nil {
+		d.Error = err.Error()
+		return d
+	}
+	d.OK, d.Status = true, 200
+	return d
+}
+
 // ModelDetection is what each API answered for one model
 // (01huadalang on Discord: 应该能看出来选择的模型支持情况…有的仅支持
 // response 有的双协议).

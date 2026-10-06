@@ -37,8 +37,11 @@ for (const engine of engines) for (const lang of ["en", "zh"]) {
       const contentType = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png" }[path.extname(file)];
       return route.fulfill({ body: await fs.readFile(file), contentType });
     });
-    await page.goto("http://magpie.test/");
+    await page.goto("http://magpie.test/?view=providers");
     await page.waitForFunction((l) => state.settings.lang === l, lang);
+    // the sign-in starts on the Providers page, its list read: whether a
+    // subscription is moved onto its plugin is told from it (subOf)
+    await page.waitForFunction(() => providers);
 
     // starting ZCode's sign-in asks the site first, posting nothing
     await page.evaluate(() => {
@@ -70,10 +73,10 @@ for (const engine of engines) for (const lang of ["en", "zh"]) {
       const w = resetsWords({ byWindow: true, fiveHour: 2, weekly: 1, count: 3 });
       return [w.querySelector(".resets-n").textContent, w.title];
     });
-    assert.equal(words[0], lang === "zh" ? "↺ 2 次 5 小时重置 · 1 次每周重置" : "↺ 2 five-hour resets · 1 weekly reset");
+    assert.equal(words[0], lang === "zh" ? "↺ 2 张 5 小时重置卡 · 1 张每周重置卡" : "↺ 2 five-hour resets · 1 weekly reset");
     assert.ok(words[1].length > 0);
     const one = await page.evaluate(() => resetsWords({ byWindow: true, fiveHour: 1, count: 1 }).querySelector(".resets-n").textContent);
-    assert.equal(one, lang === "zh" ? "↺ 1 次 5 小时重置" : "↺ 1 five-hour reset");
+    assert.equal(one, lang === "zh" ? "↺ 1 张 5 小时重置卡" : "↺ 1 five-hour reset");
     assert.deepEqual(errors, []);
   });
 }

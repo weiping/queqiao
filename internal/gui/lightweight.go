@@ -90,10 +90,14 @@ func (h *host) makeMain(url string) *application.WebviewWindow {
 		}
 		h.hideMain()
 	})
+	// Out of full screen, magpie leaves the Dock again if it was there only
+	// for that (dockOnFullscreen).
 	w.OnWindowEvent(events.Mac.WindowDidExitFullScreen, func(*application.WindowEvent) {
 		if h.closing.Swap(false) {
 			h.hideMain()
+			return
 		}
+		h.dock(settings.Load(), true)
 	})
 	return w
 }
@@ -108,6 +112,10 @@ func (h *host) makePanel() *application.WebviewWindow {
 	if h.tray != nil {
 		h.tray.AttachWindow(w).WindowOffset(6)
 	}
+	// the icon stays lit while the panel is open (the Mac's)
+	trayOwnClicks()
+	w.OnWindowEvent(events.Mac.WindowShow, func(*application.WindowEvent) { trayHighlight(true) })
+	w.OnWindowEvent(events.Mac.WindowHide, func(*application.WindowEvent) { trayHighlight(false) })
 	return w
 }
 

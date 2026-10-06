@@ -65,6 +65,10 @@ func TestPluginUsage(t *testing.T) {
 		if week.ResetsAt == nil || time.Until(*week.ResetsAt) < 23*time.Hour || time.Until(*week.ResetsAt) > 25*time.Hour {
 			t.Fatalf("%s: week = %+v", agent, week)
 		}
+		// its count, through the host (#659)
+		if week.Amount != 120 || week.Limit != 1200 || week.Unit != "credits" || w.Limit != 0 {
+			t.Fatalf("%s: week = %+v", agent, week)
+		}
 		if extra.Used != 250 || extra.Display != "$2.50" || !extra.Aside {
 			t.Fatalf("%s: extra = %+v", agent, extra)
 		}
@@ -74,7 +78,7 @@ func TestPluginUsage(t *testing.T) {
 	}
 
 	cards := 0
-	for _, q := range fetchSubscriptionUsage() {
+	for _, q := range fetchSubscriptionUsage(context.Background()) {
 		if q.Provider == "fakeco" {
 			cards++
 			if q.Name != "FakeCo" || q.User == "" {
@@ -84,6 +88,12 @@ func TestPluginUsage(t *testing.T) {
 	}
 	if cards != 3 {
 		t.Fatalf("%d usage cards for the plugin's accounts, want 3", cards)
+	}
+	// one account's card read again from its refresh button (#840): that
+	// account's alone is asked
+	again := context.WithValue(context.Background(), cardRefreshKey{}, cardRefresh{"fakeco", "A@fake"})
+	if qs := fetchSubscriptionUsage(again); len(qs) != 1 || qs[0].User != "a@fake" || qs[0].Error != "" {
+		t.Fatalf("a@fake read again: %+v", qs)
 	}
 
 	// a model the plugin says the plan serves at no cost shows as free,

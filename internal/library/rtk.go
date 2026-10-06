@@ -16,7 +16,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/yetone/magpie/internal/agent"
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/edit"
 	"github.com/yetone/magpie/internal/proc"
 	"gopkg.in/yaml.v3"
@@ -180,6 +182,21 @@ var rtkSpecs = map[string]rtkSpec{
 		},
 		dir: func(*agent.Agent) string { return filepath.Join(home(), ".hermes") },
 	},
+}
+
+// rtkNoHook are agents RTK has no hook for, and why: the Library lists
+// them all the same, so one isn't simply missing as if magpie hadn't seen
+// it (Discord, lc: rtk 没有识别 deepseek harness).
+//
+// DeepSeek Harness: RTK works by rewriting the shell command an agent is
+// about to run (git status → rtk git status), and dsh has no way for a hook
+// to do that — its pre-tool hooks only allow, deny or ask, and its Claude
+// Code hook bridge drops updatedInput (deepseek-harness's
+// pre-tool-input-rewrite note is only proposed). rtk init has no
+// --agent dsh either (rtk 0.51; rtk-ai/rtk#3847, and #3934 only adds
+// instructions to AGENTS.md, which rewrite nothing).
+var rtkNoHook = map[string]string{
+	"dsh": "RTK has no hook for DeepSeek Harness yet: RTK works by rewriting the shell command an agent is about to run, and dsh's hooks can only allow or deny a command, not change it; rtk init has no --agent dsh either (github.com/rtk-ai/rtk/issues/3847)",
 }
 
 func opencodePlugin(a *agent.Agent) string {
@@ -451,6 +468,8 @@ type RTKAgent struct {
 	// Blocked says why rtk can't be switched on for it here (OpenCode 2);
 	// one that has it can still be switched off
 	Blocked string `json:"blocked,omitempty"`
+	// NoHook: rtk has no hook for it at all (rtkNoHook), and Blocked says why
+	NoHook bool `json:"noHook,omitempty"`
 }
 
 // RTKGain is what rtk says it saved, over every command it has recorded.
@@ -475,6 +494,12 @@ type RTKView struct {
 	Path    string   `json:"path,omitempty"` // "" when rtk isn't installed
 	Version string   `json:"version,omitempty"`
 	Gain    *RTKGain `json:"gain,omitempty"`
+	// GainErr is why what rtk saved isn't known: rtk gain failed or
+	// printed nothing readable
+	GainErr string `json:"gainErr,omitempty"`
+	// CodexSandbox is the Windows sandbox Codex runs its commands in,
+	// when it has rtk: what rtk saves there isn't counted in Gain
+	CodexSandbox string `json:"codexSandbox,omitempty"`
 	// Days are what it saved each day it ran commands, oldest first
 	Days []RTKDay `json:"days,omitempty"`
 	// Latest is rtk's latest release, "" when it isn't known (see
@@ -516,9 +541,9 @@ func rtkPath() string {
 	}
 	name, dirs := "rtk", []string{filepath.Join(home(), ".local", "bin"), filepath.Join(home(), ".cargo", "bin")}
 	if runtime.GOOS == "windows" {
-		winget := filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet")
+		winget := filepath.Join(appdir.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet")
 		name, dirs = "rtk.exe", []string{filepath.Join(winget, "Links"), filepath.Join(home(), ".cargo", "bin")}
-		if os.Getenv("LOCALAPPDATA") != "" {
+		if appdir.Getenv("LOCALAPPDATA") != "" {
 			pkgs, _ := filepath.Glob(filepath.Join(winget, "Packages", "rtk-ai.rtk_*"))
 			dirs = append(dirs, pkgs...)
 		}
@@ -589,6 +614,11 @@ func ReadRTK() *RTKView {
 		}
 		v.Agents = append(v.Agents, ra)
 	}
+	for _, a := range agent.Detected() {
+		if why, ok := rtkNoHook[a.ID]; ok {
+			v.Agents = append(v.Agents, RTKAgent{ID: a.ID, Name: a.Name, Icon: a.Icon, Blocked: why, NoHook: true})
+		}
+	}
 	if v.Path == "" {
 		return v
 	}
@@ -602,33 +632,110 @@ func ReadRTK() *RTKView {
 	if c := rtkUpgrader(v.Path); c != nil {
 		v.Upgrade = shown(c)
 	}
-	// --daily adds the days to the summary (rtk 0.28 on)
-	if out, err := rtkRun(v.Path, "gain", "--daily", "--format", "json"); err == nil {
-		var g struct {
-			Summary struct {
-				Commands int     `json:"total_commands"`
-				Input    int64   `json:"total_input"`
-				Saved    int64   `json:"total_saved"`
-				Pct      float64 `json:"avg_savings_pct"`
-			} `json:"summary"`
-			Daily []struct {
-				Date     string  `json:"date"`
-				Commands int     `json:"commands"`
-				Input    int64   `json:"input_tokens"`
-				Saved    int64   `json:"saved_tokens"`
-				Pct      float64 `json:"savings_pct"`
-			} `json:"daily"`
-		}
-		if json.Unmarshal([]byte(out), &g) == nil && g.Summary.Commands > 0 {
-			s := g.Summary
-			v.Gain = &RTKGain{Commands: s.Commands, Input: s.Input, Saved: s.Saved, Pct: s.Pct}
-			for _, d := range g.Daily {
-				v.Days = append(v.Days, RTKDay{Date: d.Date, Commands: d.Commands, Input: d.Input, Saved: d.Saved, Pct: d.Pct})
+	v.Gain, v.Days, v.GainErr = rtkGain(v.Path)
+	if runtime.GOOS == "windows" {
+		for _, a := range v.Agents {
+			if a.ID == "codex" && a.On {
+				v.CodexSandbox = codexSandbox()
 			}
-			slices.SortFunc(v.Days, func(a, b RTKDay) int { return strings.Compare(a.Date, b.Date) })
 		}
 	}
 	return v
+}
+
+// rtkGain is what rtk says it saved (rtk gain, from its history database:
+// every command run through rtk on this machine by this user, from any
+// agent or terminal, since its history began), and the days it saved it on,
+// oldest first; nil and why when rtk didn't say, which the page shows rather
+// than "nothing saved yet" (#741).
+//
+// Only its stdout is JSON: what rtk writes to stderr — a warning about a
+// hook, a console code page, a corrupted table — went into the same buffer
+// and made all of it unreadable, so it is read apart, and a line printed
+// around the JSON object is passed over too.
+func rtkGain(bin string) (*RTKGain, []RTKDay, string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	// --daily adds the days to the summary (rtk 0.28 on)
+	cmd := proc.CommandContext(ctx, bin, "gain", "--daily", "--format", "json")
+	cmd.Stdin = nil
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		said := installerSaid(stderr.String()+"\n"+stdout.String(), 3)
+		if said == "" {
+			said = err.Error()
+		}
+		return nil, nil, "rtk gain: " + said
+	}
+	return parseGain(stdout.String())
+}
+
+func parseGain(out string) (*RTKGain, []RTKDay, string) {
+	var g struct {
+		Summary *struct {
+			Commands int     `json:"total_commands"`
+			Input    int64   `json:"total_input"`
+			Saved    int64   `json:"total_saved"`
+			Pct      float64 `json:"avg_savings_pct"`
+		} `json:"summary"`
+		Daily []struct {
+			Date     string  `json:"date"`
+			Commands int     `json:"commands"`
+			Input    int64   `json:"input_tokens"`
+			Saved    int64   `json:"saved_tokens"`
+			Pct      float64 `json:"savings_pct"`
+		} `json:"daily"`
+	}
+	i, j := strings.Index(out, "{"), strings.LastIndex(out, "}")
+	if i < 0 || j < i || json.Unmarshal([]byte(out[i:j+1]), &g) != nil || g.Summary == nil {
+		return nil, nil, strings.TrimSuffix("rtk gain printed no summary magpie can read: "+installerSaid(out, 2), ": ")
+	}
+	s := g.Summary
+	if s.Commands == 0 {
+		return nil, nil, ""
+	}
+	var days []RTKDay
+	for _, d := range g.Daily {
+		days = append(days, RTKDay{Date: d.Date, Commands: d.Commands, Input: d.Input, Saved: d.Saved, Pct: d.Pct})
+	}
+	slices.SortFunc(days, func(a, b RTKDay) int { return strings.Compare(a.Date, b.Date) })
+	return &RTKGain{Commands: s.Commands, Input: s.Input, Saved: s.Saved, Pct: s.Pct}, days, ""
+}
+
+// codexSandbox is the Windows sandbox Codex runs its commands in, from its
+// config.toml ([windows] sandbox, or the features it replaced): "elevated"
+// runs them as Codex's own sandbox account (CodexSandboxOffline/Online,
+// started with that account's profile), so the rtk its hook puts in front
+// of them keeps its history in that account's AppData, not the user's;
+// "unelevated" runs them with a token that can't write the user's. Either
+// way rtk gain here doesn't count them. "" when Codex doesn't sandbox them.
+func codexSandbox() string {
+	raw, err := os.ReadFile(filepath.Join(codexDir(), "config.toml"))
+	if err != nil {
+		return ""
+	}
+	var c struct {
+		SandboxMode string `toml:"sandbox_mode"`
+		Windows     struct {
+			Sandbox string `toml:"sandbox"`
+		} `toml:"windows"`
+		Features map[string]any `toml:"features"`
+	}
+	if toml.Unmarshal(raw, &c) != nil || c.SandboxMode == "danger-full-access" {
+		return ""
+	}
+	switch {
+	case c.Windows.Sandbox != "":
+		if c.Windows.Sandbox == "elevated" || c.Windows.Sandbox == "unelevated" {
+			return c.Windows.Sandbox
+		}
+	case c.Features["elevated_windows_sandbox"] == true:
+		return "elevated"
+	case c.Features["experimental_windows_sandbox"] == true, c.Features["enable_experimental_windows_sandbox"] == true:
+		return "unelevated"
+	}
+	return ""
 }
 
 // shown is a command as the page shows it: a script's own line.
@@ -653,6 +760,8 @@ func SetRTK(id string, on bool) (*RTKView, error) {
 	}
 	sp, ok := rtkSpecs[id]
 	switch {
+	case !ok && rtkNoHook[id] != "":
+		return nil, errors.New(rtkNoHook[id])
 	case !ok:
 		return nil, fmt.Errorf("rtk has no hook for %s", id)
 	case a == nil:
@@ -771,6 +880,9 @@ func RTKTakes(q string) (string, error) {
 	a, err := agent.Find(q)
 	if err != nil {
 		return "", err
+	}
+	if why := rtkNoHook[a.ID]; why != "" {
+		return "", errors.New(why)
 	}
 	if _, ok := rtkSpecs[a.ID]; !ok {
 		var ids []string

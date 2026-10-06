@@ -26,8 +26,12 @@ func gatewayKeysTo(out io.Writer, args []string) error {
 		access.MigrateLegacyLANKeyBestEffort()
 		return gatewayKeyLimit(out, args[1:])
 	}
+	if action == "models" {
+		access.MigrateLegacyLANKeyBestEffort()
+		return gatewayKeyModels(out, args[1:])
+	}
 	if (action == "list" && len(args) != 1) || (action != "list" && len(args) != 2) {
-		return fmt.Errorf("usage: magpie gateway-key list | add <name> | rotate <id> | remove <id> | limit <id> [off | day|week|month [--tokens N] [--cost USD] [--cache-reads]]")
+		return fmt.Errorf("usage: magpie gateway-key list | add <name> | rotate <id> | remove <id> | limit <id> [off | day|week|month [--tokens N] [--cost USD] [--cache-reads]] | models <id> [all | <provider>/<model>|<provider>/* ...]")
 	}
 	switch action {
 	case "list", "add", "rotate", "remove":
@@ -41,19 +45,23 @@ func gatewayKeysTo(out io.Writer, args []string) error {
 			return err
 		}
 		w := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tNAME\tSTATE\tGATEWAY KEY\tLIMIT")
+		fmt.Fprintln(w, "ID\tNAME\tSTATE\tGATEWAY KEY\tLIMIT\tMODELS")
 		now := time.Now()
 		for _, k := range keys {
 			state := "enabled"
 			if k.Off {
 				state = "disabled"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", k.ID, strings.Map(func(r rune) rune {
+			models := "all"
+			if len(k.Models) > 0 {
+				models = strings.Join(k.Models, ",")
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", k.ID, strings.Map(func(r rune) rune {
 				if r < 32 || r == 127 {
 					return ' '
 				}
 				return r
-			}, k.Name), state, k.Masked, limitWords(k, now))
+			}, k.Name), state, k.Masked, limitWords(k, now), models)
 		}
 		return w.Flush()
 	}
@@ -180,6 +188,42 @@ func gatewayKeyLimit(out io.Writer, args []string) error {
 	}
 	fmt.Fprintf(w, "State\t%s\n", state)
 	return w.Flush()
+}
+
+// gatewayKeyModels shows or sets the models a key may use (#882):
+//
+//	magpie gateway-key models <id>                          the models it may use
+//	magpie gateway-key models <id> all                      every model
+//	magpie gateway-key models <id> openai/gpt-5 anthropic/*  only these
+func gatewayKeyModels(out io.Writer, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: magpie gateway-key models <id> [all | <provider>/<model>|<provider>/* ...]")
+	}
+	id := args[0]
+	if len(args) > 1 {
+		ms := args[1:]
+		if len(ms) == 1 && ms[0] == "all" {
+			ms = nil
+		}
+		if _, err := access.Update("models-key", access.Change{Key: id, Models: ms}); err != nil {
+			return err
+		}
+	}
+	keys, err := access.List()
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(keys, func(k access.Key) bool { return k.ID == id })
+	if i < 0 {
+		return fmt.Errorf("Key not found")
+	}
+	k := keys[i]
+	if len(k.Models) == 0 {
+		_, err = fmt.Fprintf(out, "%s: every model\n", k.Name)
+		return err
+	}
+	_, err = fmt.Fprintf(out, "%s: only %s\n", k.Name, strings.Join(k.Models, ", "))
+	return err
 }
 
 // limitWords is a key's limit in the list: "-" for none, else what it has

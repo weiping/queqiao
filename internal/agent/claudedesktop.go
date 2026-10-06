@@ -35,6 +35,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/edit"
 	"github.com/yetone/magpie/internal/gateway"
 )
@@ -118,7 +119,7 @@ func claudeDesktop(home string) *Agent {
 	// %APPDATA%\Claude is where Desktop keeps its MCP servers on Windows
 	also := ""
 	if runtime.GOOS == "windows" {
-		if d := os.Getenv("APPDATA"); d != "" {
+		if d := appdir.Getenv("APPDATA"); d != "" {
 			also = filepath.Join(d, "Claude")
 		}
 	}

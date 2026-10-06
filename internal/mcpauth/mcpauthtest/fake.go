@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -34,11 +35,19 @@ type Fake struct {
 	// method, with the session they named
 	Calls []string
 	// Seen are the headers of the last MCP request that got through
-	Seen      http.Header
+	Seen http.Header
+	// SeenQuery is the query of the last MCP request that got through, as
+	// it came (Exa's ?login is a bare key)
+	SeenQuery string
 	ExpiresIn int // what a token is said to last, in seconds
 	// NoMetadata leaves out the resource metadata: the server of the 2025-03
 	// spec, whose authorization server is its own origin
 	NoMetadata bool
+	// OpenID is an authorization server that is an OpenID provider, as
+	// Vercel's is: the server names only the scope "openid" and its 401 none,
+	// and a refresh token is given only to a sign-in that asked for
+	// offline_access, which the authorization server's metadata offers
+	OpenID bool
 
 	codes   map[string]codeGrant
 	valid   map[string]bool // access tokens
@@ -46,7 +55,7 @@ type Fake struct {
 	n       int
 }
 
-type codeGrant struct{ challenge, client, redirect, resource string }
+type codeGrant struct{ challenge, client, redirect, resource, scope string }
 
 // New starts the server.
 func New(t *testing.T) *Fake {
@@ -61,14 +70,23 @@ func New(t *testing.T) *Fake {
 			http.NotFound(w, r)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"resource": f.URL, "authorization_servers": []string{issuer}, "scopes_supported": []string{"read", "write"}})
+		scopes := []string{"read", "write"}
+		if f.OpenID {
+			scopes = []string{"openid"}
+		}
+		json.NewEncoder(w).Encode(map[string]any{"resource": f.URL, "authorization_servers": []string{issuer}, "scopes_supported": scopes})
 	})
 	mux.HandleFunc("/.well-known/oauth-authorization-server/oauth", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{
+		m := map[string]any{
 			"issuer": issuer, "authorization_endpoint": issuer + "/authorize", "token_endpoint": issuer + "/token",
 			"registration_endpoint": issuer + "/register", "code_challenge_methods_supported": []string{"S256"},
 			"token_endpoint_auth_methods_supported": []string{"none"},
-		})
+		}
+		if f.OpenID {
+			m["scopes_supported"] = []string{"openid", "email", "offline_access", "profile"}
+			m["grant_types_supported"] = []string{"authorization_code", "refresh_token"}
+		}
+		json.NewEncoder(w).Encode(m)
 	})
 	register := func(w http.ResponseWriter, r *http.Request) {
 		var reg map[string]any
@@ -89,7 +107,7 @@ func New(t *testing.T) *Fake {
 		f.mu.Lock()
 		f.n++
 		code := fmt.Sprintf("code-%d", f.n)
-		f.codes[code] = codeGrant{q.Get("code_challenge"), q.Get("client_id"), q.Get("redirect_uri"), q.Get("resource")}
+		f.codes[code] = codeGrant{q.Get("code_challenge"), q.Get("client_id"), q.Get("redirect_uri"), q.Get("resource"), q.Get("scope")}
 		f.mu.Unlock()
 		back, _ := url.Parse(q.Get("redirect_uri"))
 		bq := back.Query()
@@ -106,6 +124,7 @@ func New(t *testing.T) *Fake {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": code})
 		}
+		offline := !f.OpenID // what a refresh token is given to
 		switch r.PostForm.Get("grant_type") {
 		case "authorization_code":
 			g, ok := f.codes[r.PostForm.Get("code")]
@@ -117,6 +136,7 @@ func New(t *testing.T) *Fake {
 				return
 			}
 			f.Exchanged++
+			offline = offline || slices.Contains(strings.Fields(g.scope), "offline_access")
 		case "refresh_token":
 			if !f.refresh[r.PostForm.Get("refresh_token")] {
 				fail("invalid_grant")
@@ -124,14 +144,20 @@ func New(t *testing.T) *Fake {
 			}
 			delete(f.refresh, r.PostForm.Get("refresh_token")) // spent once
 			f.Refreshed++
+			offline = true
 		default:
 			fail("unsupported_grant_type")
 			return
 		}
 		f.n++
 		a, rt := fmt.Sprintf("access-%d", f.n), fmt.Sprintf("refresh-%d", f.n)
-		f.valid[a], f.refresh[rt] = true, true
-		json.NewEncoder(w).Encode(map[string]any{"access_token": a, "refresh_token": rt, "token_type": "Bearer", "expires_in": f.ExpiresIn})
+		f.valid[a] = true
+		out := map[string]any{"access_token": a, "token_type": "Bearer", "expires_in": f.ExpiresIn}
+		if offline {
+			f.refresh[rt] = true
+			out["refresh_token"] = rt
+		}
+		json.NewEncoder(w).Encode(out)
 	}
 	mux.HandleFunc("/oauth/register", register)
 	mux.HandleFunc("/oauth/authorize", authorize)
@@ -151,7 +177,11 @@ func (f *Fake) mcp(w http.ResponseWriter, r *http.Request) {
 	f.mu.Unlock()
 	if !ok {
 		meta := f.Server.URL + "/.well-known/oauth-protected-resource/mcp"
-		w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token", resource_metadata="`+meta+`", scope="read write"`)
+		if f.OpenID {
+			w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token", resource_metadata="`+meta+`"`)
+		} else {
+			w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token", resource_metadata="`+meta+`", scope="read write"`)
+		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -164,6 +194,7 @@ func (f *Fake) mcp(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.Calls = append(f.Calls, r.Method+" "+msg.Method+" "+r.Header.Get("Mcp-Session-Id"))
 	f.Seen = r.Header.Clone()
+	f.SeenQuery = r.URL.RawQuery
 	f.mu.Unlock()
 	switch r.Method {
 	case http.MethodDelete:

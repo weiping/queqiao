@@ -82,6 +82,15 @@ function fixture(lang, theme, events, options = {}) {
       return json(lanState());
     }
     if (url.pathname === "/api/caller-keys") return json({ keys });
+    if (url.pathname === "/api/caller-keys/models") return json({ models: [
+      ...(options.groups ? [
+        { id: "group/coding", name: "Coding", group: true },
+        { id: "group/fast", name: "Fast", group: true },
+      ] : []),
+      { id: "relay/m", name: "Model", provider: "relay", providerName: "Relay" },
+      { id: "relay/m-mini", name: "Model mini", provider: "relay", providerName: "Relay" },
+      { id: "openai/gpt-5", name: "GPT-5", provider: "openai", providerName: "OpenAI" },
+    ] });
     if (url.pathname.startsWith("/api/caller-keys/")) {
       const action = url.pathname.split("/").at(-1), body = req.postDataJSON();
       events.push({ action, body });
@@ -109,6 +118,7 @@ function fixture(lang, theme, events, options = {}) {
         k.used = body.limit ? { period: body.limit.period, start: new Date().toISOString(), reset: new Date(Date.now() + 864e5).toISOString(),
           calls: 0, tokens: 0, cost: 0, tokenLimit: body.limit.tokens, costLimit: body.limit.cost, tokensLeft: body.limit.tokens, costLeft: body.limit.cost, spent: false } : undefined;
       }
+      if (action === "models-key") k.models = body.models.length ? body.models : undefined;
       if (action === "copy-key") secret = k.id === lanKeyID ? lanSecret : secrets.get(k.id);
       return json({ keys, secret });
     }

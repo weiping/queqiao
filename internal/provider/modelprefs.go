@@ -144,10 +144,7 @@ func SetModelPrice(id string, p *catalog.Price) error {
 		key = pr.ID + "/" + model
 	}
 	s := settings.Load()
-	m := settings.ModelPrice{
-		Input: new(p.Input), Output: new(p.Output),
-		CacheRead: new(p.CacheRead), CacheWrite: new(p.CacheWrite),
-	}
+	m := settings.StatedPrice(*p)
 	if err := settings.CheckModelPrice(key, m); err != nil {
 		return err
 	}
@@ -365,8 +362,10 @@ func setModelImage(ref string, images *bool) (bool, error) {
 // its models on one and others on another (01huadalang on Discord: 有的供应商
 // 一个 api 里有很多模型但是不同协议); "" leaves it to the vendor's list and
 // the URLs the provider has, as before. It must be an API the provider has
-// a URL for, and a provider of a key's: a sign-in's models are asked the
-// way its agent asks them.
+// a URL for: a preset's or a subscription's as well as a custom
+// provider's, when it has more than one (01huadalang: OpenCode Go's
+// deepseek-v4.1-flash answers on Responses too, and magpie asked it on
+// chat alone).
 func SetModelAPI(ref, api string) error {
 	return touchedIf(setModelAPI(ref, api))
 }
@@ -380,9 +379,6 @@ func setModelAPI(ref, api string) (bool, error) {
 	if proto != "" {
 		if !slices.Contains(Protocols, proto) {
 			return false, fmt.Errorf("a model's API is chat, responses or anthropic, not %q", api)
-		}
-		if p.Account != nil {
-			return false, fmt.Errorf("%s's models are asked the way its sign-in is; their API can't be set", p.ID)
 		}
 		if p.Base(proto) == "" {
 			return false, fmt.Errorf("%s has no %s URL to ask %s on: add it under More endpoints first", p.ID, proto, model)
@@ -413,10 +409,10 @@ func setModelAPI(ref, api string) (bool, error) {
 // ModelAPI is the API the user said p's model is asked on, when p has a
 // URL for it still.
 func (p Provider) ModelAPI(model string) (Protocol, bool) {
-	if p.Account != nil || len(p.Speaks()) < 2 {
+	if len(p.Speaks()) < 2 {
 		return "", false
 	}
-	proto := Protocol(settings.Load().ModelAPIs[p.ID+"/"+model])
+	proto := Protocol(heldSettings().ModelAPIs[p.ID+"/"+model])
 	if proto == "" || !slices.Contains(Protocols, proto) || p.Base(proto) == "" {
 		return "", false
 	}
@@ -427,20 +423,23 @@ func (p Provider) ModelAPI(model string) (Protocol, bool) {
 // model, sent with its Save: each part left nil is as it was. Name "" gives
 // the model its own name back, Efforts [] all its levels, OwnImages the
 // vendor's answer for whether it sees images, API "" every API the
-// provider has for it, and Same "" its own id to merge it with other
-// vendors' by (see SetModelSame).
+// provider has for it, Same "" its own id to merge it with other
+// vendors' by (see setModelSame), and OwnPrice its list price again in
+// place of Price, what the user said it costs (SetModelPrice, #819).
 type ModelPref struct {
-	Name      *string   `json:"name,omitempty"`
-	Efforts   *[]string `json:"efforts,omitempty"`
-	Images    *bool     `json:"images,omitempty"`
-	OwnImages bool      `json:"ownImages,omitempty"`
-	API       *string   `json:"api,omitempty"`
-	Same      *string   `json:"same,omitempty"`
+	Name      *string        `json:"name,omitempty"`
+	Efforts   *[]string      `json:"efforts,omitempty"`
+	Images    *bool          `json:"images,omitempty"`
+	OwnImages bool           `json:"ownImages,omitempty"`
+	API       *string        `json:"api,omitempty"`
+	Same      *string        `json:"same,omitempty"`
+	Price     *catalog.Price `json:"price,omitempty"`
+	OwnPrice  bool           `json:"ownPrice,omitempty"`
 }
 
 // SetModelPrefs makes the changes to a provider's models, by model id, as
 // SetModelName, SetModelEfforts, SetModelImage, SetModelAPI and
-// SetModelSame do, and tells the agents
+// setModelSame do, and tells the agents
 // once, after them all, rather than once a change. It stops at the first
 // that fails, telling the agents of those made before it.
 func SetModelPrefs(pid string, prefs map[string]ModelPref) error {
@@ -481,24 +480,30 @@ func SetModelPrefs(pid string, prefs map[string]ModelPref) error {
 					return err
 				}
 			}
+			// a price isn't what an agent picks a model by: the agents
+			// aren't told of it
+			if m.Price != nil || m.OwnPrice {
+				price := m.Price
+				if m.OwnPrice {
+					price = nil
+				}
+				if err := SetModelPrice(ref, price); err != nil {
+					return err
+				}
+			}
 		}
 		return nil
 	}()
 	return touchedIf(changed, err)
 }
 
-// SetModelSame says which model a provider's model, spelt "provider/model",
+// setModelSame says which model a provider's model, spelt "provider/model",
 // is the same as, for one a vendor names its own way (Volcengine Ark's
 // dated ids, kyzhouxu on #583): the routing groups magpie finds merge it
 // with that model from every other provider (autoGroups). The name is a
 // model's id as any vendor spells it ("deepseek-v4.1-flash", or with a
 // vendor's prefix); "" — or a name that is the model's own however spelt —
-// merges it by its own id again. The agents are told, the groups they are
-// shown having changed.
-func SetModelSame(ref, same string) error {
-	return touchedIf(setModelSame(ref, same))
-}
-
+// merges it by its own id again.
 func setModelSame(ref, same string) (bool, error) {
 	p, model, err := splitRef(ref)
 	if err != nil {
@@ -578,11 +583,14 @@ func renameModelPrefs(s *settings.Settings, from, to string) bool {
 	// the models a user has hidden from a picker are keyed by provider as
 	// well, and are not one of the per-model preference maps: they say
 	// which models are shown, not what a model is called or costs
+	// (and so is the order they are listed in)
 	hidden := false
-	for _, ids := range s.HiddenModels {
-		for i, id := range ids {
-			if rest, ok := strings.CutPrefix(id, from+"/"); ok {
-				ids[i], hidden = to+"/"+rest, true
+	for _, m := range []map[string][]string{s.HiddenModels, s.OrderedModels} {
+		for _, ids := range m {
+			for i, id := range ids {
+				if rest, ok := strings.CutPrefix(id, from+"/"); ok {
+					ids[i], hidden = to+"/"+rest, true
+				}
 			}
 		}
 	}
@@ -609,22 +617,25 @@ func (e Entry) Label() string {
 // name alone — but for two or more the list would call the same, as a
 // routing group found for a model is called with that model left in the
 // list, which keep their provider's after it to tell them apart. With
-// their own names plain (PlainOwnNames, #92), a name the user gave a model
-// is that name just as they wrote it, and the vendor's keep Label's.
+// their own names plain (PlainOwnNames, #92), a name the user gave — a
+// model's, or a routing group's they made (#868: "· routing group" was
+// what an agent's narrow menu cut off) — is that name just as they wrote
+// it, but for two the list would call the same, and the rest keep Label's.
 func Labels(es []Entry) []string {
 	out := make([]string, len(es))
-	s := settings.Load()
+	s := heldSettings()
 	plain := s.PlainNames
 	own := !plain && s.PlainOwnNames
 	same := map[string]int{}
-	if plain {
+	if plain || own {
 		for _, e := range es {
 			same[strings.ToLower(e.Name)]++
 		}
 	}
 	for i, e := range es {
 		out[i] = e.Label()
-		if plain && e.Name != "" && same[strings.ToLower(e.Name)] == 1 || own && e.Default != "" && e.Name != "" {
+		mine := own && (e.Default != "" || e.Named)
+		if (plain || mine) && e.Name != "" && same[strings.ToLower(e.Name)] == 1 {
 			out[i] = e.Name
 		}
 	}
@@ -671,6 +682,52 @@ func SetSuffixMode(mode string) error {
 		return nil
 	}
 	s.PlainNames, s.PlainOwnNames = plain, own
+	if err := settings.Save(s); err != nil {
+		return err
+	}
+	catalog.Touched()
+	return nil
+}
+
+// SetCodexAgentsV1 turns settings.CodexAgentsV1 on or off, and has Codex's
+// lists written and asked for again.
+func SetCodexAgentsV1(on bool) error {
+	s := settings.Load()
+	if s.CodexAgentsV1 == on {
+		return nil
+	}
+	s.CodexAgentsV1 = on
+	if err := settings.Save(s); err != nil {
+		return err
+	}
+	catalog.Touched()
+	return nil
+}
+
+// SetCodexAutoReview sets settings.CodexAutoReview, the model Codex's
+// auto-review runs on ("" for Codex's own pick), and has Codex's lists
+// written and asked for again.
+func SetCodexAutoReview(id string) error {
+	s := settings.Load()
+	if s.CodexAutoReview == id {
+		return nil
+	}
+	s.CodexAutoReview = id
+	if err := settings.Save(s); err != nil {
+		return err
+	}
+	catalog.Touched()
+	return nil
+}
+
+// SetFullContext turns settings.FullContext on or off: Codex and Claude
+// Code are told a model's whole window, or the working one, again.
+func SetFullContext(on bool) error {
+	s := settings.Load()
+	if s.FullContext == on {
+		return nil
+	}
+	s.FullContext = on
 	if err := settings.Save(s); err != nil {
 		return err
 	}

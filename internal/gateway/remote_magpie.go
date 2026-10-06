@@ -30,8 +30,15 @@ const (
 )
 
 // caller is who a request is recorded as: its agent, and the computer it
-// was passed on from, "" for this one.
-type caller struct{ agent, via string }
+// was passed on from, "" for this one. session and native are the session
+// the caller named (sessionOf's X-Magpie-Session, and the agent's own
+// header nativeSessionOf takes, by its name), passed on to a remote magpie
+// with the request (#672).
+type caller struct {
+	agent, via string
+	session    string
+	native     [2]string // header, value
+}
 
 type callerCtx struct{}
 
@@ -39,7 +46,13 @@ type callerCtx struct{}
 // headers that said so off it.
 func withCaller(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c := caller{agent: agentOf(r)}
+		c := caller{agent: agentOf(r), session: boundedSession(r.Header.Get(SessionHeader))}
+		for _, h := range sessionHeaders {
+			if v := boundedSession(r.Header.Get(h)); v != "" {
+				c.native = [2]string{h, v}
+				break
+			}
+		}
 		if strings.HasPrefix(r.Header.Get("User-Agent"), "magpie/") {
 			if a := label(r.Header.Get(AgentHeader)); a != "" {
 				c.agent = usage.AgentOf(a)
@@ -49,9 +62,15 @@ func withCaller(next http.Handler) http.Handler {
 				}
 			}
 		}
+		ctx := context.WithValue(r.Context(), callerCtx{}, c)
+		if searchingFrom(r) {
+			// another magpie's search: only the model itself searches
+			ctx = context.WithValue(ctx, searchingKey{}, true)
+		}
 		r.Header.Del(AgentHeader)
 		r.Header.Del(ViaHeader)
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), callerCtx{}, c)))
+		r.Header.Del(SearchingHeader)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -73,11 +92,32 @@ func label(v string) string {
 	return v
 }
 
+// boundedSession is a session header's value as magpie keeps it: trimmed,
+// at most 128 bytes, as sessionOf takes it.
+func boundedSession(v string) string {
+	v = strings.TrimSpace(v)
+	return v[:min(len(v), 128)]
+}
+
 // passOnCaller names, on a request to a remote magpie, the agent it is for
 // and the computer it comes from: the one it was passed on from, else this.
+// The session the caller named goes on too, as it named it — magpie's
+// X-Magpie-Session and the agent's own header (session_id, …) — so the
+// other magpie records the call under it and keeps a conversation on its
+// account by it rather than by its first message (#672). Only a remote
+// magpie is sent them; a vendor never is.
 func passOnCaller(ctx context.Context, req *http.Request) {
 	c, ok := ctx.Value(callerCtx{}).(caller)
-	if !ok || c.agent == "" {
+	if !ok {
+		return
+	}
+	if c.session != "" {
+		req.Header.Set(SessionHeader, c.session)
+	}
+	if c.native[0] != "" {
+		req.Header.Set(c.native[0], c.native[1])
+	}
+	if c.agent == "" {
 		return
 	}
 	req.Header.Set(AgentHeader, c.agent)

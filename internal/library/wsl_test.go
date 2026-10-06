@@ -193,3 +193,81 @@ func TestWSLInstructions(t *testing.T) {
 		t.Errorf("instructions page: %+v", iv.Agents)
 	}
 }
+
+// magpie's own image server, a Windows program, is given to an agent in
+// WSL all the same (#900): by the binary's path in the distro, which WSL's
+// interop starts, told the distro, with the variables it is given named in
+// WSLENV. A distro whose interop is off is told so.
+func TestWSLMagpieImage(t *testing.T) {
+	h := wslSandbox(t)
+	probed := 0
+	answer := "/mnt/d/tools/Magpie/magpie-windows-amd64.exe\ninterop:on\n"
+	old := wslProbe
+	wslProbe = func(distro, script string) (string, error) {
+		probed++
+		if distro != "Ubuntu-24.04" || !strings.Contains(script, `wslpath -u 'D:\tools\Magpie\magpie-windows-amd64.exe'`) {
+			t.Errorf("probe %s: %s", distro, script)
+		}
+		return answer, nil
+	}
+	reset := func() {
+		wslExes.Lock()
+		wslExes.at, wslExes.out = nil, nil
+		wslExes.Unlock()
+	}
+	reset()
+	t.Cleanup(func() { wslProbe = old; reset() })
+
+	img := Server{Name: "magpie-image", Transport: "stdio", Command: `D:\tools\Magpie\magpie-windows-amd64.exe`, Args: []string{"mcp", "image"},
+		Env: map[string]string{"MAGPIE_ADDR": "127.0.0.1:4000"}, Agents: []string{wslCodex, wslClaude}}
+	res := ok(t)(SaveServer("", img))
+	if len(res.Problems) != 0 {
+		t.Fatalf("problems: %+v", res.Problems)
+	}
+	s := read(t, filepath.Join(h, ".codex/config.toml"))
+	for _, w := range []string{"[mcp_servers.magpie-image]", `command = "/mnt/d/tools/Magpie/magpie-windows-amd64.exe"`, `"--wsl"`, `"Ubuntu-24.04"`, `WSLENV = "MAGPIE_ADDR"`} {
+		if !strings.Contains(s, w) {
+			t.Errorf("codex@wsl config.toml has no %s:\n%s", w, s)
+		}
+	}
+	if s := read(t, filepath.Join(h, ".claude.json")); !strings.Contains(s, `"/mnt/d/tools/Magpie/magpie-windows-amd64.exe"`) || !strings.Contains(s, `"--wsl"`) {
+		t.Errorf("claude@wsl .claude.json:\n%s", s)
+	}
+	// written as it is: the next sync changes nothing, nor asks the distro again
+	if res := ok(t)(Sync()); len(res.Changed) != 0 || len(res.Problems) != 0 {
+		t.Errorf("a sync with nothing new: %+v", res)
+	}
+	if probed != 1 {
+		t.Errorf("the distro was asked %d times", probed)
+	}
+
+	// drives mounted elsewhere: the server is told where
+	reset()
+	answer = "/win/d/tools/Magpie/magpie-windows-amd64.exe\ninterop:on\n"
+	ok(t)(Sync())
+	if s := read(t, filepath.Join(h, ".codex/config.toml")); !strings.Contains(s, `"/win/d/tools/Magpie/magpie-windows-amd64.exe"`) || !strings.Contains(s, `"--mount"`) || !strings.Contains(s, `"/win/"`) {
+		t.Errorf("custom mount:\n%s", s)
+	}
+
+	// interop off: nothing it could start, and why
+	reset()
+	answer = "/mnt/d/tools/Magpie/magpie-windows-amd64.exe\ninterop:off\n"
+	res, err := Sync()
+	if err != nil || len(res.Problems) == 0 || !strings.Contains(res.Problems[0].Error, "interop") {
+		t.Errorf("interop off: %+v", res.Problems)
+	}
+}
+
+func TestLinuxHome(t *testing.T) {
+	for in, want := range map[string]string{
+		`\\wsl.localhost\Ubuntu\home\me`: "/home/me",
+		`\\wsl$\Ubuntu-24.04\root`:       "/root",
+		`\\WSL.LOCALHOST\Ubuntu`:         "/",
+		`C:\Users\me`:                    "",
+		"/tmp/x/home/me":                 "",
+	} {
+		if got := linuxHome(in); got != want {
+			t.Errorf("linuxHome(%s) = %q, want %q", in, got, want)
+		}
+	}
+}

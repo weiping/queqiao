@@ -24,12 +24,17 @@ const traceKeep = 60
 
 // Route is one request's way through routing.
 type Route struct {
+	imageTurn     string
+	imageCaller   string
+	imageProvider string
 	Seq           int64        `json:"seq"` // the trace's count when it last changed
 	ID            int64        `json:"id"`
 	Time          time.Time    `json:"time"`
 	Agent         string       `json:"agent"`
 	ParentSession string       `json:"parentSession,omitempty"` // title helper's explicit originating chat; does not affect routing
 	Session       string       `json:"session,omitempty"`       // the client's session id, never inferred from its model or account
+	TitleLink     *TitleLink   `json:"titleLink,omitempty"`     // digests only; display evidence, never account affinity
+	ParentMatched bool         `json:"parentMatched,omitempty"` // parent inferred for this view, not supplied by Codex
 	Usage         []RouteUsage `json:"usage,omitempty"`         // token tiers of billable tries; priced when read
 	Kind          string       `json:"kind,omitempty"`          // what the call is for, as Call's
 	For           *CallFor     `json:"for,omitempty"`           // the request it was made for, as Call's
@@ -38,6 +43,8 @@ type Route struct {
 	Provider      string       `json:"provider"`                // the provider the model resolved to
 	Group         *GroupRef    `json:"group,omitempty"`         // the routing group the agent asked for
 	Rule          *RuleHit     `json:"rule,omitempty"`          // the group's rules for it, when it has any
+	SealedTask    bool         `json:"sealedTask,omitempty"`    // only ChatGPT accounts can read this subagent's task
+	LeadAccount   string       `json:"leadAccount,omitempty"`   // the parent account put first for a sealed task
 	// Nested: the rules of the groups in the group, down the way to the
 	// one that went first, each as it decided
 	Nested   []NestedRule `json:"nested,omitempty"`
@@ -63,6 +70,8 @@ type Route struct {
 	Served  string `json:"served,omitempty"`
 	Swapped bool   `json:"swapped,omitempty"`
 	Routed  bool   `json:"routed,omitempty"`
+	// Upstream: the provider an aggregator said answered behind it
+	Upstream string `json:"upstream,omitempty"`
 }
 
 // RouteUsage is one billable attempt's pricing inputs, kept in routing history.
@@ -90,7 +99,8 @@ type GroupRef struct {
 	Routing  string   `json:"routing"`
 	Affinity string   `json:"affinity"`
 	Auto     bool     `json:"auto,omitempty"`
-	Members  []string `json:"members"` // those ready, as provider/model[:effort fixed on it]
+	Sink     bool     `json:"sink,omitempty"` // provider.Group.Sink, as it applies
+	Members  []string `json:"members"`        // those ready, as provider/model[:effort fixed on it]
 	// Subs: the groups in the group, at any depth, outermost first
 	Subs []SubGroup `json:"subs,omitempty"`
 	// Via: for each of Members, the groups in the group it is of, as
@@ -118,7 +128,7 @@ type NestedRule struct {
 
 // groupRef is the trace's g, with its models ms.
 func groupRef(g provider.Group, ms []provider.Member) *GroupRef {
-	ref := &GroupRef{ID: g.ID, Name: g.Name, Routing: g.Routing, Affinity: g.Affinity, Auto: g.Auto}
+	ref := &GroupRef{ID: g.ID, Name: g.Name, Routing: g.Routing, Affinity: g.Affinity, Auto: g.Auto, Sink: sinks(g.Sink, g.Routing)}
 	seen := map[string]bool{}
 	for _, m := range ms {
 		ref.Members = append(ref.Members, provider.WithMemberEffort(m.Provider.ID+"/"+m.Model, m.Effort))
@@ -143,36 +153,52 @@ func groupRef(g provider.Group, ms []provider.Member) *GroupRef {
 
 // Weighed is one account or key as routing weighed it.
 type Weighed struct {
-	ID       string            `json:"id"` // what rests after a failure
-	Provider string            `json:"provider"`
-	Name     string            `json:"name"` // the provider's
-	Icon     string            `json:"icon,omitempty"`
-	Preset   string            `json:"preset,omitempty"`
-	Who      string            `json:"who,omitempty"` // the account, or the key's name or its masked self
-	Kind     string            `json:"kind"`          // "account", "key", or "provider" when it has one
-	Agent    string            `json:"agent,omitempty"`
-	Plan     string            `json:"plan,omitempty"`
-	Model    string            `json:"model"`
-	Fixed    string            `json:"fixed,omitempty"` // the effort the group's member it is of is fixed at
-	Fast     bool              `json:"fast,omitempty"`  // the group's member it is of is sent fast
-	Routing  string            `json:"routing"`         // its provider's: "", order, rotate, usage
-	Fallback bool              `json:"fallback,omitempty"`
-	Shared   bool              `json:"shared,omitempty"` // its provider has more than one on
-	Known    bool              `json:"known,omitempty"`  // the vendor said what the account has left
-	Learns   bool              `json:"learns,omitempty"` // not known, but its answer will tell
-	Used     float64           `json:"used"`             // share of the allowance counting the model, used
+	ID       string  `json:"id"` // what rests after a failure
+	Provider string  `json:"provider"`
+	Name     string  `json:"name"` // the provider's
+	Icon     string  `json:"icon,omitempty"`
+	Preset   string  `json:"preset,omitempty"`
+	Who      string  `json:"who,omitempty"` // the account, or the key's name or its masked self
+	Kind     string  `json:"kind"`          // "account", "key", or "provider" when it has one
+	Agent    string  `json:"agent,omitempty"`
+	Plan     string  `json:"plan,omitempty"`
+	Model    string  `json:"model"`
+	Fixed    string  `json:"fixed,omitempty"` // the effort the group's member it is of is fixed at
+	Fast     bool    `json:"fast,omitempty"`  // the group's member it is of is sent fast
+	Routing  string  `json:"routing"`         // its provider's: "", order, rotate, usage
+	Fallback bool    `json:"fallback,omitempty"`
+	Shared   bool    `json:"shared,omitempty"` // its provider has more than one on
+	Known    bool    `json:"known,omitempty"`  // the vendor said what the account has left
+	Learns   bool    `json:"learns,omitempty"` // not known, but its answer will tell
+	Used     float64 `json:"used"`             // share of the allowance counting the model, used
+	// Amount of Limit in Unit: the count that share is of, when the
+	// vendor counts it so (WorkBuddy's credits, #659)
+	Amount   float64           `json:"amount,omitempty"`
+	Limit    float64           `json:"limit,omitempty"`
+	Unit     string            `json:"unit,omitempty"`
 	Renews   []time.Time       `json:"renews,omitempty"` // when those windows renew, the biggest first
-	Pace     float64           `json:"pace,omitempty"`   // weekly pace: share of its week left per hour until it renews
-	Due      *time.Time        `json:"due,omitempty"`    // weekly pace: when the window that pace went by renews
+	Pace     float64           `json:"pace,omitempty"`   // remaining allowance per hour until its window resets
+	Due      *time.Time        `json:"due,omitempty"`    // when the allowance window used for pace resets
 	Tokens   float64           `json:"tokens,omitempty"` // least used: tokens it served lately
 	Turn     bool              `json:"turn,omitempty"`   // in turn: it was this one's turn
 	Fit      int               `json:"fit,omitempty"`    // keyFit
 	Speaks   provider.Protocol `json:"speaks,omitempty"` // a key made for one protocol only
 	Rest     *Rest             `json:"rest,omitempty"`   // resting after a failure, when the request came
 	Unlisted bool              `json:"unlisted,omitempty"`
+	// DueBy: "reset" when Due is when an auto-used Codex reset about to
+	// run out starts the windows again, sooner than they renew (#717)
+	DueBy string `json:"dueBy,omitempty"`
+	// Restarts: when that reset starts them again, set when it is sooner
+	// than its biggest window renews — Smart goes by it then (#718)
+	Restarts *time.Time `json:"restarts,omitempty"`
 	// Barred: left out as the user set it not to serve the model, its
 	// own list of models leaving it out (#474)
 	Barred bool `json:"barred,omitempty"`
+	// Capped: left out as held at the usage cap the user set on the
+	// account, this cap in percent; Used is then its fullest window's
+	// share, CapBack when the last window at or past it renews
+	Capped  int        `json:"capped,omitempty"`
+	CapBack *time.Time `json:"capBack,omitempty"`
 	// Rank: its place in its provider's own list of accounts or keys, the
 	// order the provider's page shows and a drag sets (#217); routing may
 	// weigh them in another
@@ -183,6 +209,10 @@ type Weighed struct {
 	// Via: the groups in the group it is of, outermost first, when it is
 	// of a group in the group asked for
 	Via []string `json:"via,omitempty"`
+	// Sunk: when it was rate limited with quota left, sending it to the
+	// back of an order that sinks (sink.go); nil when it didn't, or the
+	// order doesn't sink
+	Sunk *time.Time `json:"sunk,omitempty"`
 }
 
 // Try is one candidate trying the request.
@@ -210,10 +240,13 @@ type Try struct {
 	Served  string `json:"served,omitempty"`
 	Swapped bool   `json:"swapped,omitempty"`
 	Routed  bool   `json:"routed,omitempty"`
-	Fail    string `json:"fail,omitempty"` // why it failed, as rest tells it
-	Error   string `json:"error,omitempty"`
-	Rest    *Rest  `json:"rest,omitempty"`  // how long it now sits out; none when it was the last to try
-	Again   int64  `json:"again,omitempty"` // ms waited before it was tried again, the last one left
+	// Upstream: the provider an aggregator said answered behind it
+	// (OpenRouter's DeepInfra, Novita …)
+	Upstream string `json:"upstream,omitempty"`
+	Fail     string `json:"fail,omitempty"` // why it failed, as rest tells it
+	Error    string `json:"error,omitempty"`
+	Rest     *Rest  `json:"rest,omitempty"`  // how long it now sits out; none when it was the last to try
+	Again    int64  `json:"again,omitempty"` // ms waited before it was tried again, the last one left
 	// Queued: ms it waited for one of its key's or account's slots, the
 	// provider's MaxConcurrency out already (concurrency.go)
 	Queued int64 `json:"queued,omitempty"`
@@ -221,6 +254,9 @@ type Try struct {
 	// Codex resets was spent by itself (the user's setting) — on Who, and
 	// what spending it did — and the request asked again
 	Reset *AutoReset `json:"reset,omitempty"`
+	// Auto: the models Copilot's Auto picked for it, in turn — where each
+	// pick came from and Copilot's refusal of it — Model being "auto"
+	Auto []provider.AutoPick `json:"auto,omitempty"`
 }
 
 // AutoReset is a Codex or Claude reset spent by itself, on Who's account.
@@ -256,15 +292,27 @@ func weighed(c candidate, p provider.Provider, wg weighing, fallback bool, from 
 	}
 	if l, ok := wg.lefts[c.allowanceKey()]; ok {
 		w.Known, w.Used, w.Renews, w.Pace = true, l.used, l.renews, l.pace
+		if l.of > 0 {
+			w.Amount, w.Limit, w.Unit = l.amount, l.of, l.unit
+		}
 		if !l.due.IsZero() {
 			due := l.due
 			w.Due = &due
+			if l.dueRestart {
+				w.DueBy = "reset"
+			}
+		}
+		if rs := l.restarts; !rs.IsZero() && len(l.soon) > 0 && rs.Equal(l.soon[0]) {
+			w.Restarts = &rs
 		}
 	} else if wg.lefts != nil {
 		w.Learns = learns(c, wg.lefts)
 	}
 	if wg.tokens != nil {
 		w.Tokens = wg.tokens[c.rest]
+	}
+	if sinks(p.Sink, p.Routing) {
+		markSunk(&w, c)
 	}
 	return w
 }
@@ -360,7 +408,7 @@ func (t *trace) update(r *Route, f func(r *Route)) {
 		}
 		if keepRoutes {
 			c := *r
-			c.Order = append([]Weighed(nil), r.Order...)
+			c.Order = append([]Weighed{}, r.Order...) // [] for none: the GUI reads it as a list
 			c.Left = append([]Weighed(nil), r.Left...)
 			c.Tries = append([]Try{}, r.Tries...)
 			c.Usage = append([]RouteUsage(nil), r.Usage...)
@@ -386,7 +434,7 @@ func (s *Server) Trace(ctx context.Context, after int64, wait time.Duration) Tra
 		for _, r := range t.routes {
 			if r.Seq > after {
 				c := *r
-				c.Order = append([]Weighed(nil), r.Order...)
+				c.Order = append([]Weighed{}, r.Order...) // [] for none: the GUI reads it as a list
 				c.Left = append([]Weighed(nil), r.Left...)
 				c.Tries = append([]Try{}, r.Tries...)
 				c.Usage = append([]RouteUsage(nil), r.Usage...)

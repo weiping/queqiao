@@ -33,16 +33,32 @@ const ConversationHeader = "X-Magpie-Conversation"
 
 // PluginID is the id magpie gives the provider OpenCode calls id: the same,
 // unless a preset or a built-in subscription has it (google, openai,
-// anthropic), when it is id-plugin — but for a built-in moved onto the
-// plugin, whose id the plugin has now.
+// anthropic), or a provider of the user's own made before the plugin was
+// installed (zenmux, #867), when it is id-plugin — but for a built-in moved
+// onto the plugin, whose id the plugin has now.
 func PluginID(id string) string {
 	if Moved(id) {
 		return id
 	}
-	if slices.Contains(accountIDs, id) || Preset(id) != nil || id == "magpie" {
+	if slices.Contains(accountIDs, id) || Preset(id) != nil || id == "magpie" || customIDs()[id] {
 		return id + "-plugin"
 	}
 	return id
+}
+
+// customIDs are the ids of the user's own providers, those with an endpoint
+// in providers.json: a signed-in account with one of them would be hidden
+// behind it, not listed (allProviders).
+func customIDs() map[string]bool {
+	return heldOf("customIDs", func() map[string]bool {
+		ids := map[string]bool{}
+		for _, p := range load().Providers {
+			if p.Chat != "" || p.Responses != "" || p.Anthropic != "" || p.Decide != "" {
+				ids[p.ID] = true
+			}
+		}
+		return ids
+	})
 }
 
 // subscriptionID is whether id is a subscription's, a built-in's or an
@@ -70,7 +86,7 @@ func (p Provider) PluginProvider() string {
 
 // PluginOf is the plugin provider magpie's provider id is, when it is one.
 func PluginOf(id string) (plugin.Provider, bool) {
-	for _, pp := range plugin.Cached() {
+	for _, pp := range heldPlugins() {
 		if PluginID(pp.ID) == id {
 			return pp, true
 		}
@@ -82,7 +98,7 @@ func PluginOf(id string) (plugin.Provider, bool) {
 // first account.
 func pluginAccounts() []Provider {
 	var out []Provider
-	for _, pp := range plugin.Cached() {
+	for _, pp := range heldPlugins() {
 		if movingNow(pp.ID) {
 			continue // shown once the move is through (migrate.go)
 		}
@@ -174,8 +190,11 @@ func pluginCatalog(pp plugin.Provider) []catalog.Model {
 			c.Efforts, c.Reasoning = m.Variants, true
 		}
 		// a built-in moved onto its plugin keeps the levels it had for a
-		// model its vendor gives none: its maker's, as effortsOf borrows
-		if len(c.Efforts) == 0 && Moved(pp.ID) {
+		// model its vendor gives none: its maker's, as effortsOf borrows.
+		// So does Cline's plugin, which resells others' models as the
+		// ClinePass built-in does and gives no levels of its own: signed in
+		// through it, ClinePass showed none where its API key showed them
+		if len(c.Efforts) == 0 && (Moved(pp.ID) || pp.ID == "cline") {
 			c.Efforts = borrowedEfforts(m.ID)
 		}
 		// OpenCode's price of a model it has none for is 0, as the
@@ -201,6 +220,34 @@ func pluginAccountCatalog(pp plugin.Provider, key string) []catalog.Model {
 		}
 	}
 	return all
+}
+
+// PluginListError is why the plugin couldn't list the account at key's
+// models, "" when it did or kept the list it had: what it shows instead
+// is its short defaults (Cursor's Auto alone).
+func PluginListError(pp plugin.Provider, key string) string {
+	for _, a := range pp.Accounts {
+		if a.Key == key {
+			if a.FellBack {
+				return a.ListError
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
+// ListError is why a plugin's account lists only the plugin's defaults,
+// "" for any other provider.
+func (p Provider) ListError() string {
+	if !p.IsPlugin() {
+		return ""
+	}
+	pp := *p.Account.plugin
+	if cur, ok := PluginOf(p.ID); ok {
+		pp = cur
+	}
+	return PluginListError(pp, p.Account.pluginKey)
 }
 
 // pluginLists is whether a plugin's account serves model, as the plugin
@@ -251,6 +298,12 @@ func pluginProvider(pp plugin.Provider, l pluginLogin) Provider {
 		}
 		for _, cur := range ps {
 			if cur.ID == pp.ID {
+				// a Refresh that got the plugin's short defaults back says
+				// why, rather than "1 models" (gnayiab on X: Cursor in WSL
+				// listing Auto alone)
+				if e := PluginListError(cur, acct.Key); e != "" {
+					return nil, fmt.Errorf("%s couldn't list its models: %s", name, e)
+				}
 				return catalog.Chat(pluginAccountCatalog(cur, acct.Key)), nil
 			}
 		}
@@ -295,6 +348,35 @@ func (p Provider) pluginAPIs(model string) []Protocol {
 		return []Protocol{pluginProtocol(pp.ID, m)}
 	}
 	return nil
+}
+
+// Origin is the scheme and host p's requests go to, for a URL of the
+// vendor's own outside its API (WorkBuddy's /v3/config beside its /v2): a
+// plugin's where its loader sends them, which p.Do then takes there through
+// the plugin; any other's its API's. "" when it has none.
+func (p Provider) Origin(ctx context.Context) string {
+	base := ""
+	if p.IsPlugin() {
+		pp := *p.Account.plugin
+		if cur, ok := PluginOf(p.ID); ok {
+			pp = cur
+		}
+		base = pp.API
+		if o, err := plugin.LoaderOptions(ctx, pp.ID, p.Account.pluginKey); err == nil {
+			base = firstOf(o.BaseURL, pp.API)
+		}
+	} else {
+		for _, pr := range p.Speaks() {
+			if base = p.Base(pr); base != "" {
+				break
+			}
+		}
+	}
+	scheme, rest, ok := strings.Cut(strings.TrimSpace(base), "://")
+	if !ok || HostOf(rest) == "" {
+		return ""
+	}
+	return scheme + "://" + HostOf(rest)
 }
 
 // pluginFetch sends a request the gateway made for a plugin's provider
@@ -357,6 +439,14 @@ func pluginFetch(pp plugin.Provider, account string, req *http.Request) (*http.R
 		// chat, responses and Anthropic's messages: the AI SDK's base
 		// ends where magpie's /v1 does
 		url = base + strings.TrimPrefix(rest, "/v1")
+	case strings.HasPrefix(rest, "https://") || strings.HasPrefix(rest, "http://"):
+		// a URL of the vendor's own outside the base (Provider.Origin's),
+		// signed by the plugin as its other requests: only at the host the
+		// plugin sends to, never anywhere else with the account's sign-in
+		if HostOf(rest) != HostOf(base) {
+			return nil, fmt.Errorf("%s's plugin sends to %s, not %s", pp.Name, HostOf(base), HostOf(rest))
+		}
+		url = rest
 	default:
 		url = base + rest
 	}

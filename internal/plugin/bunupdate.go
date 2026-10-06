@@ -1,6 +1,6 @@
 package plugin
 
-// Bun kept up to date, as the plugins are: every few hours magpie asks
+// Bun kept up to date, as the plugins are: every six hours magpie asks
 // GitHub for Bun's newest release and, once it has been out two days (a
 // release with a bad bug is usually followed by a fix within them),
 // downloads it, checks its checksum, tries it and switches the plugin
@@ -275,7 +275,7 @@ func pruneBuns(s bunState) {
 }
 
 // KeepBunUpdated looks for a newer Bun a little after magpie starts, then
-// every updateEvery, while there are plugins to run on it.
+// every bunEvery, while there are plugins to run on it.
 func KeepBunUpdated(ctx context.Context) {
 	t := time.NewTimer(2 * time.Minute)
 	defer t.Stop()
@@ -292,6 +292,6 @@ func KeepBunUpdated(ctx context.Context) {
 			}
 			cancel()
 		}
-		t.Reset(updateEvery)
+		t.Reset(bunEvery)
 	}
 }

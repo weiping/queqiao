@@ -1,8 +1,8 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// The Requests tab opens on what its requests add up to: a strip of four totals
-// (tokens, requests, cost, the cache hit rate), then the trend of one metric —
-// tokens, cost or requests — as columns by the hour, day or week, each told
-// apart by provider, agent or model, beside a ranking of the same that is the
+// The Requests tab opens on what its requests add up to: a strip of five totals
+// (tokens, requests, cost, the cache hit rate, the output speed), then the trend of one metric —
+// tokens, cost, requests or speed — as columns by the hour, day or week, each told
+// apart by model, model at provider, provider or agent, beside a ranking of the same that is the
 // chart's legend and a way in: a click on a provider or an agent lists only its
 // requests, the provider picker beside the agent's does too, and the ranking
 // keeps the others in sight to switch to. The pointer over a column shows what
@@ -56,20 +56,39 @@ const allTokens = TOTALS.input + TOTALS.output + TOTALS.cache_write + TOTALS.cac
 const ROWS = [{ t: new Date().toISOString(), agent: "claude", agentName: "Claude Code", icon: "claudecode-color", provider: "anthropic", providerName: "Claude", model: "claude-sonnet-5", req: "sonnet", in: 2, out: 600, cache_write: 900, cache_read: 390000, ms: 2380, status: 200, cost: 0.087, priced: true }];
 
 function page(q, variant) {
+  if (q.has("day")) {
+    const whole = new URLSearchParams(q);
+    whole.delete("day");
+    const l = page(whole, variant), point = l.series.find((p) => p.time.slice(0, 10) === q.get("day"));
+    const rows = l.rows.filter((r) => r.t.slice(0, 10) === q.get("day"));
+    const by = Object.fromEntries(Object.entries(l.by).map(([dim, shares]) => [dim, shares.flatMap((s) => {
+      const part = point?.by[dim][s.id];
+      return part ? [share(s.id, s.name, s.icon, part.calls, part.tokens, part.cost)] : [];
+    })]));
+    return { ...l, calls: 0, errors: 0, input: 0, output: 0, cache_write: 0, cache_read: 0, cost: 0,
+      ...point, day: q.get("day"), series: l.series, chartBy: l.by, by, rows, total: rows.length };
+  }
   const none = variant === "none";
   const noPrice = variant === "unpriced";
   // more providers than the chart's height holds in its ranking
   const many = variant === "many" ? Array.from({ length: 9 }, (_, i) => share("p" + i, "Provider " + i, "generic", 90 - i, 9e6 - i * 8e5, 9 - i, i % 3 ? 0 : 2)) : null;
-  const series = SERIES.map((p) => (noPrice ? { ...p, cost: 0, by: { ...p.by, provider: Object.fromEntries(Object.entries(p.by.provider).map(([k, v]) => [k, { ...v, cost: 0 }])) } } : p));
+  const daily = variant === "daily" && q.get("period") === "7d";
+  const points = daily ? Array.from({ length: 7 }, (_, i) => {
+    const at = new Date(midnight);
+    at.setDate(at.getDate() - 6 + i);
+    return { ...SERIES[i === 1 ? 0 : i % 2 ? 8 : 20], time: at.toISOString() };
+  }) : SERIES;
+  const series = points.map((p) => (noPrice ? { ...p, cost: 0, by: { ...p.by, provider: Object.fromEntries(Object.entries(p.by.provider).map(([k, v]) => [k, { ...v, cost: 0 }])) } } : p));
   return {
     period: "today", rows: none ? [] : ROWS, offset: 0, total: none ? 0 : ROWS.length, ...TOTALS, ...(none ? { calls: 0, errors: 0, input: 0, output: 0, cache_write: 0, cache_read: 0, cost: 0 } : {}),
     ...(noPrice ? { cost: 0, unpriced: 40 } : {}),
-    bucket: "hour", series: none ? [] : series, by: none ? { provider: [], agent: [], model: [] } : many ? { ...BY, provider: many } : BY,
+    ...(daily ? { rows: series.filter((p) => p.calls).map((p) => ({ ...ROWS[0], t: p.time })), total: 6 } : {}),
+    bucket: daily ? "day" : "hour", series: none ? [] : series, by: none ? { provider: [], agent: [], model: [] } : many ? { ...BY, provider: many } : BY,
     agents: Object.entries(AGENTS).map(([id, a]) => ({ id, ...a })), providers: (many || WHO).map((w) => ({ id: w.id, name: w.name, icon: w.icon })),
   };
 }
 
-function server(lang, theme, variant, asked) {
+function server(lang, theme, variant, asked, exported) {
   return async (route) => {
     const req = route.request(), url = new URL(req.url());
     const json = (data) => route.fulfill({ json: data });
@@ -77,6 +96,7 @@ function server(lang, theme, variant, asked) {
     if (url.pathname === "/wails/runtime.js") return route.fulfill({ contentType: "text/javascript", body: "export const Window = {};" });
     if (url.pathname === "/api/state") return json({ agents: [], profiles: [], settings: { lang, theme }, fx: { rate: 7.2, at: new Date().toISOString() } });
     if (url.pathname === "/api/usage/requests") { asked.push(url.searchParams); return json(page(url.searchParams, variant)); }
+    if (url.pathname === "/api/usage/requests/export") { exported.push(url.searchParams); return json({ rows: 1, path: "/test/requests.csv" }); }
     if (url.pathname === "/api/usage/quotas") return json([]);
     if (url.pathname === "/api/usage") return json({ calls: 1, errors: 0, input: 1, output: 1, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 1, bucket: "day", series: [], agents: [], models: [], path: "~/.config/magpie/usage.jsonl" });
     if (url.pathname === "/api/sessions") return json({ sessions: [], dirs: [] });
@@ -90,9 +110,11 @@ function server(lang, theme, variant, asked) {
 }
 
 const L = {
-  en: { strip: ["Tokens", "Requests", "Cost", "Cache hit rate"], metric: ["Tokens", "Cost", "Requests"], split: ["Model", "Provider", "Agent"], all: "All providers", none: "No known price for these requests" },
-  zh: { strip: ["Token", "请求", "费用", "缓存命中率"], metric: ["Token", "费用", "请求"], split: ["模型", "供应商", "Agent"], all: "全部供应商", none: "这些请求没有已知价格" },
+  en: { strip: ["Tokens", "Requests", "Cost", "Cache hit rate", "Output speed"], metric: ["Tokens", "Cost", "Requests", "Speed"], split: ["Model", "Model · provider", "Provider", "Agent"], all: "All providers", none: "No known price for these requests" },
+  zh: { strip: ["Token", "请求", "费用", "缓存命中率", "输出速度"], metric: ["Token", "费用", "请求", "速度"], split: ["模型", "模型 · 供应商", "供应商", "Agent"], all: "全部供应商", none: "这些请求没有已知价格" },
 };
+// where each split is among #ledSplit's choices
+const SPLIT = { model: 0, modelAt: 1, provider: 2, agent: 3 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   test(engine + ": the Requests tab's totals and trend", async (t) => {
@@ -103,18 +125,18 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     if (shots) await fs.mkdir(shots, { recursive: true });
 
     const open = async (lang, theme, { width = 1180, variant = "", ctx } = {}) => {
-      const errors = [], asked = [];
+      const errors = [], asked = [], exported = [];
       const context = ctx || (await browser.newContext({ viewport: { width, height: 760 }, reducedMotion: "reduce" }));
       const p = await context.newPage();
       p.setDefaultTimeout(5000);
       p.on("pageerror", (e) => errors.push(e.message));
-      await p.route("**/*", server(lang, theme, variant, asked));
+      await p.route("**/*", server(lang, theme, variant, asked, exported));
       await p.goto("http://magpie.test/");
       await p.locator('[data-view="usage"]').first().click();
       await p.locator("#usageTab .opt").nth(1).click();
       if (variant !== "none") await p.locator("#ledRank .rk").first().waitFor();
-      if (["many", "unpriced"].includes(variant)) await p.locator("#ledSplit .opt").nth(1).click();
-      return { p, errors, asked, context };
+      if (["many", "unpriced"].includes(variant)) await p.locator("#ledSplit .opt").nth(SPLIT.provider).click();
+      return { p, errors, asked, exported, context };
     };
     const lastAsked = async (asked, want) => {
       for (let i = 0; i < 60 && !(asked.length && want(asked.at(-1))); i++) await new Promise((r) => setTimeout(r, 40));
@@ -126,7 +148,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const w = L[lang];
       await t.test(lang, async () => {
         const { p, errors, asked } = await open(lang, "light");
-        // the strip of four totals
+        // the strip of five totals
         assert.deepEqual(await p.locator("#ledKpi .k").allTextContents(), w.strip);
         assert.equal(await p.locator("#ledKpi .blk").nth(0).getAttribute("title"), Math.round(allTokens).toLocaleString(lang === "zh" ? "zh-CN" : "en"));
         const rate = TOTALS.cache_read / (TOTALS.input + TOTALS.cache_write + TOTALS.cache_read);
@@ -142,7 +164,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.equal(await p.locator("#ledSplit .opt.on").textContent(), w.split[0]);
         assert.equal(await p.locator("#period .opt.on").textContent(), lang === "zh" ? "今天" : "Today");
         assert.deepEqual(await names(p), ["claude-sonnet-5", "gpt-6-sol", "gpt-6-luna"]);
-        await p.locator("#ledSplit .opt").nth(1).click(); // exercise provider ranking below
+        await p.locator("#ledSplit .opt").nth(SPLIT.provider).click(); // exercise provider ranking below
         assert.deepEqual(await names(p), ["Claude", "Relay", "Codex"]);
         assert.deepEqual(await p.locator("#ledRank .rk-sw").evaluateAll((s) => s.map((x) => x.style.background)), ["var(--c1)", "var(--c2)", "var(--c3)"]);
         assert(/\d+%/.test(await p.locator("#ledRank .rk-b").first().textContent()), "a share");
@@ -198,15 +220,15 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.deepEqual(await names(p), ["Relay", "Codex", "Claude"]);
         assert.equal(await p.locator("#view-usage").evaluate((v) => v.scrollTop), before, "a click moved the page");
         // and what it is split by
-        await p.locator("#ledSplit .opt").nth(2).click();
+        await p.locator("#ledSplit .opt").nth(SPLIT.agent).click();
         assert.deepEqual(await names(p), ["Codex", "Claude Code"]);
-        await p.locator("#ledSplit .opt").nth(0).click();
+        await p.locator("#ledSplit .opt").nth(SPLIT.model).click();
         assert.deepEqual(await names(p), ["gpt-6-sol", "gpt-6-luna", "claude-sonnet-5"]);
         await p.locator("#ledRank .rk").first().click();
         await lastAsked(asked, (q) => q.get("model") === "gpt-6-sol" && !q.has("q"));
         await p.locator("#ledRank .rk").first().click();
         await lastAsked(asked, (q) => !q.has("model"));
-        await p.locator("#ledSplit .opt").nth(1).click();
+        await p.locator("#ledSplit .opt").nth(SPLIT.provider).click();
         await p.locator("#ledMetric .opt").nth(0).click();
 
         // no rule of another part of the page reaches the ranking: nothing in it but the
@@ -253,10 +275,116 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       });
     }
 
+    for (const lang of ["en", "zh"]) await t.test(lang + ": a day filters details while keeping the whole chart", async () => {
+      const { p, asked, exported, errors } = await open(lang, lang === "zh" ? "dark" : "light", { variant: "daily" });
+      await p.locator("#period .opt").nth(1).click();
+      const days = p.locator("#ledChart .led-day");
+      await days.nth(6).waitFor();
+      const initial = await p.locator("#ledChart rect.col").evaluateAll((rs) => rs.map((r) => [r.dataset.day, r.dataset.k, r.getAttribute("height"), r.dataset.color]));
+      const scroll = await p.locator("#view-usage").evaluate((v) => v.scrollTop);
+      await days.nth(4).click();
+      await lastAsked(asked, (q) => q.has("day") && q.get("offset") === "0");
+      await p.locator('#ledChart .led-day[aria-pressed="true"]').waitFor();
+      const day = asked.at(-1).get("day");
+      assert.equal(await p.locator("#ledWrap tr.led-row").count(), 1, "only the selected day's requests");
+      assert.deepEqual(await names(p), ["claude-sonnet-5", "gpt-6-luna"]);
+      assert.equal(await p.locator("#ledKpi .blk").nth(1).locator(".v").textContent(), "6");
+      assert.deepEqual(await p.locator("#ledChart rect.col").evaluateAll((rs) => rs.map((r) => [r.dataset.day, r.dataset.k, r.getAttribute("height"), r.dataset.color])), initial);
+      await p.locator("#ledRank .rk").first().hover();
+      await p.mouse.move(5, 5);
+      assert(await p.locator("#ledChart rect.col").evaluateAll((rs, day) => rs.every((r) => r.dataset.day === day ? r.style.opacity === "" && r.style.fill === r.dataset.color : r.style.opacity === "0.22" && r.style.fill === "var(--faint)"), day), "hovering the ranking keeps the day selection");
+      assert.equal(await p.locator("#view-usage").evaluate((v) => v.scrollTop), scroll, "selecting a day moves nothing");
+      await p.locator("#ledMetric .opt").nth(1).click();
+      assert.equal(await p.locator('#ledChart .led-day[aria-pressed="true"]').count(), 1, "the metric keeps selection");
+      if (shots) await p.locator("#ledDash").screenshot({ path: path.join(shots, `day-${engine}-${lang}.png`) });
+      await p.setViewportSize({ width: 1100, height: 760 });
+      await p.waitForTimeout(100);
+      assert.equal(await p.locator('#ledChart .led-day[aria-pressed="true"]').count(), 1, "resize keeps selection");
+      await p.locator("#ledExport").click();
+      await lastAsked(exported, (q) => q.get("day") === day);
+      await p.locator('#ledChart .led-day[aria-pressed="true"]').click();
+      await lastAsked(asked, (q) => !q.has("day"));
+      await p.waitForFunction(() => document.querySelectorAll("#ledWrap tr.led-row").length === 6);
+      assert.equal(await p.locator('#ledChart .led-day[aria-pressed="true"]').count(), 0, "clicking the selected day clears it");
+      // Hold the first response so the second click happens before it arrives.
+      let release, held, blocked;
+      const delay = () => {
+        held = new Promise((resolve) => { release = resolve; });
+        blocked = false;
+      };
+      const hold = async (route) => {
+        const q = new URL(route.request().url()).searchParams;
+        if (!blocked && q.has("day")) {
+          blocked = true;
+          asked.push(q);
+          await held;
+          await route.fulfill({ json: page(q, "daily") });
+          return;
+        }
+        await route.fallback();
+      };
+      const reply = (day) => p.waitForResponse((r) => {
+        const url = new URL(r.url());
+        return url.pathname === "/api/usage/requests" && (url.searchParams.get("day") || "") === day;
+      }).then((r) => r.finished());
+      await p.route("**/api/usage/requests?*", hold);
+      delay();
+      const beforeClicks = asked.length, clickedDay = await days.nth(4).getAttribute("data-day");
+      const requested = p.waitForRequest((r) => new URL(r.url()).searchParams.get("day") === clickedDay);
+      const selectedReply = reply(clickedDay), clearedReply = reply("");
+      await days.nth(4).dispatchEvent("click");
+      await requested;
+      await days.nth(4).dispatchEvent("click");
+      release();
+      await Promise.all([selectedReply, clearedReply]);
+      await p.evaluate(() => new Promise(requestAnimationFrame));
+      await lastAsked(asked, (q) => asked.length > beforeClicks && !q.has("day"));
+      assert.equal(await p.locator("#ledWrap tr.led-row").count(), 6, "the late response does not replace the cleared details");
+      assert.equal(await p.locator('#ledChart .led-day[aria-pressed="true"]').count(), 0, "two quick clicks clear selection");
+
+      // A delayed redraw must not take focus back after the user moves it.
+      delay();
+      const movedRequest = p.waitForRequest((r) => new URL(r.url()).searchParams.get("day") === clickedDay);
+      const movedReply = reply(clickedDay);
+      await days.nth(4).focus();
+      await p.keyboard.press("Enter");
+      await movedRequest;
+      const away = p.locator('#ledQ');
+      await away.focus();
+      release();
+      await movedReply;
+      await p.locator('#ledChart .led-day[aria-pressed="true"]').waitFor();
+      assert(await away.evaluate((e) => e === document.activeElement), "the redraw does not steal focus");
+      const resetReply = reply("");
+      await days.nth(4).dispatchEvent("click");
+      await resetReply;
+      await p.waitForFunction(() => !document.querySelector('#ledChart .led-day[aria-pressed="true"]'));
+      await p.unroute("**/api/usage/requests?*", hold);
+      const keyboardDay = await days.nth(1).getAttribute("data-day");
+      await days.nth(1).focus();
+      await p.keyboard.press("Space");
+      await lastAsked(asked, (q) => q.has("day"));
+      await p.waitForFunction(() => document.querySelectorAll("#ledWrap tr.led-row").length === 0);
+      await p.waitForFunction((day) => document.activeElement?.matches('#ledChart .led-day[aria-pressed="true"]') && document.activeElement.dataset.day === day, keyboardDay);
+      await p.keyboard.press("Enter");
+      await lastAsked(asked, (q) => !q.has("day"));
+      await p.waitForFunction((day) => document.activeElement?.matches('#ledChart .led-day[aria-pressed="false"]') && document.activeElement.dataset.day === day, keyboardDay);
+      await p.keyboard.press("Space");
+      await lastAsked(asked, (q) => q.has("day"));
+      await p.waitForFunction((day) => document.activeElement?.matches('#ledChart .led-day[aria-pressed="true"]') && document.activeElement.dataset.day === day, keyboardDay);
+      assert(await p.locator("#ledDash").isVisible(), "the empty day keeps the chart");
+      assert.equal(await names(p).then((x) => x.length), 0, "the empty day clears the ranking");
+      await days.nth(2).click();
+      await p.waitForFunction(() => document.querySelectorAll("#ledWrap tr.led-row").length === 1);
+      await p.locator("#period .opt").nth(0).click();
+      await lastAsked(asked, (q) => q.get("period") === "today" && !q.has("day"));
+      assert.deepEqual(errors, []);
+    });
+
     await t.test("the metric is remembered, while today and model are defaults", async () => {
       const first = await open("en", "light");
       await first.p.locator("#ledMetric .opt").nth(1).click();
-      await first.p.locator("#ledSplit .opt").nth(1).click();
+      await first.p.locator("#ledSplit .opt").nth(SPLIT.provider).click();
       await first.p.evaluate(() => localStorage.setItem("magpie.ledSplit", "provider"));
       const second = await open("en", "light", { ctx: first.context });
       assert.equal(await second.p.locator("#ledMetric .opt.on").textContent(), "Cost");

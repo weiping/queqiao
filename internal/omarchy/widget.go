@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/proc"
 )
 
@@ -26,7 +27,7 @@ const WidgetID = "usemagpie.magpie"
 var widgetFiles embed.FS
 
 func widgetDir() string {
-	cfg := os.Getenv("XDG_CONFIG_HOME")
+	cfg := appdir.Getenv("XDG_CONFIG_HOME")
 	if cfg == "" {
 		home, _ := os.UserHomeDir()
 		cfg = filepath.Join(home, ".config")

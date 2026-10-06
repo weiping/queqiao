@@ -132,6 +132,17 @@ var (
 		authID: "workbuddy-desktop-ai", platform: "workbuddy-ai", endpoint: &wbAIEndpoint, models: wbAIModels}
 )
 
+// WorkBuddyBaseForTest points WorkBuddy's API at cn, and WorkBuddy AI's at
+// ai, until the returned function runs. A provider built after the call
+// uses them. Tests outside this package use it.
+func WorkBuddyBaseForTest(cn, ai string) func() {
+	oldC, oldA := wbEndpoint, wbAIEndpoint
+	wbEndpoint, wbAIEndpoint = cn, ai
+	return func() {
+		wbEndpoint, wbAIEndpoint = oldC, oldA
+	}
+}
+
 // WorkBuddyAIID is WorkBuddy AI's subscription, the international build's.
 const WorkBuddyAIID = "workbuddy-ai"
 
@@ -172,6 +183,9 @@ type wbAccount struct {
 	// via, for an account on the plugin, sends a request as the plugin
 	// does, signed with its sign-in, which magpie never renews itself
 	via func(*http.Request) (*http.Response, error)
+	// card is the provider id its Usage card has, when not the site's:
+	// the plugin's signed in under its own id, "workbuddy-plugin"
+	card string
 }
 
 // ---- WorkBuddy's own account --------------------------------------------------
@@ -622,7 +636,8 @@ func wbQuota(ctx context.Context, a wbAccount) SubscriptionQuota {
 		used += float64(p.CycleUsedCapacity)
 	}
 	if total > 0 {
-		w := QuotaWindow{Name: "Credits", Used: 100 * used / total, Display: fmt.Sprintf("%s / %s", compactNumber(used), compactNumber(total))}
+		w := QuotaWindow{Name: "Credits", Used: 100 * used / total, Display: fmt.Sprintf("%s / %s", compactNumber(used), compactNumber(total)),
+			Amount: used, Limit: total, Unit: "credits"}
 		q.Windows = append(q.Windows, w)
 	}
 	return q

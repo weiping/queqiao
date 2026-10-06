@@ -136,6 +136,11 @@ type whatsNewJSON struct {
 	Show     bool          `json:"show"`
 	Current  string        `json:"current"`
 	Releases []update.Note `json:"releases"`
+	// Error: the notes couldn't be had (the site down, or GitHub failing
+	// it), as opposed to releases that have none (#661); URL is the
+	// current version's release page, where they can be read instead
+	Error string `json:"error,omitempty"`
+	URL   string `json:"url,omitempty"`
 }
 
 // get is what a page shows: after an upgrade, the notes since, once (a
@@ -156,8 +161,13 @@ func (n *whatsNew) get(ctx context.Context, all bool, lang string) whatsNewJSON 
 	if (!popup && !all) || !update.Released(Version) {
 		return j
 	}
+	j.URL = update.ReleasePage(Version)
 	if notes == nil {
-		notes = fetchNotes(ctx, after, Version, lang)
+		var err error
+		notes, err = fetchNotes(ctx, after, Version, lang)
+		if err != nil {
+			j.Error = err.Error()
+		}
 		if len(notes) > 0 { // kept: they don't change while magpie runs
 			n.mu.Lock()
 			if n.notes == nil {
@@ -182,31 +192,38 @@ func (n *whatsNew) seen() {
 
 // fetchNotes asks the site for the notes since after; a site without the
 // list yet, or one that can't be reached, leaves the update feed, whose
-// newest release has its notes, for when that is the current one.
-func fetchNotes(ctx context.Context, after, upto, lang string) []update.Note {
+// newest release has its notes, for when that is the current one. The
+// error says the notes couldn't be had, which the page tells apart from
+// releases without notes (#661): the list failed and the feed had none.
+func fetchNotes(ctx context.Context, after, upto, lang string) ([]update.Note, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	notes, err := update.NotesBetween(ctx, after, upto, lang)
-	if err == nil && len(notes) > 0 {
-		return notes
+	notes, failed := update.NotesBetween(ctx, after, upto, lang)
+	if failed == nil && len(notes) > 0 {
+		return notes, nil
 	}
-	if err != nil {
-		log.Println("release notes:", err)
+	if failed != nil {
+		log.Println("release notes:", failed)
 	}
 	rel, err := update.LatestIn(ctx, lang)
 	if err != nil {
-		return nil
+		return nil, failed
 	}
-	return update.Between([]update.Note{{Version: rel.Version, Notes: rel.Notes, URL: rel.URL}}, after, upto)
+	notes = update.Between([]update.Note{{Version: rel.Version, Notes: rel.Notes, URL: rel.URL}}, after, upto)
+	if len(notes) == 0 {
+		return nil, failed
+	}
+	return notes, nil
 }
 
 // pageLang is the language a page asks in, its own (?lang=, zh or en), or
-// without one the app's, as the tray menu has it.
+// without one the app's, as the tray menu has it, in the languages release
+// notes come in.
 func pageLang(r *http.Request) string {
 	if l := askedLang(r); l != "" {
 		return l
 	}
-	return trayLang(settings.Load().Lang, systemLang)
+	return notesLang(trayLang(settings.Load().Lang, systemLang))
 }
 
 // askedLang is the language a page names (?lang=): zh for any Chinese, en

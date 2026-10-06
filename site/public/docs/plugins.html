@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Writing plugins · magpie docs</title>
-<meta name="description" content="How to write a magpie plugin: the OpenCode plugin hooks magpie calls, how it turns them into a provider with accounts, models, requests and usage, and how to test, publish and list one.">
+<meta name="description" content="How to write a magpie plugin: the OpenCode plugin hooks magpie calls, the pi packages it runs, how it turns them into a provider with accounts, models, requests and usage, and how to test, publish and list one.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#fafafa">
 <script>
@@ -24,13 +24,15 @@
   apply();
 })();
 </script>
+<script>try{if(/Linux/.test(navigator.userAgent)&&!/Android/.test(navigator.userAgent)||localStorage.getItem("omarchy")||/[?&]omarchy=/.test(location.search))document.write('<script src="/omarchy.js"><\/script>')}catch(e){}</script>
 <link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/img/icon-256.png">
 <link rel="alternate" hreflang="en" href="https://usemagpie.ai/docs/plugins">
 <link rel="alternate" hreflang="zh" href="https://usemagpie.ai/docs/zh/plugins">
+<link rel="alternate" hreflang="ja" href="https://usemagpie.ai/docs/ja/plugins">
 <link rel="stylesheet" href="/docs.css">
 <meta property="og:title" content="Writing plugins">
-<meta property="og:description" content="Turn any service into a magpie provider with an OpenCode plugin.">
+<meta property="og:description" content="Turn any service into a magpie provider with an OpenCode plugin or a pi package.">
 <meta property="og:image" content="https://usemagpie.ai/img/og.png">
 <meta property="og:url" content="https://usemagpie.ai/docs/plugins">
 <meta name="twitter:card" content="summary_large_image">
@@ -45,9 +47,17 @@
     <a href="/docs/intent">Intent routing</a>
     <a href="/docs/plugins">Plugins</a>
     <a href="/docs/import">Add to magpie</a>
+    <a href="/docs/integrate">Integrate</a>
     <a href="https://github.com/yetone/magpie-releases/releases">Releases</a>
   </div>
-  <a class="icon-btn lang" href="/docs/zh/plugins" hreflang="zh" lang="zh" title="中文版">中文</a>
+  <div class="langs">
+    <button class="icon-btn lang" type="button" aria-label="Language" title="Language" aria-haspopup="true" aria-expanded="false" aria-controls="langs"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M1.75 8h12.5M8 1.75c1.7 1.75 2.55 3.83 2.55 6.25S9.7 12.5 8 14.25M8 1.75C6.3 3.5 5.45 5.58 5.45 8S6.3 12.5 8 14.25"/></svg></button>
+    <div class="lang-menu" id="langs" hidden>
+      <a href="/docs/plugins" hreflang="en" lang="en">English</a>
+      <a href="/docs/zh/plugins" hreflang="zh" lang="zh">中文</a>
+      <a href="/docs/ja/plugins" hreflang="ja" lang="ja">日本語</a>
+    </div>
+  </div>
   <a class="icon-btn" href="https://discord.gg/vGSnD3ZKQF" aria-label="magpie on Discord" title="Join us on Discord"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg></a>
   <a class="icon-btn" href="https://github.com/yetone/magpie" aria-label="magpie on GitHub" title="Source on GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a>
   <button class="icon-btn theme" type="button" aria-label="Theme" title="Theme: system"><svg class="i-system" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1.5"/><path d="M5.5 14h5M8 11.25V14"/></svg><svg class="i-light" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/></svg><svg class="i-dark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/></svg></button>
@@ -70,6 +80,8 @@
     <a href="#ids">Provider ids</a>
     <a href="#test">Testing</a>
     <a href="#publish">Publishing and listing</a>
+    <a href="#middleware">Gateway middleware</a>
+    <a href="#pi">pi packages</a>
     <a href="#protocol">The host protocol</a>
     <a href="#faq">FAQ</a>
   </aside>
@@ -77,7 +89,7 @@
   <article>
     <p class="eyebrow" id="overview">Docs · Plugins</p>
     <h1>Writing a plugin</h1>
-    <p class="lede">A plugin signs in to a service and makes its requests. magpie turns it into a provider that every agent can use, with several accounts, failover, usage and the rest. magpie runs <a href="https://opencode.ai/docs/plugins/">OpenCode’s provider plugins</a>, so a plugin written for OpenCode works here unchanged. This page covers what a plugin author needs: the hooks magpie calls, what it does with their answers, and how to test, publish and list a plugin.</p>
+    <p class="lede">A plugin signs in to a service and makes its requests. magpie turns it into a provider that every agent can use, with several accounts, failover, usage and the rest. magpie runs <a href="https://opencode.ai/docs/plugins/">OpenCode’s provider plugins</a>, so a plugin written for OpenCode works here unchanged, and it runs <a href="https://github.com/earendil-works/pi">pi</a>’s packages that register a provider too (see <a href="#pi">pi packages</a>). This page covers what a plugin author needs: the hooks magpie calls, what it does with their answers, and how to test, publish and list a plugin.</p>
 
     <div class="callout"><b>In one paragraph.</b> A plugin is an npm package, a git repository or a folder. Its module exports an async function in OpenCode’s v1 plugin shape. magpie loads every plugin into one <a href="https://bun.sh">Bun</a> process, the <em>plugin host</em>. The function returns hooks:
       <ul>
@@ -559,7 +571,7 @@ m plugin logout acme</pre>
     <h2 id="publish"><a class="anchor" href="#publish">Publishing and listing</a></h2>
     <ul>
       <li><b>npm.</b> Publish the package as usual. Users add it by name (<code>magpie plugin add opencode-acme-auth</code>), by a version (<code>…@0.2.0</code>), from git, or from a folder.</li>
-      <li><b>Search.</b> The search on <span class="ui">Plugins</span> asks npm for <code>&lt;query&gt; opencode</code>. It shows a package whose name or keywords hold <code>opencode</code> and one of <code>auth</code>, <code>plugin</code> or <code>provider</code>. Keywords like <code>["opencode", "opencode-plugin", "&lt;vendor&gt;"]</code> do it.</li>
+      <li><b>Search.</b> The search on <span class="ui">Plugins</span> asks npm for <code>&lt;query&gt; opencode</code>. It shows a package whose name or keywords hold <code>opencode</code> and one of <code>auth</code>, <code>plugin</code> or <code>provider</code>. Keywords like <code>["opencode", "opencode-plugin", "&lt;vendor&gt;"]</code> do it. It also asks for <code>keywords:pi-package &lt;query&gt;</code> and shows a pi package whose name or keywords mention <code>auth</code> or <code>provider</code>.</li>
       <li><b>README.</b> A plugin’s page in magpie shows its npm README. Say what it signs in to, how, where the sign-in is kept, and which models it has.</li>
       <li><b>The list.</b> <span class="ui">Plugins</span> suggests the plugins in <a href="https://github.com/magpie-community/plugins/blob/main/registry.json"><code>registry.json</code></a> of the community repository. magpie fetches it at most every six hours and builds in a copy for when it can’t. To be listed, open a pull request adding an entry:
         <div class="code">
@@ -568,13 +580,88 @@ m plugin logout acme</pre>
   <span class="s">"providers"</span>: [<span class="s">"acme"</span>],
   <span class="s">"summary"</span>: { <span class="s">"en"</span>: <span class="s">"Your Acme Coding Plan."</span>, <span class="s">"zh"</span>: <span class="s">"使用你的 Acme Coding Plan。"</span> } }</pre>
         </div>
-        <code>MAGPIE_PLUGIN_MARKET=&lt;url&gt;</code> points magpie at another list, which is useful to check yours, and <code>off</code> keeps to the built-in copy.</li>
+        A middleware’s entry has <code>"kind": "middleware"</code> and no <code>providers</code>; it is listed under <span class="ui">Gateway middleware</span>. <code>MAGPIE_PLUGIN_MARKET=&lt;url&gt;</code> points magpie at another list, which is useful to check yours, and <code>off</code> keeps to the built-in copy.</li>
       <li><b>The community packages.</b> To contribute one to <a href="https://github.com/magpie-community/plugins">magpie-community/plugins</a>:
         <ul>
-          <li>Put it under <code>packages/&lt;name&gt;</code>, named <code>@magpie-community/opencode-&lt;name&gt;-auth</code>, with no runtime dependencies unless one is really needed.</li>
+          <li>Put it under <code>packages/&lt;name&gt;</code>, named <code>@magpie-community/opencode-&lt;name&gt;-auth</code> (a provider) or <code>@magpie-community/middleware-&lt;name&gt;</code> (middleware), with no runtime dependencies unless one is really needed.</li>
           <li>Pushing a version bump to <code>main</code> publishes it.</li>
           <li>These packages update by themselves in every magpie.</li>
         </ul></li>
+    </ul>
+
+    <h2 id="middleware"><a class="anchor" href="#middleware">Gateway middleware</a></h2>
+    <p>A plugin can also be <em>gateway middleware</em>: code that magpie’s gateway runs on every request an agent sends it, before the request is routed, and on the reply on its way back. It can give a model another name, add to the system prompt, turn a request away, change or hide what the model says, or keep its own count of what goes through. It works with every provider, a plugin’s or not.</p>
+    <div class="code">
+      <span class="lang">alias.middleware.js</span>
+      <button class="copy" data-copy="mw-ex">Copy</button>
+      <pre id="mw-ex"><span class="c">// alias.middleware.js</span>
+<span class="k">export const</span> events = [<span class="s">"message_start"</span>]
+
+<span class="k">export function</span> onRequest(body, ctx) {
+  ctx.state.asked = body.model
+  <span class="k">if</span> (body.model === <span class="s">"fast"</span>) body.model = <span class="s">"deepseek/deepseek-chat"</span>
+  <span class="k">if</span> ((ctx.options.blocked ?? []).includes(body.model)) <span class="k">return</span> ctx.reject(403, <span class="s">"not this model"</span>)
+  <span class="k">return</span> body
+}
+
+<span class="k">export function</span> onEvent(ev, ctx) {
+  ev.message.model = ctx.state.asked  <span class="c">// the agent sees the name it asked for</span>
+  <span class="k">return</span> ev
+}</pre>
+    </div>
+    <div class="code">
+      <span class="lang">shell</span>
+      <button class="copy" data-copy="mw-cli">Copy</button>
+      <pre id="mw-cli">magpie plugin add ./alias.middleware.js   <span class="c"># or a package whose package.json has "magpie": { "middleware": "./mw.js" }</span></pre>
+    </div>
+    <h3 id="middleware-community"><a class="anchor" href="#middleware-community">Ready-made middleware</a></h3>
+    <p>The community repository has middleware ready to add, most of it what <a href="https://github.com/QuantumNous/new-api">New API</a> does for its channels, taking the same JSON. They are under <span class="ui">Plugins → Discover → Gateway middleware</span>, and every card there says whether it is a provider or middleware.</p>
+    <div class="table-wrap"><table>
+      <tr><th>Package</th><th>What it does</th></tr>
+      <tr><td><a href="https://github.com/magpie-community/plugins/tree/main/packages/param-override"><code>param-override</code></a></td><td>New API’s <code>param_override</code>: set, delete, move, copy or rewrite fields of the request, for some models or under conditions, or turn a request away. A <code>param_override</code> copied from New API works unchanged.</td></tr>
+      <tr><td><a href="https://github.com/magpie-community/plugins/tree/main/packages/model-map"><code>model-map</code></a></td><td>New API’s <code>model_mapping</code>: send a model under another name, by name or <code>/pattern/</code>. Replies name the model the agent asked for.</td></tr>
+      <tr><td><a href="https://github.com/magpie-community/plugins/tree/main/packages/system-prompt"><code>system-prompt</code></a></td><td>A system prompt of yours on every request, or only some agents’ or models’, in each API’s own place. A request with its own keeps it unless <code>override</code> is on.</td></tr>
+      <tr><td><a href="https://github.com/magpie-community/plugins/tree/main/packages/word-guard"><code>word-guard</code></a></td><td>New API’s sensitive-word filter: turn away or mask words and patterns in what users send, and in replies if you like.</td></tr>
+      <tr><td><a href="https://github.com/magpie-community/plugins/tree/main/packages/think-tags"><code>think-tags</code></a></td><td>Take a <code>&lt;think&gt;…&lt;/think&gt;</code> block out of the start of a reply’s text, or put a Chat reply’s <code>reasoning_content</code> into it (New API’s <code>thinking_to_content</code>).</td></tr>
+    </table></div>
+    <div class="code">
+      <span class="lang">shell</span>
+      <button class="copy" data-copy="mw-add">Copy</button>
+      <pre id="mw-add">magpie plugin add @magpie-community/middleware-model-map
+magpie plugin options model-map '{"mapping": {"fast": "deepseek/deepseek-chat"}}'</pre>
+    </div>
+    <h3 id="middleware-options"><a class="anchor" href="#middleware-options">Options</a></h3>
+    <p>A middleware reads its settings from <code>ctx.options</code>, which are its entry’s <code>options</code> in <code>plugins.json</code>. Set them in <span class="ui">Plugins → Installed</span> with the middleware’s <span class="ui">Options</span> button, which edits them as JSON in its row, or with <code>magpie plugin options &lt;name&gt; '&lt;json&gt;'</code> (<code>off</code> clears them). The name can be the package’s, its spec, or its short name: <code>model-map</code> for <code>@magpie-community/middleware-model-map</code>. They apply from the next request on. A package can suggest options with <code>"magpie": { "options": { … } }</code> in its <code>package.json</code>: the editor starts from those when none are set, but a middleware runs with no options until you save some.</p>
+    <h3>How it runs</h3>
+    <p>Middleware isn’t run on Bun. It runs inside the gateway’s own process, in <a href="https://github.com/Calcium-Ion/moejs">moejs</a>, a JavaScript engine written in Go, because a reply streams thousands of events and each one waits for it. A hook on one event costs about a microsecond; a round trip to Bun would cost tens. Each middleware is compiled once, and each request gets a runtime of its own, so requests run in parallel and a request’s hooks share <code>ctx.state</code>.</p>
+    <ul>
+      <li><b>Declaring it.</b> <code>"magpie": { "middleware": "./mw.js" }</code> in <code>package.json</code>, or a single file named <code>*.middleware.js</code> (or <code>.mjs</code>). A package with no <code>main</code> and no <code>exports</code> is only middleware, and the plugin host leaves it alone; one with both is a provider plugin and middleware at once.</li>
+      <li><b>Imports.</b> Only files inside the plugin, by relative path. There is no <code>node_modules</code> here: bundle what you import into the file.</li>
+      <li><b>What it has.</b> Standard JavaScript and <code>console.log</code> (into magpie’s log, at most 60 lines a minute). There are no timers, no <code>fetch</code> and no Node APIs. A hook may be <code>async</code>, but there is nothing for it to wait on.</li>
+      <li><b>Changes.</b> magpie looks at the files and <code>plugins.json</code> once a second, and loads a middleware again when they changed.</li>
+    </ul>
+    <h3>The hooks</h3>
+    <p>Each is a named export or a member of <code>export default { … }</code>. Bodies and events are in the agent’s own API (<code>ctx.protocol</code>), not the provider’s. Return the object to send on, or nothing to send it on as it was.</p>
+    <div class="table-wrap"><table>
+      <tr><th>Hook</th><th>Is given</th><th>Returns</th></tr>
+      <tr><td><code>onRequest(body, ctx)</code></td><td>The request body, before routing: a new <code>model</code> routes it elsewhere.</td><td>The body, or nothing. <code>ctx.reject(status, message)</code> turns the request away with that error, in the agent’s API (403 when no status is given).</td></tr>
+      <tr><td><code>onEvent(event, ctx)</code></td><td>Each event of a streamed reply: its <code>data:</code> JSON.</td><td>The event, nothing, or <code>null</code> to leave the event out.</td></tr>
+      <tr><td><code>onResponse(body, ctx)</code></td><td>A reply that isn’t streamed, whole; <code>ctx.status</code> is its status.</td><td>The body, or nothing.</td></tr>
+    </table></div>
+    <p><code>export const events = ["content_block_delta"]</code> calls <code>onEvent</code> only for events of those names (Anthropic Messages and Responses name theirs). Chat Completions and Gemini events have no name, so leave <code>events</code> out for them. An event holds a piece of the reply, so a word can be split over two events. A <code>data: [DONE]</code> line and comments pass by unseen. A compressed reply passes as it is.</p>
+    <p><code>ctx</code> has <code>protocol</code> (<code>anthropic</code>, <code>chat</code>, <code>responses</code> or <code>gemini</code>), <code>model</code> and <code>stream</code> as the agent asked, <code>path</code>, <code>agent</code> when magpie knows it, <code>options</code> (the plugin’s <a href="#middleware-options">options</a>) and <code>state</code>, an object of the request’s own.</p>
+    <h3>When a hook fails</h3>
+    <p>A hook has 250 ms for a request or a whole reply and 50 ms for an event; loading has a second. A hook that throws, runs out of time or returns something else goes on as if it weren’t there: the request or the event is sent as it was. Settings → Plugins shows each middleware’s hooks, how many calls it had, the average time each took and how many failed, with the last error. The hooks see what the agent sent and gets back, before magpie’s redaction on the way out and after it on the way back. magpie’s own requests (thread titles, the router’s classifier) don’t go through middleware.</p>
+
+    <h2 id="pi"><a class="anchor" href="#pi">pi packages</a></h2>
+    <p>magpie also runs <a href="https://github.com/earendil-works/pi">pi</a>’s packages. A pi extension that registers a provider with <code>pi.registerProvider</code> works in magpie as it does in pi, with nothing to change, and is added like any plugin (<code>magpie plugin add pi-antigravity</code>).</p>
+    <ul>
+      <li><b>What makes a package pi’s.</b> Its <code>package.json</code> has a <code>pi</code> manifest (<code>"pi": { "extensions": [...] }</code>), the <code>pi-package</code> keyword, or <code>@earendil-works/pi-coding-agent</code> (or the older <code>@mariozechner/pi-coding-agent</code>) among its <code>dependencies</code> or <code>peerDependencies</code>. A single file counts when it imports pi.</li>
+      <li><b>Loading.</b> magpie installs pi beside the package and loads it with pi’s own loader, in the same plugin host. The providers it registers become magpie providers, with the models pi lists for them (an account’s own list when pi can fetch one). Its commands, tools, renderers and event handlers are left alone.</li>
+      <li><b>Signing in.</b> An OAuth login runs as pi runs it: its questions (<code>onPrompt</code>) are asked in magpie’s sign-in, its page (<code>onAuth</code>) opens in the browser, and <code>refreshToken</code> renews it. The dialogs a package shows with <code>ctx.ui</code> (<code>select</code>, <code>confirm</code>, <code>input</code>, <code>editor</code>) and the terminal components it gives <code>ctx.ui.custom</code> are asked as magpie’s questions too. A provider that takes an API key gets a key field. Each sign-in is an account, so a pi provider can have several.</li>
+      <li><b>pi’s files.</b> pi’s settings, its <code>auth.json</code> (each provider’s first account, as pi keeps it) and the files a package writes are in <code>pi/</code> under magpie’s config directory, not the user’s <code>~/.pi</code>, unless <code>PI_CODING_AGENT_DIR</code> is set. magpie keeps the accounts in <code>plugin-auth.json</code>, like any plugin’s.</li>
+      <li><b>Requests.</b> A pi provider’s models take Anthropic Messages: the gateway translates what the agent sends, magpie streams it through pi, and the answer keeps its thinking, signatures and tool calls. A vendor error is passed on with its status, so failover works as with any plugin.</li>
+      <li><b>Ids.</b> A pi provider’s id follows the same rule as any plugin’s; see <a href="#ids">Provider ids</a>.</li>
     </ul>
 
     <h2 id="protocol"><a class="anchor" href="#protocol">The host protocol</a></h2>
@@ -595,6 +682,8 @@ m plugin logout acme</pre>
     <h2 id="faq"><a class="anchor" href="#faq">FAQ</a></h2>
     <h3>Does my OpenCode plugin work in magpie unchanged?</h3>
     <p>Yes, as long as it signs in and makes requests through <code>auth</code>, <code>config</code>, <code>provider</code> and <code>chat.headers</code>. What magpie adds (<code>auth.usage</code>, <code>auth.refresh</code>, <code>magpie.icon</code>, <code>maxConcurrency</code>, <code>free</code>, <code>rate</code>, <code>X-Magpie-Sign-In</code>) is ignored by OpenCode, so one package serves both.</p>
+    <h3>Does my pi package work in magpie?</h3>
+    <p>Yes, if it signs in and serves models through <code>pi.registerProvider</code>. magpie uses only the providers it registers; see <a href="#pi">pi packages</a>. Give it the <code>pi-package</code> keyword so the search finds it.</p>
     <h3>Why is my provider called <code>…-plugin</code>?</h3>
     <p>Its id is one magpie already has. See <a href="#ids">Provider ids</a>.</p>
     <h3>Some of my helper functions run as plugins.</h3>
@@ -619,6 +708,7 @@ m plugin logout acme</pre>
     <a href="/docs/intent">Intent routing</a>
     <a href="/docs/plugins">Plugins</a>
     <a href="/docs/import">Add to magpie</a>
+    <a href="/docs/integrate">Integrate</a>
     <a href="https://github.com/yetone/magpie">GitHub</a>
     <a href="https://discord.gg/vGSnD3ZKQF">Discord</a>
     <a href="https://github.com/yetone/magpie-releases/releases">Releases</a>
@@ -640,18 +730,8 @@ m plugin logout acme</pre>
       b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1400);
     } catch {}
   }));
-
-  // The table of contents follows the reading position.
-  const links = [...document.querySelectorAll(".toc a")];
-  const heads = links.map((a) => document.getElementById(a.hash.slice(1)));
-  const spy = () => {
-    let i = 0;
-    heads.forEach((h, j) => { if (h.getBoundingClientRect().top < 140) i = j; });
-    if (innerHeight + scrollY >= document.body.scrollHeight - 4) i = heads.length - 1;
-    links.forEach((a, j) => a.classList.toggle("on", j === i));
-  };
-  addEventListener("scroll", spy, { passive: true }); spy();
 })();
 </script>
+<script src="/docs.js"></script>
 </body>
 </html>

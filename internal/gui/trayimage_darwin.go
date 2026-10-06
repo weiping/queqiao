@@ -13,6 +13,7 @@ typedef struct {
 	int iconLen;
 	int mono;
 	int plain; // no logo: the rows alone, a thin line before
+	const char *id;
 	const char *letter;
 	const char *rows; // one or two, a newline between
 } mpTrayCell;
@@ -41,6 +42,7 @@ static NSArray *mpCells(mpTrayCell *cells, int n) {
 			if (im != nil && im.representations.count > 0) c[@"icon"] = im;
 			[im release];
 		}
+		c[@"id"] = [NSString stringWithUTF8String:cells[i].id ? cells[i].id : ""];
 		c[@"mono"] = @(cells[i].mono != 0);
 		c[@"plain"] = @(cells[i].plain != 0);
 		c[@"letter"] = [NSString stringWithUTF8String:cells[i].letter ? cells[i].letter : ""];
@@ -68,8 +70,12 @@ static CGFloat mpLead(NSDictionary *c, BOOL first) {
 	return (first ? 0 : mpCellGap) + mpLogo + mpLogoGap;
 }
 
-static CGFloat mpWidth(NSArray *cells, CGFloat h) {
-	CGFloat w = h + mpBirdGap;
+// mpIn is the room before the first cell: the bird's and the gap after
+// it, or none when the bird is left out (settings.TrayNoBird).
+static CGFloat mpIn(NSImage *bird, CGFloat h) { return bird != nil ? h + mpBirdGap : 0; }
+
+static CGFloat mpWidth(NSArray *cells, CGFloat h, CGFloat in) {
+	CGFloat w = in;
 	BOOL first = YES;
 	for (NSDictionary *c in cells) {
 		w += mpLead(c, first) + mpColumn(c);
@@ -185,7 +191,7 @@ static void mpRows(NSDictionary *c, CGFloat x, CGFloat h, NSColor *ink) {
 // mpDraw draws the bird, then each cell, top down (a flipped context).
 static void mpDraw(NSArray *cells, NSImage *bird, CGFloat h) {
 	if (bird != nil) mpTinted(bird, NSMakeRect(0, 0, h, h));
-	CGFloat x = h + mpBirdGap;
+	CGFloat x = mpIn(bird, h);
 	NSColor *ink = [NSColor labelColor];
 	BOOL first = YES;
 	for (NSDictionary *c in cells) {
@@ -226,12 +232,46 @@ static void mpDraw(NSArray *cells, NSImage *bird, CGFloat h) {
 // mpImage is the bird and the cells as one image, drawn afresh each time it
 // is shown so its colours follow the menu bar's, and sharp at any scale.
 static NSImage *mpImage(NSArray *cells, NSImage *bird, CGFloat h) {
-	NSImage *im = [NSImage imageWithSize:NSMakeSize(mpWidth(cells, h), h) flipped:YES drawingHandler:^BOOL(NSRect r) {
+	NSImage *im = [NSImage imageWithSize:NSMakeSize(mpWidth(cells, h, mpIn(bird, h)), h) flipped:YES drawingHandler:^BOOL(NSRect r) {
 		mpDraw(cells, bird, h);
 		return YES;
 	}];
 	im.cacheMode = NSImageCacheNever;
 	return im;
+}
+
+// mpStarts writes each cell's start in image points, following mpDraw's layout.
+// Plain cells start at their separator; others start at their logo.
+static void mpStarts(NSArray *cells, CGFloat in, CGFloat *out) {
+	CGFloat pos = in;
+	BOOL first = YES;
+	int i = 0;
+	for (NSDictionary *c in cells) {
+		if ([c[@"plain"] boolValue]) {
+			out[i] = first ? pos : pos + mpSepGap;
+			pos += mpLead(c, first);
+		} else {
+			pos += mpLead(c, first) - mpLogo - mpLogoGap;
+			out[i] = pos;
+			pos += mpLogo + mpLogoGap;
+		}
+		pos += mpColumn(c);
+		i++;
+		first = NO;
+	}
+}
+
+// mpCellAt returns the cell at x, including its trailing gap.
+// The bird and points outside the image return -1.
+static int mpCellAt(NSArray *cells, CGFloat in, CGFloat x, CGFloat w) {
+	if (cells.count == 0 || x < in || x >= w) return -1;
+	int n = (int)cells.count;
+	CGFloat starts[n];
+	mpStarts(cells, in, starts);
+	for (int i = 0; i < n; i++) {
+		if (x < (i + 1 < n ? starts[i + 1] : w)) return i;
+	}
+	return -1;
 }
 
 static NSStatusBarButton *mpFind(NSView *v) {
@@ -256,15 +296,33 @@ static NSStatusBarButton *mpButton(void) {
 static NSArray *mpShown;
 static NSImage *mpBird;
 
+// mpCellClicked copies the drawn card's identity to Go before it can be replaced.
+extern void mpCellClicked(char *id);
+
+static CGFloat mpHitW = 0;
+
+// Used by the single status-item monitor and native tests. Modified clicks
+// retain the button's normal action; an unmodified quota click uses its ID.
+static BOOL mpClickCell(NSArray *cells, CGFloat in, CGFloat x, CGFloat w, NSEventModifierFlags flags) {
+	if (flags & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption | NSEventModifierFlagShift)) return NO;
+	int i = mpCellAt(cells, in, x, w);
+	if (i < 0) return NO;
+	mpCellClicked((char *)[cells[i][@"id"] UTF8String]);
+	return YES;
+}
+
 static void mpApply(void) {
 	NSStatusBarButton *b = mpButton();
 	if (b == nil || mpShown == nil) return;
 	b.title = @"";
-	b.image = mpImage(mpShown, mpBird, [[NSStatusBar systemStatusBar] thickness]);
+	NSImage *im = mpImage(mpShown, mpBird, [[NSStatusBar systemStatusBar] thickness]);
+	b.image = im;
 	b.imagePosition = NSImageOnly;
+	mpHitW = im.size.width;
 }
 
 static NSImage *mpBirdImage(const void *bird, int len) {
+	if (bird == NULL || len <= 0) return nil; // the cells alone
 	NSImage *im = [[NSImage alloc] initWithData:[NSData dataWithBytes:bird length:len]];
 	return im;
 }
@@ -302,10 +360,11 @@ static int mpFrame(const void *bird, int len) {
 		NSImage *bi = mpBirdImage(bird, len);
 		dispatch_sync(dispatch_get_main_queue(), ^{
 			if (mpShown == nil) return;
+			ok = 1;
+			if (mpBird == nil) return; // shown without the bird: no flap
 			[mpBird release];
 			mpBird = [bi retain];
 			mpApply();
-			ok = 1;
 		});
 		[bi release];
 	}
@@ -317,6 +376,41 @@ static void mpHide(void) {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		[mpShown release];
 		mpShown = nil;
+		mpHitW = 0; // every click is the item's whole one again
+	});
+}
+
+// mpHighlight lights the item while its panel is open, as the system's own
+// items do.
+static void mpHighlight(int on) {
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[mpButton() highlight:on != 0];
+	});
+}
+
+// mpOwnClicks hands a left click on the item to its action before the
+// button sees it: the button's own tracking would light it on mouse-down
+// and put it out on mouse-up, a flicker before mpHighlight's. One with
+// Command held is left to the button, which is what lets the system move
+// the item (#792: Command-dragging it, as Hidden Bar asks, did nothing).
+static void mpOwnClicks(void) {
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		dispatch_async(dispatch_get_main_queue(), ^{
+			[NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDown handler:^NSEvent *(NSEvent *e) {
+				NSStatusBarButton *b = mpButton();
+				if (b == nil || e.window != b.window) return e;
+				NSPoint p = [b convertPoint:e.locationInWindow fromView:nil];
+				if (!NSPointInRect(p, b.bounds)) return e;
+				if (e.modifierFlags & NSEventModifierFlagCommand) return e;
+				// Route quota clicks before the generic action, within this
+				// one monitor; local monitor ordering is not guaranteed.
+				CGFloat x = p.x - (b.bounds.size.width - mpHitW) / 2;
+				if (mpClickCell(mpShown, mpIn(mpBird, [[NSStatusBar systemStatusBar] thickness]), x, mpHitW, e.modifierFlags)) return nil;
+				[NSApp sendAction:b.action to:b.target from:b];
+				return nil;
+			}];
+		});
 	});
 }
 
@@ -326,8 +420,8 @@ static void *mpPNG(mpTrayCell *cells, int n, const void *bird, int len, CGFloat 
 	__block void *out = NULL;
 	@autoreleasepool {
 		NSArray *cs = mpCells(cells, n);
-		NSImage *bi = len > 0 ? [mpBirdImage(bird, len) autorelease] : nil;
-		CGFloat w = mpWidth(cs, h);
+		NSImage *bi = [mpBirdImage(bird, len) autorelease];
+		CGFloat w = mpWidth(cs, h, mpIn(bi, h));
 		NSBitmapImageRep *rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:(NSInteger)ceil(w * scale) pixelsHigh:(NSInteger)ceil(h * scale)
 			bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0] autorelease];
 		rep.size = NSMakeSize(w, h);
@@ -358,6 +452,33 @@ static void *mpPNG(mpTrayCell *cells, int n, const void *bird, int len, CGFloat 
 	}
 	return out;
 }
+
+// Native hit-testing helpers for Go tests, using the actual image layout.
+static int mpCellAtCells(mpTrayCell *cells, int n, CGFloat h, CGFloat x) {
+	@autoreleasepool {
+		NSArray *cs = mpCells(cells, n);
+		return mpCellAt(cs, h + mpBirdGap, x, mpWidth(cs, h, h + mpBirdGap));
+	}
+}
+
+static CGFloat mpCellStartAt(mpTrayCell *cells, int n, CGFloat h, int i) {
+	@autoreleasepool {
+		NSArray *cs = mpCells(cells, n);
+		if (i < 0 || i >= n) return -1;
+		CGFloat starts[n];
+		mpStarts(cs, h + mpBirdGap, starts);
+		return starts[i];
+	}
+}
+
+// Exercise the same identity lookup and C-to-Go callback without a live status item.
+static int mpClickCellsAt(mpTrayCell *cells, int n, CGFloat h, CGFloat x, unsigned long flags) {
+	@autoreleasepool {
+		NSArray *cs = mpCells(cells, n);
+		return mpClickCell(cs, h + mpBirdGap, x, mpWidth(cs, h, h + mpBirdGap), flags);
+	}
+}
+
 */
 import "C"
 
@@ -381,8 +502,8 @@ func withCells(cells []trayCell, f func(*C.mpTrayCell, C.int)) {
 	cs := (*[1 << 16]C.mpTrayCell)(C.malloc(C.size_t(len(cells)) * C.size_t(unsafe.Sizeof(C.mpTrayCell{}))))[:len(cells):len(cells)]
 	var owned []unsafe.Pointer
 	for i, c := range cells {
-		cs[i] = C.mpTrayCell{letter: C.CString(c.Letter), rows: C.CString(strings.Join(c.Rows, "\n"))}
-		owned = append(owned, unsafe.Pointer(cs[i].letter), unsafe.Pointer(cs[i].rows))
+		cs[i] = C.mpTrayCell{id: C.CString(c.ID), letter: C.CString(c.Letter), rows: C.CString(strings.Join(c.Rows, "\n"))}
+		owned = append(owned, unsafe.Pointer(cs[i].id), unsafe.Pointer(cs[i].letter), unsafe.Pointer(cs[i].rows))
 		if len(c.Icon) > 0 {
 			cs[i].icon, cs[i].iconLen = C.CBytes(c.Icon), C.int(len(c.Icon))
 			owned = append(owned, cs[i].icon)
@@ -410,8 +531,9 @@ func cBytes(b []byte) (unsafe.Pointer, C.int) {
 	return C.CBytes(b), C.int(len(b))
 }
 
-// trayImageShow puts the cells up beside the bird; false when the item
-// can't be found, and the text is to be shown instead.
+// trayImageShow puts the cells up beside the bird, or alone when bird is
+// nil; false when the item can't be found, and the text is to be shown
+// instead.
 func trayImageShow(cells []trayCell, bird []byte) bool {
 	ok := false
 	b, n := cBytes(bird)
@@ -430,6 +552,12 @@ func trayImageFrame(bird []byte) bool {
 
 // trayImageHide takes the cells down; the icon set next is the bird alone.
 func trayImageHide() { C.mpHide() }
+
+// trayHighlight lights the tray icon, or puts it out.
+func trayHighlight(on bool) { C.mpHighlight(cBool(on)) }
+
+// trayOwnClicks keeps the button's own highlight out of a click (mpOwnClicks).
+func trayOwnClicks() { C.mpOwnClicks() }
 
 // trayImagePNG is the image as the menu bar h points high draws it at
 // scale (2 for a Retina screen), light or dark, on the bar's colour when
@@ -454,4 +582,32 @@ func cBool(b bool) C.int {
 		return 1
 	}
 	return 0
+}
+
+// These native test wrappers stay here because Go does not support cgo
+// imports in _test.go files. They do not install monitors or create windows.
+// trayImageCellAt tests the native hit map; -1 means no quota cell.
+func trayImageCellAt(cells []trayCell, h, x float64) int {
+	at := -1
+	withCells(cells, func(cs *C.mpTrayCell, count C.int) {
+		at = int(C.mpCellAtCells(cs, count, C.CGFloat(h), C.CGFloat(x)))
+	})
+	return at
+}
+
+// trayImageCellStart returns cell i's start in image points, or -1 if absent.
+func trayImageCellStart(cells []trayCell, h float64, i int) float64 {
+	s := -1.0
+	withCells(cells, func(cs *C.mpTrayCell, count C.int) {
+		s = float64(C.mpCellStartAt(cs, count, C.CGFloat(h), C.int(i)))
+	})
+	return s
+}
+
+func trayImageClickAt(cells []trayCell, h, x float64, modifiers uint64) bool {
+	hit := false
+	withCells(cells, func(cs *C.mpTrayCell, count C.int) {
+		hit = C.mpClickCellsAt(cs, count, C.CGFloat(h), C.CGFloat(x), C.ulong(modifiers)) != 0
+	})
+	return hit
 }
