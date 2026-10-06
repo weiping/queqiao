@@ -22,7 +22,7 @@ function fixture(lang) {
     stateCalls++;
     // its own models, and the catalog's shown ones
     const options = [{ value: "deepseek-v4-pro", label: "DeepSeek-V4-Pro", group: "DeepSeek Harness" },
-      ...list.filter((m) => !m.hidden).map((m) => ({ value: "magpie/" + m.id, label: m.name, ref: m.id }))];
+      ...list.filter((m) => !m.hidden).map((m) => ({ value: "queqiao/" + m.id, label: m.name, ref: m.id }))];
     return {
       agents: [{
         id: "dsh", name: "DeepSeek Harness", path: "/test/.dsh/config.json", icon: "deepseek-color", wired: true,

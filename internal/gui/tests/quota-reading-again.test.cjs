@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // #959: the tray panel, opened, showed an account's old usage while the
-// window had the new, until refreshed by hand. magpie answers usage/quotas
+// window had the new, until refreshed by hand. queqiao answers usage/quotas
 // at once with what it kept and reads the accounts again behind it; such an
 // answer says so (X-Magpie-Reading: 1), and the page asks again until the
 // new reading has landed. The panel and the window both show it without a

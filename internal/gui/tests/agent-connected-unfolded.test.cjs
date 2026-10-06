@@ -7,7 +7,7 @@
 // not connected fold under Not set up whatever their own files say; one
 // with no switch (Cursor) still goes by what is set on it. While none is
 // connected nothing folds: Cursor on its own auto doesn't fold the rest
-// away on a fresh magpie. Chromium and WebKit, English and Chinese.
+// away on a fresh queqiao. Chromium and WebKit, English and Chinese.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -18,7 +18,7 @@ const assets = path.resolve(__dirname, "../assets");
 
 const ref = (v) => ({ value: v, label: v, ref: v });
 const own = (v) => ({ value: v, label: v });
-// an agent 「接入」 can connect: its model picker lists magpie's models
+// an agent 「接入」 can connect: its model picker lists queqiao's models
 const agent = (id, name, { wired = false, value = "" } = {}) => ({
   id, name, path: "/test/" + id, wired,
   fields: [{ key: "model", label: "model", value, options: [ref("sub/gpt-6.1-sol"), ref("sub/opus-5.5")] }],

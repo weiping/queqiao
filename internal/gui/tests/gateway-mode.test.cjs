@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Gateway mode (Player on Discord): magpie web on a server that is only
+// Gateway mode (Player on Discord): queqiao web on a server that is only
 // the gateway for other computers' agents. boot.js says so and the page
 // opens on Providers with no Agents, Sessions or Library tab, an address
 // kept for one of them opening Providers; Settings leaves out what is
@@ -7,8 +7,8 @@
 // Codex subagents, long conversations, Codex thread titles) and the
 // desktop's alerts, and General has the switch — Automatic, On, Off —
 // saying why it is on. Off brings the tabs and the rows back at once, the
-// Agents page opening again; Automatic takes them away again. magpie web
-// not in gateway mode keeps every tab, and the switch is magpie web's
+// Agents page opening again; Automatic takes them away again. queqiao web
+// not in gateway mode keeps every tab, and the switch is queqiao web's
 // alone. No click scrolls the page, no native <select>, no left border.
 // English and Chinese; no backend, the API is faked here.
 const assert = require("node:assert/strict");
@@ -25,7 +25,7 @@ function settingsPayload(over) {
     dock: false, dockWindow: false, proxy: "", redact: false, redactPersonal: false, redactWords: [],
     codexWarmup: "", claudeWarmup: "", codexWarmAt: "", claudeWarmAt: "", workbuddyCheckin: false, noStats: false,
     trayUsage: "", trayUsageEvery: 3, vision: "", imageGen: "",
-    version: "0.1.400", dir: "/config/home/.config/magpie", gateway: "http://127.0.0.1:3425",
+    version: "0.1.400", dir: "/config/home/.config/queqiao", gateway: "http://127.0.0.1:3425",
     proxyNow: "none", proxySource: "none", login: false,
     visionModels: [], imageGenModels: [], workbuddyCheckins: [], lanURLs: [],
     fx: { rate: 7.2, at: new Date().toISOString(), stale: false },
@@ -33,7 +33,7 @@ function settingsPayload(over) {
   };
 }
 
-// agents says whether magpie found agents here: Automatic is on without
+// agents says whether queqiao found agents here: Automatic is on without
 function server(lang, posts, { web = true, gateway = true, agents = false } = {}) {
   const why = (mode) => (mode === "on" || mode === "off" ? mode : agents ? "" : "no-agents");
   const on = (mode) => web && (mode === "on" || (mode !== "off" && !agents));
@@ -161,8 +161,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await context.close();
     }
 
-    // magpie web with agents here, and the app's window: every tab; the
-    // switch is magpie web's alone
+    // queqiao web with agents here, and the app's window: every tab; the
+    // switch is queqiao web's alone
     for (const [web, name] of [[true, "web with agents"], [false, "window"]]) {
       for (const lang of ["en", "zh"]) {
         const where = `${engine} ${lang} ${name}`;

@@ -45,13 +45,13 @@ function server(lang, shared, asked, contents, posts) {
     const json = (data) => route.fulfill({ json: data });
     if (url.pathname === "/boot.js") return route.fulfill({ contentType: "text/javascript", body: `window.bootPrefs = {lang:"${lang}",theme:"light",web:false};` });
     if (url.pathname === "/wails/runtime.js") return route.fulfill({ contentType: "text/javascript", body: "export const Window = {};" });
-    if (url.pathname === "/api/state") return json({ agents: [], profiles: [], settings: { lang, theme: "light", tray: "panel", version: "test", dir: "/tmp/magpie", visionModels: [], imageGenModels: [], fx: { rate: 7.2, stale: false } } });
+    if (url.pathname === "/api/state") return json({ agents: [], profiles: [], settings: { lang, theme: "light", tray: "panel", version: "test", dir: "/tmp/queqiao", visionModels: [], imageGenModels: [], fx: { rate: 7.2, stale: false } } });
     if (url.pathname === "/api/providers") return json({ providers: [], gateway: { running: true, window: true, mine: true, groups: [], calls: [] } });
     if (url.pathname === "/api/plugins") return json({ plugins: [] });
     if (url.pathname === "/api/usage/requests") { asked.push(url.searchParams); return json(ledger(url.searchParams, shared)); }
     if (url.pathname === "/api/usage/requests/content") { contents.push(url.search); return json({ found: false, why: "read" }); }
     if (url.pathname === "/api/usage/quotas") return json([]);
-    if (url.pathname === "/api/usage") return json({ calls: 2, errors: 0, input: 600, output: 80, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 0.02, bucket: "day", series: [], agents: [], models: [], path: "~/.config/magpie/usage.jsonl" });
+    if (url.pathname === "/api/usage") return json({ calls: 2, errors: 0, input: 600, output: 80, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 0.02, bucket: "day", series: [], agents: [], models: [], path: "~/.config/queqiao/usage.jsonl" });
     if (url.pathname === "/api/sessions") return json({ sessions: [], dirs: [] });
     if (url.pathname === "/api/sessions/stats") return json({ from: "", to: "", days: [], agents: {} });
     if (url.pathname === "/api/groups") return json({ groups: [], models: [] });

@@ -2,7 +2,7 @@
 // #524: under Codex's accounts, with more than one on, a tick keeps Codex
 // signed in to the first account; ticking it posts provider/keeplogin, and
 // the Routing note then says Codex stays on the first. #530: In order, the
-// note says magpie moves Codex on once the account is used up, not at 98%.
+// note says queqiao moves Codex on once the account is used up, not at 98%.
 // With one account there is nothing to keep, so no tick. Beside the tick,
 // a pick keeps Codex signed in to an account of the user's choosing
 // (keepLoginAs) while the first stays first: that row says Signed in, the
@@ -95,14 +95,14 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         "Account to stay signed in to",
         "The account {agent} stays signed in to; the first is the one the gateway uses first",
         "{agent} stays signed in to {user}",
-        "{agent} is kept signed in to this account; requests through magpie go to the accounts in their order",
+        "{agent} is kept signed in to this account; requests through queqiao go to the accounts in their order",
         "The gateway uses this account first; {agent} stays signed in to {user}",
-        "Routing picks the account for each request through magpie, in the accounts' order; {agent} on its own stays signed in to {user}, whatever it has left.",
-        "magpie won't sign {agent} in to another account when the first runs low; requests through magpie still go to the other ticked accounts as Routing says",
+        "Routing picks the account for each request through queqiao, in the accounts' order; {agent} on its own stays signed in to {user}, whatever it has left.",
+        "queqiao won't sign {agent} in to another account when the first runs low; requests through queqiao still go to the other ticked accounts as Routing says",
         "{agent} stays signed in to the first account",
-        "magpie moves {agent} to an account with room again",
-        "Routing picks the account for each request through magpie; {agent} on its own stays signed in to the first account, whatever it has left.",
-        "Routing picks the account for each request through magpie; {agent} on its own uses the one it is signed in to, which magpie moves to the next ticked account with room once it is used up, and back to the first once that has room again.",
+        "queqiao moves {agent} to an account with room again",
+        "Routing picks the account for each request through queqiao; {agent} on its own stays signed in to the first account, whatever it has left.",
+        "Routing picks the account for each request through queqiao; {agent} on its own uses the one it is signed in to, which queqiao moves to the next ticked account with room once it is used up, and back to the first once that has room again.",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
       const top = await page.evaluate(() => document.scrollingElement.scrollTop);

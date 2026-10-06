@@ -15,8 +15,8 @@ const assets = path.resolve(__dirname, "../assets");
 function server(lang) {
   const installed = [
     { spec: "opencode-copilot-auth", providers: ["GitHub Copilot"], version: "0.0.7", latest: "0.0.9" },
-    { spec: "@magpie-community/opencode-zed-auth", providers: ["Zed"], version: "0.1.4", latest: "0.1.4",
-      autoUpdated: { package: "@magpie-community/opencode-zed-auth", from: "0.1.3", to: "0.1.4", at: "2026-09-30T08:00:00Z" } },
+    { spec: "@queqiao-community/opencode-zed-auth", providers: ["Zed"], version: "0.1.4", latest: "0.1.4",
+      autoUpdated: { package: "@queqiao-community/opencode-zed-auth", from: "0.1.3", to: "0.1.4", at: "2026-09-30T08:00:00Z" } },
   ];
   const waiting = () => installed.filter((e) => e.version !== e.latest).map((e) => ({ spec: e.spec, package: e.spec, version: e.version, latest: e.latest }));
   return async (route) => {

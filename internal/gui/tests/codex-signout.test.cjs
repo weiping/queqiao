@@ -104,7 +104,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await page.evaluate(() => document.scrollingElement.scrollTop), top, "the page doesn't move");
       const missing = await page.evaluate(() => [
         "Sign out", "Signs Codex out of this account, as codex logout does", "Sign {agent} out of {user}?",
-        "{agent} is signed out, as codex logout does, and magpie forgets the account. Sign in again to use it; an open {agent} may need quitting and opening again. The account itself is left as it is.",
+        "{agent} is signed out, as codex logout does, and queqiao forgets the account. Sign in again to use it; an open {agent} may need quitting and opening again. The account itself is left as it is.",
         "{agent} signed out of {user}", "Codex itself is signed out too, as codex logout does.",
         "{agent} is signed in to {user} now: sign it in to another of its accounts first (Use on that account), then remove this one",
       ].filter((k) => !I18N.zh[k] || !I18N.ja[k] || !I18N.de[k]));
@@ -134,7 +134,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await confirm.getByRole("button", { name: w.remove, exact: true }).click();
       await page.waitForFunction(() => document.querySelector("#status")?.textContent.includes("me@example.com"));
       assert.deepEqual(posts, [{ agent: "codex", user: "me@example.com" }]);
-      const missing = await page.evaluate(() => ["Codex is signed in to another of its accounts, and magpie forgets this one; the account itself is untouched"]
+      const missing = await page.evaluate(() => ["Codex is signed in to another of its accounts, and queqiao forgets this one; the account itself is untouched"]
         .filter((k) => !I18N.zh[k] || !I18N.ja[k] || !I18N.de[k]));
       assert.deepEqual(missing, [], "every string has its zh, ja and de");
       assert.deepEqual(errors, []);

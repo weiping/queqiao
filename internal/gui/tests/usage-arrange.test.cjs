@@ -75,7 +75,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const order = () => cards.evaluateAll((cs) => cs.map((c) => c.dataset.key));
       const handle = (key) => page.locator(`#subscriptionUsage > [data-key="${key}"] .us-handle`);
       await handle("kimi").waitFor();
-      assert.deepEqual(await order(), ["codex", "claude", "kimi", "zai"], "magpie's own order first");
+      assert.deepEqual(await order(), ["codex", "claude", "kimi", "zai"], "queqiao's own order first");
 
       // the grip only while the pointer is on the card
       const grip = (key) => handle(key).evaluate((h) => getComputedStyle(h, "::before").opacity);

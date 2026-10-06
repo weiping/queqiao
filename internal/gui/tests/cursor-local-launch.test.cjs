@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Cursor Private Inference (#299) is connected as other agents are, with no
 // command to run (mamba on Discord: a launch command of its own was out of
-// keeping with the rest): its row has the switch, which asks magpie to set
+// keeping with the rest): its row has the switch, which asks queqiao to set
 // the build's CURSOR_LOCAL_AGENT_* variables for the user, and says to open
 // it again; the command that starts it from a shell stays, as the square
 // beside it, not the row's one control. In English and Chinese. No backend:
@@ -13,16 +13,16 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const LAUNCH = "CURSOR_LOCAL_AGENT_BASE_URL=http://127.0.0.1:3425/v1 CURSOR_LOCAL_AGENT_API_KEY=magpie-cursor-local '/Applications/Cursor.app/Contents/MacOS/Cursor'";
-const models = [{ value: "magpie/deepseek/pro", label: "magpie/deepseek/pro", ref: "deepseek/pro" }];
+const LAUNCH = "CURSOR_LOCAL_AGENT_BASE_URL=http://127.0.0.1:3425/v1 CURSOR_LOCAL_AGENT_API_KEY=queqiao-cursor-local '/Applications/Cursor.app/Contents/MacOS/Cursor'";
+const models = [{ value: "queqiao/deepseek/pro", label: "queqiao/deepseek/pro", ref: "deepseek/pro" }];
 const agent = (id, name) => ({
   id, name, path: "/test/" + id, wired: true,
-  fields: [{ key: "model", label: "model", value: "magpie/deepseek/pro", options: models }],
+  fields: [{ key: "model", label: "model", value: "queqiao/deepseek/pro", options: models }],
 });
-const NOTICE = "Cursor Private Inference reads magpie's gateway from CURSOR_LOCAL_AGENT_BASE_URL and CURSOR_LOCAL_AGENT_API_KEY, now set for your user: quit it and open it again.";
+const NOTICE = "Cursor Private Inference reads queqiao's gateway from CURSOR_LOCAL_AGENT_BASE_URL and CURSOR_LOCAL_AGENT_API_KEY, now set for your user: quit it and open it again.";
 const cursorLocal = (on) => ({
   id: "cursor-local", name: "Cursor Private Inference", icon: "cursor", path: "", launch: LAUNCH, wired: on,
-  fields: [{ key: "provider", label: "provider", value: on ? "magpie" : "", options: [{ value: "magpie", label: "magpie", icon: "magpie" }] }],
+  fields: [{ key: "provider", label: "provider", value: on ? "queqiao" : "", options: [{ value: "queqiao", label: "queqiao", icon: "queqiao" }] }],
 });
 const state = {
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex"), agent("pi", "Pi"),
@@ -40,7 +40,7 @@ function server(lang, copies, asked = []) {
     if (url.pathname.startsWith("/api/agents/connect/")) {
       asked.push(url.pathname);
       cur = { ...cur, agents: cur.agents.map((a) => (a.id === "cursor-local" ? cursorLocal(true) : a)) };
-      return route.fulfill({ json: { ...cur, settings: { lang, theme: "light" }, connected: { how: "magpie" }, notice: NOTICE } });
+      return route.fulfill({ json: { ...cur, settings: { lang, theme: "light" }, connected: { how: "queqiao" }, notice: NOTICE } });
     }
     if (url.pathname === "/api/copy") { copies.push(req.postDataJSON().text); return route.fulfill({ json: {} }); }
     if (url.pathname === "/api/usage/quotas") return route.fulfill({ json: [] });
@@ -63,7 +63,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       if (errors.length) console.log(errors);
       await browser.close();
     });
-    const W = { en: { conn: "Connect Cursor Private Inference to magpie", said: "Cursor Private Inference is connected to magpie" }, zh: { conn: "将 Cursor Private Inference 接入 magpie", said: "Cursor Private Inference 已接入 magpie" } };
+    const W = { en: { conn: "Connect Cursor Private Inference to queqiao", said: "Cursor Private Inference is connected to queqiao" }, zh: { conn: "将 Cursor Private Inference 接入 queqiao", said: "Cursor Private Inference 已接入 queqiao" } };
     for (const lang of ["en", "zh"]) {
       await t.test(lang + ": the switch connects it, no command to run", async () => {
         const copies = [], asked = [];

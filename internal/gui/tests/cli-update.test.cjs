@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // The agents' CLIs on the Agents page (#202): each row's version after its
-// name, an "Update to x.y.z" pill where a newer one is out and magpie knows
+// name, an "Update to x.y.z" pill where a newer one is out and queqiao knows
 // how the CLI was installed, the version alone where it doesn't; the rows
 // keep their height; a click updates in place (busy, then the new version,
 // the pill gone) with the view left where it was; a failed update says why
@@ -27,7 +27,7 @@ const state = {
 const CLIS = {
   codex: { version: "0.155.1", latest: "0.159.0", via: "self", command: "codex update", update: true },
   gemini: { version: "0.60.0", latest: "0.61.0", via: "npm", command: "npm install -g --prefix /x @google/gemini-cli@latest", update: true },
-  "agent-0": { version: "1.2.3" }, // installed some way magpie can't tell
+  "agent-0": { version: "1.2.3" }, // installed some way queqiao can't tell
   "agent-1": { version: "2.0.0", latest: "2.0.0", via: "brew", command: "brew upgrade agent-1" },
 };
 
@@ -76,12 +76,12 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       return page;
     };
 
-    await t.test("versions, and a pill only where magpie can update", async () => {
+    await t.test("versions, and a pill only where queqiao can update", async () => {
       const page = await open("en", []);
       assert.equal(await page.locator(`${row("codex")} .ag-ver`).textContent(), "0.155.1");
       assert.equal(await page.locator(`${row("codex")} .ag-up`).textContent(), "Update to 0.159.0");
       assert.match(await page.locator(`${row("codex")} .ag-up`).getAttribute("title"), /codex update/);
-      // installed some way magpie can't tell: the version, and nothing to click
+      // installed some way queqiao can't tell: the version, and nothing to click
       assert.equal(await page.locator(`${row("agent-0")} .ag-ver`).textContent(), "1.2.3");
       assert.equal(await page.locator(`${row("agent-0")} .ag-up`).count(), 0);
       assert.match(await page.locator(`${row("agent-0")} .ag-ver`).getAttribute("title"), /can't tell how it was installed/);
@@ -166,7 +166,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     // the update pill gives way before the name: where the name's line is
     // under 250px the pill keeps only its arrow (under 150px the version
     // goes too). Since the 「接入」 rows (d0d098c6) a connected agent's fields
-    // fold away under the row, and magpie web 760px wide or less (#391) puts
+    // fold away under the row, and queqiao web 760px wide or less (#391) puts
     // them under the name, so the line is no longer tight at 620px, the
     // window's first width, as it was beside the fields; it is on a phone.
     await t.test("a tight row cuts the pill before the name", async () => {
@@ -182,7 +182,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.deepEqual(await lookAt(win), all);
       assert.deepEqual(await at(win, 620), all, "620px window");
       assert.deepEqual(await at(win, 560), all, "560px window");
-      // magpie web: everything down to about 500px, then the arrow alone,
+      // queqiao web: everything down to about 500px, then the arrow alone,
       // the name never cut, on to the narrowest phones
       const web = await open("zh", []);
       for (const width of [620, 540]) assert.deepEqual(await at(web, width), all, width + "px");

@@ -1,9 +1,9 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// The owner: the 「接入」 switch, and the model picked in magpie in one click,
+// The owner: the 「接入」 switch, and the model picked in queqiao in one click,
 // both. Beside an agent's switch is the model it starts on. Not connected,
 // it says what the agent is on, as Claude Code's does — its own model, or
 // Default with none set (EZN7L2C3, #834: Claude Code said 默认 and the
-// others 选模型) — and lists the agent's own models with magpie's; a magpie
+// others 选模型) — and lists the agent's own models with queqiao's; a queqiao
 // one picked is posted to set, which connects the agent first, and the row
 // is connected, on that model. Connected, its picker has every choice too.
 // No click moves the page. In English and Chinese; no backend, the API is
@@ -15,7 +15,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const options = [{ value: "gpt-5.4", label: "GPT-5.4" }, { value: "relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via magpie" }, { value: "relay/m2", label: "m2", ref: "relay/m2", note: "Relay · via magpie" }];
+const options = [{ value: "gpt-5.4", label: "GPT-5.4" }, { value: "relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via queqiao" }, { value: "relay/m2", label: "m2", ref: "relay/m2", note: "Relay · via queqiao" }];
 const fresh = () => ({
   agents: [
     { id: "codex", name: "Codex", icon: "generic", path: "/fixture/codex", fields: [{ key: "model", label: "model", value: "gpt-5.4", options }] },
@@ -55,8 +55,8 @@ function server(lang, posts) {
 }
 
 const words = {
-  en: { pick: "Pick a model", def: "default", on: "Connected · pick magpie's models with /model in Codex" },
-  zh: { pick: "选模型", def: "默认", on: "已接入 · 在 Codex 里用 /model 选 magpie 的模型" },
+  en: { pick: "Pick a model", def: "default", on: "Connected · pick queqiao's models with /model in Codex" },
+  zh: { pick: "选模型", def: "默认", on: "已接入 · 在 Codex 里用 /model 选 queqiao 的模型" },
 };
 const row = '.row.agent[data-id="codex"]';
 
@@ -76,11 +76,11 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.locator(`${row} .ag-conn`).waitFor();
       const missing = await page.evaluate(() => [
         "Pick a model",
-        "Pick one of magpie's models: {agent} is connected and starts on it",
+        "Pick one of queqiao's models: {agent} is connected and starts on it",
         "Its last pick",
         "Unset, {agent} starts on its own last pick",
         "Connected · starts on the model picked here",
-        "Switch an agent on and the models you set up in magpie show up as the {magpie} provider in its own model list; or pick its model right here.",
+        "Switch an agent on and the models you set up in queqiao show up as the {queqiao} provider in its own model list; or pick its model right here.",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
       const tops = () => page.evaluate(() => [document.scrollingElement.scrollTop, document.querySelector("#view-agents")?.scrollTop]);
@@ -92,7 +92,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       };
 
       // not connected: the model it is on, never Pick a model, and every
-      // choice — its own models with magpie's, the current one first
+      // choice — its own models with queqiao's, the current one first
       assert.equal((await start.textContent()).trim(), "GPT-5.4");
       assert.equal(await page.locator(`${row} .ag-conn`).getAttribute("aria-checked"), "false");
       // one with none set says Default, as Claude Code does (#834)

@@ -16,7 +16,7 @@ const HOME = "/Users/emo";
 const agent = (id, name, skills = true) => ({ id, name, icon: "", skills: skills ? `${HOME}/.${id}/skills` : "" });
 const sk = (name, kind, agents) => ({ name, description: name, kind, agents, source: kind === "folder" ? `${HOME}/src/${name}` : "" });
 const lib = (skills) => ({
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex"), agent("pi", "Pi"), agent("goose", "Goose", false)],
   instructions: { agents: [] }, servers: [], skills, foundServers: [], projects: [], foundSkills: [],
 });
@@ -56,8 +56,8 @@ const press = async (page, loc) => {
 const rows = (page) => page.locator("#view-library .lib-row").count();
 
 const words = {
-  en: { rm: "Remove all", tip: "Take all 3 skills out of the library", ask: "Remove all 3 skills?", agents: /out of the library and out of Claude Code, Codex, Pi\./, kept: /2 folders are moved to magpie's backups/, linked: /1 linked from folders of your own are only unlinked/, cancel: "Cancel", go: "Remove all 3", done: "3 skills removed" },
-  zh: { rm: "全部删除", tip: "从资源库中删除全部 3 个技能", ask: "删除全部 3 个技能？", agents: /从资源库中删除，并从 Claude Code, Codex, Pi 中移除/, kept: /2 个技能文件夹将移到 magpie 的备份/, linked: /1 个链接自你文件夹的技能只取消链接/, cancel: "取消", go: "删除全部 3 个", done: "已删除 3 个技能" },
+  en: { rm: "Remove all", tip: "Take all 3 skills out of the library", ask: "Remove all 3 skills?", agents: /out of the library and out of Claude Code, Codex, Pi\./, kept: /2 folders are moved to queqiao's backups/, linked: /1 linked from folders of your own are only unlinked/, cancel: "Cancel", go: "Remove all 3", done: "3 skills removed" },
+  zh: { rm: "全部删除", tip: "从资源库中删除全部 3 个技能", ask: "删除全部 3 个技能？", agents: /从资源库中删除，并从 Claude Code, Codex, Pi 中移除/, kept: /2 个技能文件夹将移到 queqiao 的备份/, linked: /1 个链接自你文件夹的技能只取消链接/, cancel: "取消", go: "删除全部 3 个", done: "已删除 3 个技能" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {

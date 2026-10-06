@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// #929 (yetone/magpie): with a dozen agents in range, Usage → Sessions' agent
+// #929 (yetone/queqiao): with a dozen agents in range, Usage → Sessions' agent
 // filter grew wider than the window, so the whole page scrolled sideways and
 // the last agent's filter was only reachable by dragging the page itself. A
 // strip too wide for the window scrolls in itself — the regions strip and
@@ -49,7 +49,7 @@ function serve(lang, names) {
       const agent = ids.includes(want) ? want : ids[0];
       return json({
         agents: ids.map((id) => ({ agent: id, count: 2, deletable: true, name: agents[id], icon: "generic" })),
-        agent, sessions: sessions.filter((s) => s.agent === agent), terminal: true, trash: [], trashDir: "~/magpie/trash/sessions",
+        agent, sessions: sessions.filter((s) => s.agent === agent), terminal: true, trash: [], trashDir: "~/queqiao/trash/sessions",
       });
     }
     if (url.pathname === "/api/groups") return json({ groups: [] });

@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // The tray panel's effort slider shows an agent's effort as it is when that
-// isn't one of the levels offered — omp at auto before magpie listed it, an
+// isn't one of the levels offered — omp at auto before queqiao listed it, an
 // agent with none set — rather than as the lowest level, which a touch on
 // the slider then wrote over it. A touch where it stands posts nothing; the
 // next stop is the lowest level. A level beyond those offered (max, the
@@ -27,7 +27,7 @@ const agent = (id, name, effort, options = levels) => ({
 const some = (...vs) => vs.map((value) => ({ value }));
 const state = { agents: [agent("omp", "omp", "auto"), agent("pi", "Pi", ""),
   agent("codex", "Codex", "max", some("low", "medium", "high")),
-  // omp as magpie lists it now, auto first, and one at minimal beside it
+  // omp as queqiao lists it now, auto first, and one at minimal beside it
   agent("omp-listed", "omp", "auto", [{ value: "auto" }, ...levels]),
   agent("pi-minimal", "Pi", "minimal"),
   agent("kimi", "Kimi", "medium", some("low", "high")),

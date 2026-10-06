@@ -1,12 +1,12 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Claude Code on its own sign-in (StringKe on Discord): with "model":
 // "sonnet" in its settings.json the row showed a bare "sonnet", and with a
-// Claude model picked magpie writes no ANTHROPIC_BASE_URL, so the file read
-// as if magpie had failed to set it up. The alias now shows as the model it
-// stands for, with Claude's logo (the option is magpie's, agent.Option), and
+// Claude model picked queqiao writes no ANTHROPIC_BASE_URL, so the file read
+// as if queqiao had failed to set it up. The alias now shows as the model it
+// stands for, with Claude's logo (the option is queqiao's, agent.Option), and
 // a model Claude Code asks Anthropic for itself says so: the row's tooltip
-// says it isn't through magpie and why the file names no magpie endpoint,
-// and picking one says "straight to Anthropic". A magpie model says neither.
+// says it isn't through queqiao and why the file names no queqiao endpoint,
+// and picking one says "straight to Anthropic". A queqiao model says neither.
 // The model is picked beside the connected row's switch. No click
 // moves the page. In English and Chinese, Chromium and WebKit.
 const assert = require("node:assert/strict");
@@ -20,11 +20,11 @@ const options = [
   { value: "sonnet", label: "sonnet · claude-sonnet-5-5", note: "Claude Sonnet 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
   { value: "claude-sonnet-5-5", note: "Claude Sonnet 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
   { value: "claude-opus-5-5", note: "Claude Opus 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
-  { value: "magpie/deepseek/pro", label: "DeepSeek Pro", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/pro" },
+  { value: "queqiao/deepseek/pro", label: "DeepSeek Pro", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/pro" },
 ];
 // the other agents, so Claude Code sits down a list that scrolls; on a
-// magpie model, so connected and in view (#726)
-const filler = [{ key: "model", label: "model", value: "magpie/deepseek/pro", options: [options[3]] }];
+// queqiao model, so connected and in view (#726)
+const filler = [{ key: "model", label: "model", value: "queqiao/deepseek/pro", options: [options[3]] }];
 const fresh = () => ({
   agents: [
     ...Array.from({ length: 5 }, (_, i) => ({ id: "agent-" + i, name: "Agent " + i, path: "/test/" + i, wired: true, fields: filler })),
@@ -64,12 +64,12 @@ function server(lang, sets) {
 
 const words = {
   en: {
-    tip: "Not through magpie: Claude Code asks Anthropic for it directly, with its own sign-in or key, so ~/.claude/settings.json has no magpie endpoint — that is expected.",
-    said: "straight to Anthropic, not through magpie",
+    tip: "Not through queqiao: Claude Code asks Anthropic for it directly, with its own sign-in or key, so ~/.claude/settings.json has no queqiao endpoint — that is expected.",
+    said: "straight to Anthropic, not through queqiao",
   },
   zh: {
-    tip: "不经过 magpie：Claude Code 用自己的登录或密钥直接向 Anthropic 请求，因此 ~/.claude/settings.json 中没有 magpie 地址，属正常。",
-    said: "直连 Anthropic，不经过 magpie",
+    tip: "不经过 queqiao：Claude Code 用自己的登录或密钥直接向 Anthropic 请求，因此 ~/.claude/settings.json 中没有 queqiao 地址，属正常。",
+    said: "直连 Anthropic，不经过 queqiao",
   },
 };
 const row = '.row.agent[data-id="claude"]';
@@ -95,7 +95,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await field.locator(".v").textContent(), "sonnet · claude-sonnet-5-5");
       assert.equal(await field.locator('.ic[data-icon="claude-color"]').count(), 1);
       const title = await field.getAttribute("title");
-      assert(title.includes(w.tip), `the tooltip says it isn't through magpie: ${title}`);
+      assert(title.includes(w.tip), `the tooltip says it isn't through queqiao: ${title}`);
 
       // the page scrolled, a pick moves nothing and says where it goes
       const view = page.locator("#view-agents");
@@ -113,7 +113,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await view.evaluate((v) => v.scrollTop), top, "the pick moved the page");
       assert((await field.getAttribute("title")).includes(w.tip));
 
-      // a magpie model says neither
+      // a queqiao model says neither
       await field.click();
       await page.locator("#pop:not([hidden]) #list li").first().waitFor();
       await page.locator("#list li").filter({ hasText: "DeepSeek Pro" }).first().click();

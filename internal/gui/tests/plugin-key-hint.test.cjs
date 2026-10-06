@@ -2,7 +2,7 @@
 // A plugin's "api" way to sign in titles its key's field with its label,
 // as OpenCode's dialog does, and hints at the key with its placeholder
 // (Lemon on Discord); a way labelled only "API key" keeps "<name> API
-// key". The provider's own icon (a picture magpie kept) shows on its row.
+// key". The provider's own icon (a picture queqiao kept) shows on its row.
 // English and Chinese; the API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");

@@ -14,11 +14,11 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 
 const plugins = [
-  { id: "zcode", pid: "zcode", name: "ZCode", icon: "generic", spec: "@magpie-community/opencode-zcode-auth", signedIn: false, models: 3,
+  { id: "zcode", pid: "zcode", name: "ZCode", icon: "generic", spec: "@queqiao-community/opencode-zcode-auth", signedIn: false, models: 3,
     methods: [{ type: "oauth", label: "ZCode: Z.ai GLM Coding Plan" }, { type: "oauth", label: "ZCode: BigModel (智谱) GLM Coding Plan" }, { type: "oauth", label: "ZCode app's sign-in" }, { type: "api", label: "GLM Coding Plan API key" }] },
-  { id: "factory", pid: "factory", name: "Factory", icon: "generic", spec: "@magpie-community/opencode-factory-auth", signedIn: false, models: 3,
+  { id: "factory", pid: "factory", name: "Factory", icon: "generic", spec: "@queqiao-community/opencode-factory-auth", signedIn: false, models: 3,
     methods: [{ type: "oauth", label: "Factory account" }] },
-  { id: "cursor", pid: "cursor", name: "Cursor", icon: "generic", spec: "@magpie-community/opencode-cursor-auth", signedIn: true, models: 3,
+  { id: "cursor", pid: "cursor", name: "Cursor", icon: "generic", spec: "@queqiao-community/opencode-cursor-auth", signedIn: true, models: 3,
     methods: [{ type: "oauth", label: "Cursor (browser)" }, { type: "oauth", label: "cursor-agent's sign-in" }, { type: "api", label: "API key" }] },
 ];
 

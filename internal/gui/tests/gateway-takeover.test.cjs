@@ -1,10 +1,10 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // The Gateway card's button (leslie_luo on Discord: the page said an older
-// magpie served the gateway, with no way to quit it). With an older magpie
-// on the port it reads "Quit magpie {v} and take over" and asks the backend
+// queqiao served the gateway, with no way to quit it). With an older queqiao
+// on the port it reads "Quit queqiao {v} and take over" and asks the backend
 // to; once this one serves, it is "Restart gateway" and restarts it. A
-// magpie of this version serving it gets no button. What stood in the way
-// (a program that isn't magpie on the port) is said under it, naming the
+// queqiao of this version serving it gets no button. What stood in the way
+// (a program that isn't queqiao on the port) is said under it, naming the
 // process. No click scrolls the page, nothing has a left border, in English
 // and Chinese.
 const assert = require("node:assert/strict");
@@ -50,21 +50,21 @@ function fixture(lang, world, theme = "light") {
 
 const words = {
   en: {
-    quit: "Quit magpie 0.1.550 and take over", restart: "Restart gateway", running: "running",
-    notMagpie: /Port 3999 is held by \/usr\/bin\/python3 \(pid 4242\), which isn't magpie/,
-    container: /Port 3999 is forwarded by \/Applications\/OrbStack\.app\/.*OrbStack Helper \(pid 873\) to a container or a VM: the magpie 0\.1\.552 .*docker stop <name>.*another port in Settings/,
+    quit: "Quit queqiao 0.1.550 and take over", restart: "Restart gateway", running: "running",
+    notMagpie: /Port 3999 is held by \/usr\/bin\/python3 \(pid 4242\), which isn't queqiao/,
+    container: /Port 3999 is forwarded by \/Applications\/OrbStack\.app\/.*OrbStack Helper \(pid 873\) to a container or a VM: the queqiao 0\.1\.552 .*docker stop <name>.*another port in Settings/,
   },
   zh: {
-    quit: "关闭 magpie 0.1.550 并接管网关", restart: "重启网关", running: "运行中",
-    notMagpie: /端口 3999 被 \/usr\/bin\/python3（pid 4242）占用，它不是 magpie/,
-    container: /端口 3999 由 \/Applications\/OrbStack\.app\/.*OrbStack Helper（pid 873）转发到一个容器或虚拟机：在那里应答的 magpie 0\.1\.552 .*docker stop <名称>.*换到其他端口/,
+    quit: "关闭 queqiao 0.1.550 并接管网关", restart: "重启网关", running: "运行中",
+    notMagpie: /端口 3999 被 \/usr\/bin\/python3（pid 4242）占用，它不是 queqiao/,
+    container: /端口 3999 由 \/Applications\/OrbStack\.app\/.*OrbStack Helper（pid 873）转发到一个容器或虚拟机：在那里应答的 queqiao 0\.1\.552 .*docker stop <名称>.*换到其他端口/,
   },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: the gateway card quits an older magpie, or restarts the gateway`, async (t) => {
+    test(`${engine} ${lang}: the gateway card quits an older queqiao, or restarts the gateway`, async (t) => {
       assert(["chromium", "webkit"].includes(engine), "BROWSER must be chromium or webkit");
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch());
       t.after(() => browser.close());
@@ -84,11 +84,11 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       // a border all round, as a button's: no stripe down its left side
       const noLeftAccent = (loc) => loc.evaluate((e) => { const s = getComputedStyle(e); return s.borderLeftWidth === s.borderRightWidth && s.borderLeftColor === s.borderRightColor; });
 
-      // a program that isn't magpie holds the port: said, by its path and pid
+      // a program that isn't queqiao holds the port: said, by its path and pid
       {
         const world = {
           posts: [], gateway: { mine: false, version: "0.1.550", older: true },
-          answer: () => ({ ok: false, reason: "not-magpie", port: "3999", pid: 4242, path: "/usr/bin/python3", version: "0.1.550" }),
+          answer: () => ({ ok: false, reason: "not-queqiao", port: "3999", pid: 4242, path: "/usr/bin/python3", version: "0.1.550" }),
         };
         const { context, page } = await open(world);
         const fix = page.locator("#gateway .gw-fix");
@@ -105,7 +105,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await context.close();
       }
 
-      // a magpie in a container (leslie_luo's OrbStack): said as a container's
+      // a queqiao in a container (leslie_luo's OrbStack): said as a container's
       // to stop, in dark mode, where the button is bordered to read as one
       {
         const world = {
@@ -130,7 +130,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await context.close();
       }
 
-      // an older magpie is quit and this one serves; the button restarts it then
+      // an older queqiao is quit and this one serves; the button restarts it then
       {
         const world = { posts: [], gateway: { mine: false, version: "0.1.550", older: true } };
         world.answer = (p) => {
@@ -152,7 +152,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await context.close();
       }
 
-      // another magpie of this version: not this page's to quit
+      // another queqiao of this version: not this page's to quit
       {
         const world = { posts: [], gateway: { mine: false, version: "0.1.630" }, answer: () => ({ ok: true }) };
         const { context, page } = await open(world);

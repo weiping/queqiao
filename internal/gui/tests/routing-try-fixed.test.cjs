@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // A try sent at an effort its member isn't fixed at still reaches its row
-// (#865, uiots: the magpie stopped at magpie's door and never flew on to a
+// (#865, uiots: the queqiao stopped at queqiao's door and never flew on to a
 // member). A Claude Code tier at high sends a member that follows the
 // group's effort with its try's fixed "high", while the member's own seat
 // has no fixed: the page looked the row up by the try's seat, found none

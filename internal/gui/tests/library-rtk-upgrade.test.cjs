@@ -18,7 +18,7 @@ const UPGRADE = "winget upgrade --id rtk-ai.rtk --exact --silent --accept-packag
 const WHY = "winget failed (exit code 0x8A150101): RTK is in use — close the agents running it and try again";
 const agent = (id, name) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json` });
 const lib = () => ({
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("codex", "Codex")],
   instructions: { agents: [], sets: [] }, foundServers: [], projects: [], foundSkills: [], skills: [], servers: [],
 });

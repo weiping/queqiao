@@ -7,10 +7,10 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const options = [
-  { value: "magpie/b/executor", label: "B Executor", ref: "b/executor", group: "B", icon: "deepseek-color" },
-  { value: "magpie/b/planner", label: "B Planner", ref: "b/planner", group: "B", icon: "deepseek-color" },
-  { value: "magpie/a/pro", label: "A Pro", ref: "a/pro", group: "A", icon: "deepseek-color" },
-  { value: "magpie/a/flash", label: "A Flash", ref: "a/flash", group: "A", icon: "deepseek-color" },
+  { value: "queqiao/b/executor", label: "B Executor", ref: "b/executor", group: "B", icon: "deepseek-color" },
+  { value: "queqiao/b/planner", label: "B Planner", ref: "b/planner", group: "B", icon: "deepseek-color" },
+  { value: "queqiao/a/pro", label: "A Pro", ref: "a/pro", group: "A", icon: "deepseek-color" },
+  { value: "queqiao/a/flash", label: "A Flash", ref: "a/flash", group: "A", icon: "deepseek-color" },
   { value: "native/old", label: "Native Old", group: "Reasonix Studio" },
 ];
 
@@ -32,7 +32,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         const roleText = { executor: "执行模型", planner: "规划模型" };
         const labelText = (l) => (lang === "zh" ? roleText[l] : l);
         const posts = [];
-        const state = () => ({ agents: [{ id: "reasonix", name: "Reasonix Studio", icon: "reasonix-color", path: "/fixture/config.toml", wired: fields.some((f) => f.value.startsWith("magpie/")), fields }], profiles: [], settings: { lang, theme: "light" } });
+        const state = () => ({ agents: [{ id: "reasonix", name: "Reasonix Studio", icon: "reasonix-color", path: "/fixture/config.toml", wired: fields.some((f) => f.value.startsWith("queqiao/")), fields }], profiles: [], settings: { lang, theme: "light" } });
         await page.addInitScript(() => localStorage.setItem("magpie.modelFavorites", '["a/pro"]'));
         await page.route("**/*", async (route) => {
           const url = new URL(route.request().url());
@@ -75,7 +75,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await open();
         if (mode === "window") {
           // Not connected, the row says what the agent is on, its Default or
-          // its own model, and lists its own models with magpie's as when
+          // its own model, and lists its own models with queqiao's as when
           // connected; it does not read "Pick a model" (EZN7L2C3, #834).
           // The Executor is the model field here and is named "executor".
           const def = lang === "zh" ? "默认" : "default";
@@ -83,8 +83,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         } else for (const f of fields) {
           assert.equal(await row.locator(`.field[data-key="${f.key}"] > .k`).count(), 1, "a default role must be labelled once");
         }
-        fields[0].value = "magpie/b/executor";
-        fields[1].value = "magpie/b/planner";
+        fields[0].value = "queqiao/b/executor";
+        fields[1].value = "queqiao/b/planner";
         // Either role keeps the connection while the other is on its default.
         for (const f of fields) {
           const selected = f.value;
@@ -117,7 +117,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
           assert.match(listed, /A Flash/);
           assert(!listed.includes("Native Old"));
           await page.locator('#pickerRail [data-group="all"]').click();
-          await page.locator("#q").fill("magpie/a/typed");
+          await page.locator("#q").fill("queqiao/a/typed");
           assert.equal(await page.locator("#list li.custom").count(), 1, "typed model choice is missing");
           await page.keyboard.press("Escape");
         }
@@ -136,7 +136,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await defaults(first.key);
         await page.waitForFunction((key) => document.querySelector(`.agent[data-id="reasonix"] .field[data-key="${key}"]`)?.textContent.includes("Native Old"), first.key);
         assert.deepEqual(posts, [{ agent: "reasonix", field: first.key, value: "" }]);
-        assert.equal(await page.locator(".leave-ask").count(), 0, "the other role still uses magpie");
+        assert.equal(await page.locator(".leave-ask").count(), 0, "the other role still uses queqiao");
         assert.equal(last.value, remaining);
         await defaults(last.key);
         const ask = page.locator(".leave-ask");

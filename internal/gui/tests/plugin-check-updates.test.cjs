@@ -12,7 +12,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const COPILOT = "opencode-copilot-auth", ZED = "@magpie-community/opencode-zed-auth", KIRO = "@magpie-community/opencode-kiro-auth";
+const COPILOT = "opencode-copilot-auth", ZED = "@queqiao-community/opencode-zed-auth", KIRO = "@queqiao-community/opencode-kiro-auth";
 
 function server(lang, calls) {
   // what npm said within the hour: nothing newer than what's installed

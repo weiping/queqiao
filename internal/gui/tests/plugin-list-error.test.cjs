@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // A plugin's account whose model list failed has only the plugin's
-// defaults (Cursor's Auto alone, gnayiab on X running magpie in WSL): its
+// defaults (Cursor's Auto alone, gnayiab on X running queqiao in WSL): its
 // editor says why under the models, in the user's language, with no left
 // border; an account whose list came in says nothing.
 const assert = require("node:assert/strict");
@@ -10,13 +10,13 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const said = "Cursor isn't signed in; sign in from magpie's Providers page or run `cursor-agent login`";
+const said = "Cursor isn't signed in; sign in from queqiao's Providers page or run `cursor-agent login`";
 const cursor = (listError) => ({
   id: "cursor", name: "Cursor", icon: "cursor", chat: "http://127.0.0.1/plugin/cursor/v1", responses: "", anthropic: "", catalog: "",
   models: [{ id: "auto", name: "Auto", on: true }], agents: [], fallback: [], headers: {}, chosen: [],
   key: { set: false, masked: "" }, keyList: [], ready: true, exposed: 1, fetched: new Date().toISOString(),
   account: { agent: "cursor", agentName: "Cursor", agentIcon: "cursor", user: "me@example.com", builtin: "cursor" },
-  move: { package: "@magpie-community/opencode-cursor-auth", state: "plugin" },
+  move: { package: "@queqiao-community/opencode-cursor-auth", state: "plugin" },
   ...(listError ? { listError } : {}),
 });
 

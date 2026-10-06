@@ -14,7 +14,7 @@ const assets = path.resolve(__dirname, "../assets");
 function server(lang, st) {
   // the Qoder plugin serves both; ARNO's was signed in to two Qoder
   // accounts of its own, so under its own id, and Qoder CN not at all
-  const pkg = "@magpie-community/opencode-qoder-auth";
+  const pkg = "@queqiao-community/opencode-qoder-auth";
   const plugins = () => !st.installed ? [] : [
     { id: st.moved ? "qoder" : "qoder-plugin", pid: "qoder", name: "Qoder", icon: "qoder", spec: pkg, signedIn: true, accounts: [{ user: "a@q" }, { user: "b@q" }], models: 3, methods: [{ type: "oauth", label: "Qoder" }] },
     { id: "qoder-cn-plugin", pid: "qoder-cn", name: "Qoder CN", icon: "qoder", spec: pkg, signedIn: false, models: 3, methods: [{ type: "oauth", label: "Qoder CN" }] },

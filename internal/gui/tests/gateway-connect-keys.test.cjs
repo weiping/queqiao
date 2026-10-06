@@ -30,7 +30,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await page.locator("#gatewayKeysBlock").isVisible(), false, "most users never share");
       assert.equal(await page.locator("#connectKey").count(), 0, "local-only users see no gateway key picker");
       assert.equal(await page.locator("#connect").getByText(locale === "zh" ? "API 密钥" : "API key", { exact: true }).count(), 1);
-      await expectSecret('OPENAI_API_KEY=magpie');
+      await expectSecret('OPENAI_API_KEY=queqiao');
       if (process.env.ARTIFACT_DIR) {
         await fs.mkdir(process.env.ARTIFACT_DIR, { recursive: true });
         await page.screenshot({ path: path.join(process.env.ARTIFACT_DIR, `${engine}-${locale}-local-connect.png`) });
@@ -50,7 +50,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.locator("#gatewayKeysBlock").waitFor({ state: "visible" });
       await page.locator("#connectKey").click();
       assert.equal(await page.locator(".proto-menu .pm-name", { hasText: /^Magpie$/ }).count(), 1);
-      assert.equal(await page.locator(".proto-menu .pm-name", { hasText: /^magpie$/ }).count(), 0,
+      assert.equal(await page.locator(".proto-menu .pm-name", { hasText: /^queqiao$/ }).count(), 0,
         "the arbitrary local token must not look like a second named Magpie key");
       if (process.env.ARTIFACT_DIR) {
         await page.screenshot({ path: path.join(process.env.ARTIFACT_DIR, `${engine}-${locale}-shared-key-picker.png`) });
@@ -96,7 +96,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await page.locator(".proto-menu .pm-name", { hasText: /^Work$/ }).count(), 0);
       assert.equal(await page.locator(".proto-menu .pm-name", { hasText: /^Magpie$/ }).count(), 1,
         "the default key is named Magpie");
-      assert.equal(await page.locator(".proto-menu .pm-name", { hasText: /^magpie$/ }).count(), 0, "arbitrary loopback tokens cannot be selected for LAN");
+      assert.equal(await page.locator(".proto-menu .pm-name", { hasText: /^queqiao$/ }).count(), 0, "arbitrary loopback tokens cannot be selected for LAN");
       await page.keyboard.press("Escape");
       await row("server").getByRole("button", { name: w.disable, exact: true }).click();
       await expectSecret("fixture-laptop");
@@ -114,7 +114,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
           const code = await snippet.textContent();
           assert(code.includes(base), `${api} ${dialect} must use the selected address`);
           assert(code.includes("fixture-server"), `${api} ${dialect} must use the selected key`);
-          assert(!code.includes('"magpie"'), "named key examples never fall back to magpie");
+          assert(!code.includes('"queqiao"'), "named key examples never fall back to queqiao");
         }
       }
       await row("server").locator(".rename").click();

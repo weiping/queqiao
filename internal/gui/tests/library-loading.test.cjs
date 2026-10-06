@@ -15,7 +15,7 @@ const assets = path.resolve(__dirname, "../assets");
 const HOME = "/Users/aimer";
 const agent = (id, name) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json` });
 const lib = {
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("codex", "Codex"), agent("pi", "Pi")],
   instructions: { agents: [], sets: [] }, foundServers: [], projects: [], foundSkills: [],
   skills: [{ name: "grilling", description: "Grill a plan", kind: "folder", agents: ["codex"], source: `${HOME}/skills/grilling` }],
@@ -90,7 +90,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     assert.equal(await v.locator(".lib-skel").count(), 0, "the outline goes");
     assert.deepEqual(await v.locator(".lib-tabs .opt").allTextContents(), ["Instructions", "MCP servers · 1", "Skills · 1", "RTK"]);
     assert.equal(await v.locator(".lib-tabs .opt.on").textContent(), "Instructions");
-    assert.equal(await v.locator(".lib-head .lib-more").getAttribute("title"), "~/.magpie/library");
+    assert.equal(await v.locator(".lib-head .lib-more").getAttribute("title"), "~/.queqiao/library");
     const after = await v.locator(".lib-tabs").boundingBox();
     assert.deepEqual([after.x, after.y], [before.x, before.y], "the tabs don't move");
     await v.getByText("Write it once", { exact: false }).waitFor();

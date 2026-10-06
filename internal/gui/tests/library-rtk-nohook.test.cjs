@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Discord (lc): "rtk 没有识别 deepseek harness". RTK has no hook for
 // DeepSeek Harness (dsh's hooks can't rewrite a command, and rtk init has no
-// --agent dsh), and the RTK tab left it out, as if magpie hadn't seen it.
+// --agent dsh), and the RTK tab left it out, as if queqiao hadn't seen it.
 // It is listed now, tagged No RTK hook with why, and its switch can't be
 // turned on; in English and Chinese. No backend: the API is faked here.
 const assert = require("node:assert/strict");
@@ -14,7 +14,7 @@ const assets = path.resolve(__dirname, "../assets");
 const HOME = "/Users/aimer";
 const agent = (id, name) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json` });
 const lib = () => ({
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("pi", "Pi"), agent("dsh", "DeepSeek Harness")],
   instructions: { agents: [], sets: [] }, foundServers: [], projects: [], foundSkills: [], skills: [], servers: [],
 });

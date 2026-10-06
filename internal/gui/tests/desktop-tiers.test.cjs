@@ -1,9 +1,9 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Claude Desktop's Code tab runs Claude Code, whose opus/sonnet/haiku/fable
-// tiers each take a model of their own from magpie (WilianWeng). Desktop has
+// tiers each take a model of their own from queqiao (WilianWeng). Desktop has
 // no model field here for them to follow: the tiers' square says what an
 // unset one runs on instead, and its picker's reset entry is "Not set", not
-// "Same as model". Connected to magpie, the square is in the row opened from
+// "Same as model". Connected to queqiao, the square is in the row opened from
 // its link. In English and Chinese. No backend: the API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -12,14 +12,14 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const models = [{ value: "magpie/v/glm", label: "GLM", ref: "v/glm" }, { value: "magpie/v/flash", label: "Flash", ref: "v/flash" }];
+const models = [{ value: "queqiao/v/glm", label: "GLM", ref: "v/glm" }, { value: "queqiao/v/flash", label: "Flash", ref: "v/flash" }];
 const tiers = ["opus", "sonnet", "haiku", "fable"];
 const fresh = () => ({
   agents: [{
     id: "claude-desktop", name: "Claude Desktop", path: "/test/claude_desktop_config.json", icon: "claude-color", wired: true,
     fields: [
-      { key: "provider", label: "provider", value: "magpie", options: [{ value: "magpie", label: "magpie" }] },
-      ...tiers.map((tier) => ({ key: tier, label: tier, value: tier === "haiku" ? "magpie/v/flash" : "", options: models })),
+      { key: "provider", label: "provider", value: "queqiao", options: [{ value: "queqiao", label: "queqiao" }] },
+      ...tiers.map((tier) => ({ key: tier, label: tier, value: tier === "haiku" ? "queqiao/v/flash" : "", options: models })),
     ],
   }],
   profiles: [],
@@ -84,14 +84,14 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(rows[0][1], w.unset);
       assert.equal(rows[2][1], "Flash");
 
-      // sonnet's picker: the reset entry, then magpie's models; GLM picked
+      // sonnet's picker: the reset entry, then queqiao's models; GLM picked
       await page.locator("#list li").nth(1).click();
       await page.locator("#pop:not([hidden]) #list li", { hasText: "GLM" }).first().waitFor();
       const first = await page.locator("#list li").first().evaluate((e) => [e.querySelector(".v")?.textContent, e.querySelector(".n")?.textContent || ""]);
       assert.deepEqual(first, [w.reset, w.unset]);
       await page.locator("#list li", { hasText: "GLM" }).first().click();
       await page.waitForFunction(() => document.querySelector("#status")?.textContent);
-      assert.deepEqual(sets, [{ agent: "claude-desktop", field: "sonnet", value: "magpie/v/glm" }]);
+      assert.deepEqual(sets, [{ agent: "claude-desktop", field: "sonnet", value: "queqiao/v/glm" }]);
       assert.equal(await page.evaluate(() => scrollY), y, "a click scrolled the page");
       assert.deepEqual(errors, []);
     });

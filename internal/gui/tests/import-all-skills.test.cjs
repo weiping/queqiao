@@ -20,12 +20,12 @@ const found = [
   { name: "notes", description: "Mine", agents: ["codex"] },
 ];
 const lib = (foundSkills) => ({
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("codex", "Codex"), agent("pi", "Pi")],
   instructions: { agents: [] }, servers: [], skills: [], foundServers: [], projects: [], foundSkills,
 });
 
-// fail, when given, is a skill the fake magpie can't bring in
+// fail, when given, is a skill the fake queqiao can't bring in
 function server(lang, posts, fail) {
   return async (route) => {
     const req = route.request(), url = new URL(req.url());

@@ -4,7 +4,7 @@
 // CLIs behind, a line above the list updates them all, one after another
 // (never two at once), each row's pill busy in its turn, the view left where
 // it was, and says how it went — a failed one by name, the line staying put
-// so the list doesn't jump. Under the list, the agents magpie knows that
+// so the list doesn't jump. Under the list, the agents queqiao knows that
 // aren't here, folded (open when none is here), each with its vendor's
 // install commands to copy. No backend: the API is faked here, and nothing
 // is ever installed or updated.

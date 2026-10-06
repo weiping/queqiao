@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// A key whose own usage windows magpie reads (a sub2api key given a 5-hour,
+// A key whose own usage windows queqiao reads (a sub2api key given a 5-hour,
 // day or 7-day limit) is told on the Routing page as an account is: its
 // row says how much of its window is used and when it renews, with a bar,
 // and the story says why it went first by its allowance — beside an

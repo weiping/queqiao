@@ -9,7 +9,7 @@
 // A click opens the window's Routing page on that request and leaves the
 // panel where it is; the window opened so has that request picked. Over the
 // list a small stage (#feedback: 这个页面有点乱…迷你版的路由动画): the agents
-// that asked lately, magpie and where their requests went, each new request
+// that asked lately, queqiao and where their requests went, each new request
 // a dot flying there and back; the rows' times and totals line up on the
 // right, with one mark for how each went. No backend: the API is faked here.
 const assert = require("node:assert/strict");
@@ -138,7 +138,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.equal(marks, 1);
       }
 
-      // the stage: the agents that asked, magpie, the accounts they went to
+      // the stage: the agents that asked, queqiao, the accounts they went to
       const stage = await page.locator(".pr-stage").evaluate((s) => ({
         from: [...s.querySelectorAll(".ps-ag .ps-name")].map((e) => e.textContent),
         to: [...s.querySelectorAll(".ps-dst")].map((e) => e.querySelector(".ps-name").textContent + ":" + e.className.split(" ").pop()),

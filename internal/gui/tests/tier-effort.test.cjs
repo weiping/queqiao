@@ -5,7 +5,7 @@
 // Claude Code asks for, a click opens the effort slider with Default as its
 // first stop, and a level picked is posted and named in its title. (The
 // tray panel keeps them as entries under the models in the tiers' square.) The subagents' effort is a square, as Codex's is, that says what
-// unset means for Claude Code. Before Claude Code goes through magpie there
+// unset means for Claude Code. Before Claude Code goes through queqiao there
 // are no levels: no effort entries and no square. No click scrolls the page.
 // In English and Chinese. No backend: the API is faked here.
 const assert = require("node:assert/strict");
@@ -15,15 +15,15 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const models = [{ value: "magpie/v/glm", label: "GLM", ref: "v/glm" }, { value: "magpie/v/flash", label: "Flash", ref: "v/flash" }];
+const models = [{ value: "queqiao/v/glm", label: "GLM", ref: "v/glm" }, { value: "queqiao/v/flash", label: "Flash", ref: "v/flash" }];
 const levels = ["low", "medium", "high"].map((value) => ({ value }));
 const tiers = ["opus", "sonnet", "haiku", "fable"];
 const claude = (id, routed) => ({
   id, name: "Claude Code", path: "/test/settings.json", icon: "claudecode-color", wired: routed,
   fields: [
-    { key: "model", label: "model", value: routed ? "magpie/v/glm" : "opus", options: routed ? models : [{ value: "opus" }] },
+    { key: "model", label: "model", value: routed ? "queqiao/v/glm" : "opus", options: routed ? models : [{ value: "opus" }] },
     { key: "effort", label: "effort", value: "high", options: levels },
-    ...tiers.map((tier) => ({ key: tier, label: tier, value: tier === "haiku" && routed ? "magpie/v/flash" : "", options: models })),
+    ...tiers.map((tier) => ({ key: tier, label: tier, value: tier === "haiku" && routed ? "queqiao/v/flash" : "", options: models })),
     ...tiers.map((tier) => ({ key: tier + "_effort", label: tier + " effort", value: "", options: routed ? levels : [] })),
     { key: "subagent", label: "subagents", value: "", options: routed ? models : [] },
     { key: "subagent_effort", label: "subagent effort", value: "", options: routed ? levels : [] },
@@ -98,7 +98,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       // no tier's effort is a field of the row's own; the subagents' is a square
       assert.deepEqual(await page.locator(`${cc} .field:not(.ag-eff)[data-key$="_effort"]`).evaluateAll((es) => es.map((e) => e.dataset.key)), ["subagent_effort"]);
       assert.equal(await page.locator(`${cc} .field.extra[data-key="subagent_effort"]`).getAttribute("aria-label"), w.sub);
-      // not through magpie: no levels, no square, no effort entries
+      // not through queqiao: no levels, no square, no effort entries
       assert.equal(await page.locator('.row.agent[data-id="cc-own"] .field[data-key$="_effort"]').count(), 0);
 
       // each tier's row in the opened row: its model, then its effort

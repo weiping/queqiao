@@ -14,18 +14,18 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const ref = (value) => ({ value, label: value, ref: value, note: "via magpie" });
-const options = [ref("magpie/minimax-cn/MiniMax-M3"), ref("magpie/relay/glm-4.6")];
+const ref = (value) => ({ value, label: value, ref: value, note: "via queqiao" });
+const options = [ref("queqiao/minimax-cn/MiniMax-M3"), ref("queqiao/relay/glm-4.6")];
 const roles = ["fast", "standard", "deep", "visual"];
-// as magpie reads an Aside: the model it talks and its level beside it, the
+// as queqiao reads an Aside: the model it talks and its level beside it, the
 // model it draws with, and the four tasks it picks a model by hand
 const state = {
   agents: [{
     id: "aside", name: "Aside", icon: "aside", path: "/fixture/aside", wired: true,
     fields: [
-      { key: "model", label: "model", value: "magpie/minimax-cn/MiniMax-M3", options },
+      { key: "model", label: "model", value: "queqiao/minimax-cn/MiniMax-M3", options },
       { key: "effort", label: "thinking", value: "high", options: ["low", "medium", "high"].map((value) => ({ value })) },
-      { key: "image", label: "image", value: "magpie/agnes-image-2.1-flash", options },
+      { key: "image", label: "image", value: "queqiao/agnes-image-2.1-flash", options },
       ...roles.map((key) => ({ key, label: key, value: "", options })),
     ],
   }],
@@ -79,7 +79,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const got = await page.evaluate(pills, `${row} .ag-exp .ag-vl`);
       assert.deepEqual(got, [
         [ "effort", w.thinking, w.high ],
-        [ "image", w.image, "magpie/agnes-image-2.1-flash" ],
+        [ "image", w.image, "queqiao/agnes-image-2.1-flash" ],
         [ "fast", w.fast, w.unset ],
         [ "standard", w.standard, w.unset ],
         [ "deep", w.deep, w.unset ],

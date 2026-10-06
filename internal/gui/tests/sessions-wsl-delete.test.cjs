@@ -2,7 +2,7 @@
 // A session in a WSL distro is deleted from the Sessions page as this
 // computer's are (TJHHHH: 请问是否可以增加wsl内对于会话的删除呢): its row has
 // its box beside the WSL badge, its folder's box picks it, and the bar's
-// Delete asks in magpie's own dialog and posts sessions/delete with its id;
+// Delete asks in queqiao's own dialog and posts sessions/delete with its id;
 // no note says WSL's can't be deleted. In English and Chinese; no backend,
 // the API is faked here.
 const assert = require("node:assert/strict");
@@ -33,7 +33,7 @@ function serve(lang, calls) {
     if (url.pathname === "/api/providers") return json({ providers: [], presets: [], excluded: [], gateway: { running: true, window: true } });
     if (url.pathname === "/api/sessions/manage") {
       return json({ agents: [{ agent: "claude", count: sessions.length, deletable: true, name: "Claude Code", icon: "claude" }],
-        agent: "claude", sessions, terminal: false, trash: [], trashDir: "C:\\Users\\me\\AppData\\Roaming\\magpie\\trash\\sessions" });
+        agent: "claude", sessions, terminal: false, trash: [], trashDir: "C:\\Users\\me\\AppData\\Roaming\\queqiao\\trash\\sessions" });
     }
     if (url.pathname === "/api/sessions/delete") {
       const body = req.postDataJSON();

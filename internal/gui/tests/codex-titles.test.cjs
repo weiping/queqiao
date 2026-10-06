@@ -1,8 +1,8 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Settings' "Codex thread titles" (#705, DuGuaiYA: Codex's thread_title
-// requests go through its own ChatGPT sign-in even on magpie's models): by
+// requests go through its own ChatGPT sign-in even on queqiao's models): by
 // default Codex's own (ChatGPT); the app's menu (no native select) offers
-// Off and magpie's models; a pick posts settings/codex-titles on its own,
+// Off and queqiao's models; a pick posts settings/codex-titles on its own,
 // the row says what now happens, and no click scrolls the Settings page.
 // English and Chinese, Chromium and WebKit; no backend, the API is faked here.
 const assert = require("node:assert/strict");
@@ -19,7 +19,7 @@ function settingsPayload(over) {
     dock: false, dockWindow: false, proxy: "", redact: false, redactPersonal: false, redactWords: [],
     codexWarmup: "", claudeWarmup: "", codexWarmAt: "", claudeWarmAt: "", workbuddyCheckin: false, noStats: false,
     trayUsage: "", trayUsageEvery: 3, vision: "", imageGen: "",
-    version: "0.1.400", dir: "~/.config/magpie", gateway: "http://127.0.0.1:3425",
+    version: "0.1.400", dir: "~/.config/queqiao", gateway: "http://127.0.0.1:3425",
     proxyNow: "none", proxySource: "none", login: false,
     visionModels: [], imageGenModels: [], workbuddyCheckins: [], lanURLs: [],
     titleModels: [
@@ -104,7 +104,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const before = await view(page);
       assert(before > 0, "the settings list must scroll to the row");
 
-      // the app's menu: Codex's own, Off and magpie's models
+      // the app's menu: Codex's own, Off and queqiao's models
       await pick.click();
       await page.locator("#pop:not([hidden]) #list li").first().waitFor();
       const items = (await page.locator("#list li:not(.group)").allTextContents()).join("|");
@@ -116,7 +116,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.waitForTimeout(300);
       assert.equal(await view(page), before, "picking Off scrolled the page");
 
-      // a model of magpie's
+      // a model of queqiao's
       await pick.click();
       await page.locator("#pop:not([hidden]) #list li").first().waitFor();
       await page.locator("#list li:not(.group)").filter({ hasText: "DeepSeek V4 Flash" }).first().click();

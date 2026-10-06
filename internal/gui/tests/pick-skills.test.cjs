@@ -63,7 +63,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         const w = L[lang];
         const state = {
           lib: {
-            dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+            dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
             agents: [agent("claude", "Claude Code", "claudecode-color"), agent("codex", "Codex", "openai")],
             instructions: { agents: [], sets: [] }, servers: [], foundServers: [], projects: [], foundSkills: [], problems: [],
             skills: [...LARK.map((n) => local(n, ["claude"])), ...["docx", "notes", "pdf", "web-search", "xlsx"].map((n) => local(n, ["claude"]))],

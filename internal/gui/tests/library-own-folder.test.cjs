@@ -13,10 +13,10 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const HOME = "/Users/loosheng";
-const LIB = `${HOME}/.config/magpie/library`;
+const LIB = `${HOME}/.config/queqiao/library`;
 const agent = (id, name, icon, more = {}) => ({ id, name, icon, skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json`, ...more });
 const base = () => ({
-  dir: LIB, backups: `${HOME}/.config/magpie/backups`, home: HOME,
+  dir: LIB, backups: `${HOME}/.config/queqiao/backups`, home: HOME,
   agents: [
     agent("claude", "Claude Code", "claudecode-color"),
     agent("codex", "Codex", "codex-color"),
@@ -73,7 +73,7 @@ const words = {
     bring: "Lists it in the library where it is, nothing moved: you can give it to any agent",
     always: (a) => `${a} reads ~/.agents/skills itself, where this skill is kept — it has it whatever is ticked here`,
     stays: "It is taken out of every agent it was given to. The folder it was linked from stays where it is.",
-    moved: "It is taken out of every agent it was given to, and its folder is moved to magpie's backups.",
+    moved: "It is taken out of every agent it was given to, and its folder is moved to queqiao's backups.",
     cancel: "Cancel",
   },
   zh: {
@@ -81,7 +81,7 @@ const words = {
     bring: "在原处列入资源库，不移动文件：可分配给任何 Agent",
     always: (a) => `${a} 会自行读取此技能所在的 ~/.agents/skills，无论是否勾选都能使用`,
     stays: "将从所有已启用的 Agent 中移除，链接的原文件夹保持不动。",
-    moved: "将从所有已启用的 Agent 中移除，文件夹移到 magpie 的备份。",
+    moved: "将从所有已启用的 Agent 中移除，文件夹移到 queqiao 的备份。",
     cancel: "取消",
   },
 };

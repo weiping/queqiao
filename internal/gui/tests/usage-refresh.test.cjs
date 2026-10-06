@@ -30,7 +30,7 @@ function server(lang, calls) {
     }
     if (url.pathname === "/api/usage") {
       calls.overview++;
-      return json({ calls: 1, errors: 0, input: 100, output: 10, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 0.01 + calls.overview * 0.001, bucket: "day", series: [{ label: "Mon", input: 100, output: 10, calls: 1, cost: 0.01 }], agents: [{ name: "Codex", calls: 1, cost: 0.01 }], models: [{ name: "gpt-6-sol", calls: 1, cost: 0.01 }], path: "~/.config/magpie/usage.jsonl" });
+      return json({ calls: 1, errors: 0, input: 100, output: 10, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 0.01 + calls.overview * 0.001, bucket: "day", series: [{ label: "Mon", input: 100, output: 10, calls: 1, cost: 0.01 }], agents: [{ name: "Codex", calls: 1, cost: 0.01 }], models: [{ name: "gpt-6-sol", calls: 1, cost: 0.01 }], path: "~/.config/queqiao/usage.jsonl" });
     }
     if (url.pathname === "/api/usage/quotas") { calls.quotas++; if (url.search === "?asked=1") calls.asked++; return json([]); }
     if (url.pathname === "/api/sessions") return json({ sessions: [], dirs: [] });

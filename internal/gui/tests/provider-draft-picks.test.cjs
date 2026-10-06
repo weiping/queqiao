@@ -19,7 +19,7 @@ const fetched = new Date(Date.now() - 3600e3).toISOString();
 const ids = Array.from({ length: 30 }, (_, i) => `vendor/model-${i}`);
 const free = new Set(["vendor/model-3", "vendor/model-10", "vendor/model-27"]);
 
-// the provider as magpie answers it for these picks: with none, the first
+// the provider as queqiao answers it for these picks: with none, the first
 // 24 of the vendor's list are on (served), as Exposed has it
 function routerFor(chosen) {
   const on = new Set(chosen.length ? chosen : ids.slice(0, 24));

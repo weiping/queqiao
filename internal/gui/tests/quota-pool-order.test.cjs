@@ -2,7 +2,7 @@
 // An Antigravity card keeps its order from one refresh to the next (#860,
 // huoranxuanyuan: 刷新额度有时会让5h和七天的顺序颠倒). retrieveUserQuotaSummary
 // sometimes leaves out a pool's 5-hour bucket (Gemini's, here, its week used
-// up); magpie then keeps the Gemini models' own 5-hour windows as a family
+// up); queqiao then keeps the Gemini models' own 5-hour windows as a family
 // row (#745). That row used to go last, after Claude & GPT, so the card read
 // Gemini · 7 days, Claude & GPT · 5 hours, Claude & GPT · 7 days, Gemini, and
 // with the 5 hours back, Gemini · 5 hours, Gemini · 7 days, … — in the card's

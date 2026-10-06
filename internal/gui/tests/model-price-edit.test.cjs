@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // #819 (ITea312: 图形界面找不到给某个模型单独定价，只能用全局倍率): a model's
-// price, which only `magpie model price` set, is given in the provider
+// price, which only `queqiao model price` set, is given in the provider
 // editor's Names & levels, beside its name. Each box shows the model's list
 // price until one is typed, a part left empty takes the list's, and
 // Restore default gives it its list price again; all made with the

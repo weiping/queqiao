@@ -2,7 +2,7 @@
 // A DeepSeek chat in Codex showed Codex's GPT answering in the Requests
 // list (#314: 为啥 deepseek 对话会调用 gpt): the new chat's title, which
 // Codex asks of gpt-6-luna on a hidden thread of its own, and the web
-// searches magpie runs for DeepSeek on the model it searches with. Each
+// searches queqiao runs for DeepSeek on the model it searches with. Each
 // says what it was by its model, and the search's story whose it was.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -21,8 +21,8 @@ const call = (id, i, agent, model, provider, extra) => ({
   done: true, status: 200, ms: 900, tokens: 1200,
 });
 const routes = [
-  call(104, 0, "magpie", "gpt-6.1-sol", "codex", { kind: "web_search", for: { agent: "codex", model: "deepseek/deepseek-flash" } }),
-  call(103, 1, "magpie", "gpt-6.1-sol", "codex", { kind: "web_search" }),
+  call(104, 0, "queqiao", "gpt-6.1-sol", "codex", { kind: "web_search", for: { agent: "codex", model: "deepseek/deepseek-flash" } }),
+  call(103, 1, "queqiao", "gpt-6.1-sol", "codex", { kind: "web_search" }),
   call(102, 2, "codex", "deepseek-flash", "deepseek", {}),
   call(101, 3, "codex", "gpt-6-luna", "codex", { kind: "thread_title" }),
 ];
@@ -30,7 +30,7 @@ const routes = [
 function serve(lang) {
   const state = {
     agents: [{ id: "codex", name: "Codex", path: "/test/config.toml", fields: [] }],
-    clients: [{ id: "codex", name: "Codex", icon: "codex-color" }, { id: "magpie", name: "magpie", icon: "magpie" }],
+    clients: [{ id: "codex", name: "Codex", icon: "codex-color" }, { id: "queqiao", name: "queqiao", icon: "queqiao" }],
     profiles: [], settings: { lang, theme: "light" },
   };
   return async (route) => {
@@ -59,13 +59,13 @@ function serve(lang) {
 }
 
 const want = {
-  en: { tags: ["Web search", "Web search", "", "Title"], story: /magpie ran this web search for Codex's deepseek\/deepseek-flash, which can't search the web by itself: codex\/gpt-6\.1-sol searched/, bare: /for a model that can't search the web by itself: codex\/gpt-6\.1-sol searched/, title: /Codex made this call itself \(Title\)/ },
-  zh: { tags: ["联网搜索", "联网搜索", "", "标题"], story: /magpie 代 Codex 的 deepseek\/deepseek-flash 发起的联网搜索.*由 codex\/gpt-6\.1-sol 搜索/, bare: /代一个无法自行搜索的模型发起的联网搜索：由 codex\/gpt-6\.1-sol 搜索/, title: /Codex 自行发起的调用（标题）/ },
+  en: { tags: ["Web search", "Web search", "", "Title"], story: /queqiao ran this web search for Codex's deepseek\/deepseek-flash, which can't search the web by itself: codex\/gpt-6\.1-sol searched/, bare: /for a model that can't search the web by itself: codex\/gpt-6\.1-sol searched/, title: /Codex made this call itself \(Title\)/ },
+  zh: { tags: ["联网搜索", "联网搜索", "", "标题"], story: /queqiao 代 Codex 的 deepseek\/deepseek-flash 发起的联网搜索.*由 codex\/gpt-6\.1-sol 搜索/, bare: /代一个无法自行搜索的模型发起的联网搜索：由 codex\/gpt-6\.1-sol 搜索/, title: /Codex 自行发起的调用（标题）/ },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
-    test(`${engine} ${lang}: a title and magpie's web search say what they were`, async (t) => {
+    test(`${engine} ${lang}: a title and queqiao's web search say what they were`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       const context = await browser.newContext({ viewport: { width: 1100, height: 760 }, reducedMotion: "reduce" });
       const page = await context.newPage();

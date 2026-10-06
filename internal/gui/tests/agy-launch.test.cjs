@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Antigravity CLI (agy) takes magpie's gateway only from its environment, so
+// Antigravity CLI (agy) takes queqiao's gateway only from its environment, so
 // its row on the Agents page has a square that copies the command starting
-// it on magpie, once it is connected (right before the model picker beside
+// it on queqiao, once it is connected (right before the model picker beside
 // its switch, agy picking no model once started): the command in its tooltip, one click copying it (posted to /api/copy) and saying so, with the
 // page left where it was; none on an agent without one; in the tray panel's
 // opened row too; the words in Chinese. No backend: the API is faked here.
@@ -12,11 +12,11 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const LAUNCH = "GEMINI_API_KEY=magpie-agy GOOGLE_GEMINI_BASE_URL=http://127.0.0.1:3425 agy --model 'magpie/deepseek/pro'";
-const models = [{ value: "magpie/deepseek/pro", label: "magpie/deepseek/pro", ref: "deepseek/pro" }, { value: "model-b", label: "model-b" }];
+const LAUNCH = "GEMINI_API_KEY=queqiao-agy GOOGLE_GEMINI_BASE_URL=http://127.0.0.1:3425 agy --model 'queqiao/deepseek/pro'";
+const models = [{ value: "queqiao/deepseek/pro", label: "queqiao/deepseek/pro", ref: "deepseek/pro" }, { value: "model-b", label: "model-b" }];
 const agent = (id, name, launch) => ({
-  id, name, path: "/test/" + id, launch, wired: true, // on a magpie model (#726: a connected one is in view)
-  fields: [{ key: "model", label: "model", value: "magpie/deepseek/pro", options: models }],
+  id, name, path: "/test/" + id, launch, wired: true, // on a queqiao model (#726: a connected one is in view)
+  fields: [{ key: "model", label: "model", value: "queqiao/deepseek/pro", options: models }],
 });
 const state = {
   agents: [agent("claude", "Claude Code"), ...Array.from({ length: 4 }, (_, i) => agent("agent-" + i, "agent-" + i)),
@@ -69,7 +69,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await b.count(), 1);
       assert.equal(await page.locator(`${row("claude")} .field.launch`).count(), 0, "only an agent with a launch command has one");
       const title = await b.getAttribute("title");
-      assert.match(title, /Antigravity CLI takes magpie only from its environment/);
+      assert.match(title, /Antigravity CLI takes queqiao only from its environment/);
       assert(title.includes(LAUNCH), title);
       // on the row, right before the model it starts on, so the pickers
       // and the switches line up down the list
@@ -88,7 +88,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await b.click();
       await page.waitForTimeout(300);
       assert.deepEqual(copies, [LAUNCH]);
-      assert.match(await page.locator("#status").textContent(), /Copied — run it to start Antigravity CLI on magpie/);
+      assert.match(await page.locator("#status").textContent(), /Copied — run it to start Antigravity CLI on queqiao/);
       assert.equal(await view.evaluate((v) => v.scrollTop), top, "the click moved the page");
       assert.equal(await page.locator(`${row("agy")} .picker, .menu.open`).count(), 0, "no picker opens");
     });
@@ -110,10 +110,10 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const copies = [];
       const page = await open("http://magpie.test/", "zh", copies);
       const b = page.locator(`${row("agy")} .field.launch`);
-      assert.match(await b.getAttribute("title"), /Antigravity CLI 只能从环境变量接入 magpie · 点击复制启动它的命令：/);
+      assert.match(await b.getAttribute("title"), /Antigravity CLI 只能从环境变量接入 queqiao · 点击复制启动它的命令：/);
       await b.click();
       await page.waitForTimeout(300);
-      assert.match(await page.locator("#status").textContent(), /已复制，运行它即可让 Antigravity CLI 走 magpie/);
+      assert.match(await page.locator("#status").textContent(), /已复制，运行它即可让 Antigravity CLI 走 queqiao/);
     });
 
     assert.deepEqual(errors, []);

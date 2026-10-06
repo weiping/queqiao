@@ -14,17 +14,17 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const options = [
-  { value: "magpie/deepseek/pro", label: "DeepSeek Pro", ref: "deepseek/pro" },
-  { value: "magpie/deepseek/flash", label: "DeepSeek Flash", ref: "deepseek/flash" },
+  { value: "queqiao/deepseek/pro", label: "DeepSeek Pro", ref: "deepseek/pro" },
+  { value: "queqiao/deepseek/flash", label: "DeepSeek Flash", ref: "deepseek/flash" },
 ];
 const field = (key, label, value) => ({ key, label, value, options });
 const fresh = () => ({
   agents: [
     {
       id: "omp", name: "omp", path: "/test/config.yml", icon: "omp", wired: true,
-      fields: [field("model", "model", "magpie/deepseek/pro"), field("subagent", "subagents", ""), field("small", "smol", ""), field("slow", "slow", "magpie/deepseek/flash")],
+      fields: [field("model", "model", "queqiao/deepseek/pro"), field("subagent", "subagents", ""), field("small", "smol", ""), field("slow", "slow", "queqiao/deepseek/flash")],
     },
-    { id: "opencode", name: "OpenCode", path: "/test/opencode.json", wired: true, fields: [field("model", "model", "magpie/deepseek/pro"), field("small", "small", "")] },
+    { id: "opencode", name: "OpenCode", path: "/test/opencode.json", wired: true, fields: [field("model", "model", "queqiao/deepseek/pro"), field("small", "small", "")] },
   ],
   profiles: [],
 });
@@ -102,7 +102,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.match(await first.innerText(), new RegExp(`${w.same}[\\s\\S]*DeepSeek Pro`));
       await page.locator("#pop:not([hidden]) #list li").filter({ hasText: "DeepSeek Flash" }).first().click();
       await page.waitForFunction(() => document.querySelector('.row.agent[data-id="omp"] .field.extra.set[data-key="small"]'));
-      assert.deepEqual(sets, [{ ...sets[0], agent: "omp", field: "small", value: "magpie/deepseek/flash" }]);
+      assert.deepEqual(sets, [{ ...sets[0], agent: "omp", field: "small", value: "queqiao/deepseek/flash" }]);
       assert.equal(await square("small").getAttribute("aria-label"), w.on(w.smol, "DeepSeek Flash"));
 
       // OpenCode's small model doesn't follow the model: a picker, not a square

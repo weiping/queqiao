@@ -17,11 +17,11 @@ const assets = path.resolve(__dirname, "../assets");
 
 function fixtures() {
   const options = [
-    { value: "magpie/codex/gpt-5.5", ref: "codex/gpt-5.5", label: "GPT-5.5", group: "ChatGPT", fastFor: "codex" },
-    { value: "magpie/codex/gpt-5.4-mini", ref: "codex/gpt-5.4-mini", label: "GPT-5.4 mini", group: "ChatGPT" },
-    { value: "magpie/zai/glm-5", ref: "zai/glm-5", label: "GLM-5", group: "Z.ai" },
+    { value: "queqiao/codex/gpt-5.5", ref: "codex/gpt-5.5", label: "GPT-5.5", group: "ChatGPT", fastFor: "codex" },
+    { value: "queqiao/codex/gpt-5.4-mini", ref: "codex/gpt-5.4-mini", label: "GPT-5.4 mini", group: "ChatGPT" },
+    { value: "queqiao/zai/glm-5", ref: "zai/glm-5", label: "GLM-5", group: "Z.ai" },
   ];
-  const agents = [{ id: "codex", name: "Codex", path: "/test/codex", wired: true, fields: [{ key: "model", label: "model", value: "magpie/codex/gpt-5.5", options }] }];
+  const agents = [{ id: "codex", name: "Codex", path: "/test/codex", wired: true, fields: [{ key: "model", label: "model", value: "queqiao/codex/gpt-5.5", options }] }];
   const providers = { providers: [{
     id: "codex", name: "ChatGPT", icon: "codex-color", chat: "", responses: "", anthropic: "", catalog: "",
     models: [{ id: "gpt-5.5", name: "", on: true }], fallback: [], headers: {}, keyList: [], proxy: "",
@@ -43,7 +43,7 @@ function server(lang, posts, refuse) {
     if (req.method() === "POST" && url.pathname.startsWith("/api/") && !url.pathname.startsWith("/api/window/")) {
       posts.push({ path: url.pathname, body: req.postDataJSON() });
       if (url.pathname === "/api/agent-fast") {
-        if (refuse()) return route.fulfill({ status: 500, contentType: "text/plain", body: "codex/gpt-5.5 has no fast mode magpie can ask for" });
+        if (refuse()) return route.fulfill({ status: 500, contentType: "text/plain", body: "codex/gpt-5.5 has no fast mode queqiao can ask for" });
         return json({ fast: req.postDataJSON().fast });
       }
       return json({});

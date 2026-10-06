@@ -21,7 +21,7 @@ const agent = (id, name, more = {}) => ({ id, name, icon: "", skills: `${HOME}/.
 const sk = (name, agents) => ({ name, description: name, kind: "folder", agents });
 const sv = (name, transport, agents) => ({ name, transport, command: transport === "stdio" ? name : "", url: transport === "stdio" ? "" : "http://localhost:9/" + name, agents });
 const lib = (skills, servers) => ({
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex", { noSSE: true }), agent("copilot", "Copilot CLI"), agent("goose", "Goose", { skills: "" })],
   instructions: { agents: [] }, servers, skills, foundServers: [], projects: [], foundSkills: [],
 });

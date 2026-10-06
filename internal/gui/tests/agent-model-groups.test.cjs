@@ -26,7 +26,7 @@ async function serve(route) {
   if (url.pathname === "/api/state") return json({
     agents: [{
       id: "codex", name: "Codex", path: "/test/config.toml", icon: "codex-color", wired: true,
-      fields: [{ key: "model", label: "model", value: "magpie/openai/gpt-6", options: [{ value: "magpie/openai/gpt-6", label: "GPT-6", ref: "openai/gpt-6" }] }],
+      fields: [{ key: "model", label: "model", value: "queqiao/openai/gpt-6", options: [{ value: "queqiao/openai/gpt-6", label: "GPT-6", ref: "openai/gpt-6" }] }],
       models: { shown: models.length, listed: models.length },
     }],
     profiles: [], settings: { lang: "en", theme: "light" },

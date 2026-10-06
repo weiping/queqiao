@@ -4,7 +4,7 @@
 // Gateway page's recent calls, with "Fetch from archive" and "Download". A
 // body past 256 KB is said by its size only, for the file to be downloaded
 // whole; an archive too large to read here says so. Download in the app asks
-// archive/export and says where it saved the file; in magpie web it is the
+// archive/export and says where it saved the file; in queqiao web it is the
 // browser's download of archive/file. A request with no copy, with the
 // archive on, says "Not archived". No click moves the page, no left-border
 // accent. English and Chinese, Chromium and WebKit; the API is faked.
@@ -44,7 +44,7 @@ function server(lang, web, seen) {
     if (url.pathname === "/api/usage/requests") return json({ period: url.searchParams.get("period"), rows: ROWS, offset: 0, total: 3, calls: 3, errors: 0, input: 900, output: 120, cache_read: 0, cache_write: 0, reasoning: 0, cost: 0.03, unpriced: 0, agents: [{ id: "claude", name: "Claude Code", icon: "claudecode-color" }] });
     if (url.pathname === "/api/usage/requests/content") return json({ found: false, why: "read" });
     if (url.pathname === "/api/usage/quotas") return json([]);
-    if (url.pathname === "/api/usage") return json({ calls: 3, errors: 0, input: 900, output: 120, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 0.03, bucket: "day", series: [], agents: [], models: [], path: "~/.config/magpie/usage.jsonl" });
+    if (url.pathname === "/api/usage") return json({ calls: 3, errors: 0, input: 900, output: 120, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 0.03, bucket: "day", series: [], agents: [], models: [], path: "~/.config/queqiao/usage.jsonl" });
     if (url.pathname === "/api/sessions") return json({ sessions: [], dirs: [] });
     if (url.pathname === "/api/sessions/stats") return json({ from: "", to: "", days: [], agents: {} });
     if (url.pathname === "/api/groups") return json({ groups: [], models: [] });
@@ -57,11 +57,11 @@ function server(lang, web, seen) {
     }
     if (url.pathname === "/api/archive/export") {
       seen.push([req.method() + " export", name]);
-      return json({ path: "~/Downloads/magpie-request-" + name.replace("/", "-") + ".json" });
+      return json({ path: "~/Downloads/queqiao-request-" + name.replace("/", "-") + ".json" });
     }
     if (url.pathname === "/api/archive/file") {
       seen.push([req.method() + " file", name]);
-      return route.fulfill({ status: 200, headers: { "Content-Disposition": `attachment; filename="magpie-request-${name.replace("/", "-")}.json"` }, contentType: "application/json", body: "{}" });
+      return route.fulfill({ status: 200, headers: { "Content-Disposition": `attachment; filename="queqiao-request-${name.replace("/", "-")}.json"` }, contentType: "application/json", body: "{}" });
     }
     if (url.pathname.startsWith("/api/")) return json({});
     const file = path.join(assets, url.pathname === "/" ? "index.html" : url.pathname);
@@ -140,7 +140,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
           assert.equal(await box.locator(".call-archive-big").innerText(), w.omitted);
           assert(text.includes("20 MB"), `the response's size in:\n${text}`);
 
-          // downloaded: to Downloads in the app, the browser's in magpie web
+          // downloaded: to Downloads in the app, the browser's in queqiao web
           const dl = box.getByRole("button", { name: w.download });
           if (web) {
             // the browser's own download of archive/file, its name the
@@ -150,12 +150,12 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
             await press(dl);
             const [date, id] = KEPT.split("/");
             assert.deepEqual(await p.evaluate(() => window.followed), [[`http://magpie.test/api/archive/file?date=${date}&id=${id}`, true]]);
-            assert.equal(seen.filter(([k]) => k.endsWith("export")).length, 0, "magpie web doesn't ask the app to save it");
+            assert.equal(seen.filter(([k]) => k.endsWith("export")).length, 0, "queqiao web doesn't ask the app to save it");
           } else {
             await press(dl);
             await wait(2);
             assert.deepEqual(seen[1], ["POST export", KEPT]);
-            const said = `~/Downloads/magpie-request-${KEPT.replace("/", "-")}.json`;
+            const said = `~/Downloads/queqiao-request-${KEPT.replace("/", "-")}.json`;
             await p.waitForFunction((s) => document.querySelector("#status").textContent.includes(s), said);
           }
 

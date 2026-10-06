@@ -3,7 +3,7 @@
 // whether their issue was fixed). After an upgrade the window opens a dialog
 // with the notes of every release since, newest first, once: the app is told
 // they were seen, and a reload doesn't show them again. A fresh install shows
-// nothing, nor does the tray's panel; magpie web's page shows it as the
+// nothing, nor does the tray's panel; queqiao web's page shows it as the
 // window does, and opens its links in a tab. #464 links the issue and opens it in
 // the browser through the app, as markdown links do; a javascript: link is
 // text, and HTML in the notes is shown as text, never run. Settings' What's new
@@ -43,14 +43,14 @@ function settingsPayload(lang) {
     dock: false, dockWindow: false, proxy: "", redact: false, redactPersonal: false, redactWords: [],
     codexWarmup: "", claudeWarmup: "", codexWarmAt: "", claudeWarmAt: "", workbuddyCheckin: false, noStats: false,
     trayUsage: "", trayUsageEvery: 3, vision: "", imageGen: "",
-    version: "0.1.604", dir: "~/.config/magpie", gateway: "http://127.0.0.1:3425",
+    version: "0.1.604", dir: "~/.config/queqiao", gateway: "http://127.0.0.1:3425",
     proxyNow: "none", proxySource: "none", login: false,
     visionModels: [], imageGenModels: [], workbuddyCheckins: [], lanURLs: [],
     fx: { rate: 7.2, at: new Date().toISOString(), stale: false },
   };
 }
 
-// ctl.upgraded: magpie started on a newer version than it last ran
+// ctl.upgraded: queqiao started on a newer version than it last ran
 function serve(lang, ctl) {
   return async (route) => {
     const req = route.request(), url = new URL(req.url());
@@ -121,14 +121,14 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.close();
       }
 
-      // magpie web's page shows it too, and opens a link in a tab of its own
+      // queqiao web's page shows it too, and opens a link in a tab of its own
       {
         const ctl = fresh({ upgraded: true, web: true });
         const { page, errors } = await open(ctl);
         await dialog(page).waitFor();
         await page.evaluate(() => { window.open = (u) => { window.__opened = u; return null; }; });
         await dialog(page).getByRole("link", { name: "#446" }).click();
-        assert.equal(await page.evaluate(() => window.__opened), "https://github.com/yetone/magpie/issues/446");
+        assert.equal(await page.evaluate(() => window.__opened), "https://github.com/yetone/queqiao/issues/446");
         assert.equal(page.url(), "http://magpie.test/");
         assert.equal(ctl.seen, 1);
         assert.deepEqual(errors, []);
@@ -167,8 +167,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert((await notes.locator("li").nth(1).textContent()).startsWith('<img src=x onerror="window.__pwned=1"> <b>raw</b> tags stay text.'));
       // links: issues, markdown http(s) links; javascript: is text
       const issue = notes.getByRole("link", { name: "#464" });
-      assert.equal(await issue.getAttribute("href"), "https://github.com/yetone/magpie/issues/464");
-      assert.equal(await dialog(page).getByRole("link", { name: "#446" }).getAttribute("href"), "https://github.com/yetone/magpie/issues/446");
+      assert.equal(await issue.getAttribute("href"), "https://github.com/yetone/queqiao/issues/464");
+      assert.equal(await dialog(page).getByRole("link", { name: "#446" }).getAttribute("href"), "https://github.com/yetone/queqiao/issues/446");
       assert.equal(await notes.getByRole("link", { name: "the guide" }).getAttribute("href"), "https://usemagpie.ai/docs");
       assert.equal(await notes.getByRole("link", { name: "not a link" }).count(), 0, "a javascript: link is not a link");
       assert.equal(await dialog(page).locator("a[href^='javascript']").count(), 0);
@@ -178,7 +178,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const before = await body.evaluate((e) => [e.scrollTop, document.scrollingElement.scrollTop]);
       await issue.click();
       for (let i = 0; i < 40 && !ctl.opened.length; i++) await page.waitForTimeout(25);
-      assert.deepEqual(ctl.opened, ["https://github.com/yetone/magpie/issues/464"]);
+      assert.deepEqual(ctl.opened, ["https://github.com/yetone/queqiao/issues/464"]);
       assert.deepEqual(await body.evaluate((e) => [e.scrollTop, document.scrollingElement.scrollTop]), before, "the click moved the page");
       assert.equal(page.url(), "http://magpie.test/", "the page didn't navigate");
       assert.equal(await page.evaluate(() => window.__pwned), undefined, "nothing in the notes ran");

@@ -2,7 +2,7 @@
 // A providers.json that is there but can't be read (#415's review) is not
 // an empty list: the Providers page says over the list that the file can't
 // be read, was left unchanged, and is to be fixed or moved aside, with the
-// reason magpie gives; the Add sheet doesn't open as for a first use, and
+// reason queqiao gives; the Add sheet doesn't open as for a first use, and
 // the signed-in accounts still listed stay. A file that reads shows none of
 // it. In English and Chinese, Chromium and WebKit.
 const assert = require("node:assert/strict");
@@ -12,7 +12,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const REASON = "/home/me/.config/magpie/providers.json can't be read (unexpected end of JSON input); magpie left it unchanged — fix it or move it aside";
+const REASON = "/home/me/.config/queqiao/providers.json can't be read (unexpected end of JSON input); queqiao left it unchanged — fix it or move it aside";
 
 function serve(lang, list, fileError) {
   const providers = () => ({ providers: list, presets: [], excluded: [], gateway: { running: true, window: true }, ...(fileError ? { fileError } : {}) });

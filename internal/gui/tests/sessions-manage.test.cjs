@@ -2,9 +2,9 @@
 // The Sessions page (TJHHHH on Discord: manage sessions as CC Switch does,
 // above all delete them, in the GUI): an agent's sessions by the folder they
 // ran in, each with its resume command; picked ones are deleted after
-// magpie's own dialog (never confirm()), which posts sessions/delete with
+// queqiao's own dialog (never confirm()), which posts sessions/delete with
 // their ids; one still being written to is said so; the Trash lists what
-// was deleted and Restore posts its key. An agent whose sessions magpie
+// was deleted and Restore posts its key. An agent whose sessions queqiao
 // can't delete shows no delete at all. Folding, picking and opening a row
 // leave the page where it is. In English and Chinese, Chromium and WebKit.
 const assert = require("node:assert/strict");
@@ -52,7 +52,7 @@ function serve(lang, calls) {
           { agent: "opencode", count: store.opencode.length, deletable: false, name: "OpenCode", icon: "opencode" },
           { agent: "hermes", count: store.hermes.length, deletable: false, name: "Hermes", icon: "hermes" },
         ],
-        agent, sessions: store[agent], terminal: true, trash: store.trash, trashDir: "~/Library/Application Support/magpie/trash/sessions",
+        agent, sessions: store[agent], terminal: true, trash: store.trash, trashDir: "~/Library/Application Support/queqiao/trash/sessions",
       });
     }
     if (url.pathname === "/api/sessions/delete") {
@@ -87,17 +87,17 @@ function serve(lang, calls) {
 const words = {
   en: {
     nav: "Sessions", del: "Delete", cancel: "Cancel", trash: "Trash", restore: "Restore", resume: "Resume",
-    askOne: "Delete this session?", askTwo: "Delete 2 sessions?", moved: "2 sessions moved to magpie's trash",
+    askOne: "Delete this session?", askTwo: "Delete 2 sessions?", moved: "2 sessions moved to queqiao's trash",
     active: "still running is still being written to; close it in Claude Code and try again in a minute",
     restored: "fix the login form restored", picked: "2 selected", filter: "Filter sessions",
-    cant: "magpie can list OpenCode's sessions and resume them, but not delete them: they aren't kept as files of their own.",
-    hermesNote: "These Hermes sessions are read only; magpie can list them, but cannot resume or delete them.",
+    cant: "queqiao can list OpenCode's sessions and resume them, but not delete them: they aren't kept as files of their own.",
+    hermesNote: "These Hermes sessions are read only; queqiao can list them, but cannot resume or delete them.",
     codexNote: "Some Codex sessions are read only and cannot be deleted.",
     idLine: "Session ID",
   },
   zh: {
     nav: "会话", del: "删除", cancel: "取消", trash: "回收站", restore: "恢复", resume: "继续",
-    askOne: "删除这个会话？", askTwo: "删除这 2 个会话？", moved: "2 个会话已移到 magpie 的回收站",
+    askOne: "删除这个会话？", askTwo: "删除这 2 个会话？", moved: "2 个会话已移到 queqiao 的回收站",
     active: "「still running」仍在写入；请在 Claude Code 中关闭它，一分钟后再试",
     restored: "已恢复「fix the login form」", picked: "已选 2 个", filter: "筛选会话",
     cant: "可列出并继续 OpenCode 的会话，但无法删除：它们没有独立文件。",
@@ -110,7 +110,7 @@ const words = {
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: sessions are listed by folder, deleted to magpie's trash and restored`, async (t) => {
+    test(`${engine} ${lang}: sessions are listed by folder, deleted to queqiao's trash and restored`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       const page = await (await browser.newContext({ viewport: { width: 900, height: 560 }, reducedMotion: "reduce" })).newPage();
       t.after(async () => {
@@ -180,7 +180,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal((await view.locator(".sm-count").textContent()).trim(), w.picked);
       assert.equal(await view.locator(".sess-detail").count(), 1, "a pick doesn't open the row");
 
-      // the delete asks in magpie's dialog; Cancel sends nothing
+      // the delete asks in queqiao's dialog; Cancel sends nothing
       const del = view.locator(".sm-bar .sm-delete");
       await reach(del);
       await del.click();
@@ -189,7 +189,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal((await ask.locator(".ehead b").textContent()).trim(), w.askTwo);
       assert.deepEqual(await ask.locator(".sm-ask-list li").allTextContents(), ["fix the login form", "write the post"]);
       assert.deepEqual(await ask.locator(".sm-ask-list li").evaluateAll((ls) => ls.filter((l) => l.scrollWidth > l.clientWidth).map((l) => l.textContent)), [], "the titles are shown whole");
-      assert((await ask.locator(".lib-confirm").textContent()).includes("~/Library/Application Support/magpie/trash/sessions"));
+      assert((await ask.locator(".lib-confirm").textContent()).includes("~/Library/Application Support/queqiao/trash/sessions"));
       const border = await page.evaluate(() => [...document.querySelectorAll("#view-sessions, #view-sessions *, #modal .sm-ask, #modal .sm-ask *")]
         .filter((e) => parseFloat(getComputedStyle(e).borderLeftWidth) > 1 && getComputedStyle(e).borderLeftColor !== getComputedStyle(e).borderRightColor).map((e) => e.className));
       assert.deepEqual(border, [], "no left-border accent");
@@ -234,7 +234,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await said(w.restored);
       await page.waitForFunction(() => document.querySelectorAll("#view-sessions .sm-trash .row").length === 1);
 
-      // back to the list: restored; an agent magpie can't delete from has no delete
+      // back to the list: restored; an agent queqiao can't delete from has no delete
       await trashBtn.click();
       await row("a-old").waitFor();
       await view.locator(".sm-agents .opt", { hasText: "OpenCode" }).click();
@@ -258,17 +258,17 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
 
       const missing = await page.evaluate(() => [
         "Sessions", "Filter sessions", "No sessions yet", "Select every session shown", "Select", "Delete", "Trash", "No folder", "deleted {when}",
-        "Delete this session?", "Delete {n} sessions?", "Moved to magpie's trash", "{n} sessions moved to magpie's trash", "Restore", "{title} restored",
+        "Delete this session?", "Delete {n} sessions?", "Moved to queqiao's trash", "{n} sessions moved to queqiao's trash", "Restore", "{title} restored",
         "{title} is still being written to; close it in {agent} and try again in a minute",
         "{n} sessions are still being written to; close them in {agent} and try again in a minute",
-        "Trash is empty", "Sessions deleted here wait in magpie's trash, to be restored.",
+        "Trash is empty", "Sessions deleted here wait in queqiao's trash, to be restored.",
         "Claude Code's, Codex's, Hermes's, OpenCode's and Pi's sessions on this computer show up here, by the folder they ran in.",
-        "magpie can list {agent}'s sessions and resume them, but not delete them: they aren't kept as files of their own.",
-        "magpie can list {agent}'s sessions, but cannot resume or delete them.",
-        "These {agent} sessions are read only; magpie can list them, but cannot resume or delete them.",
+        "queqiao can list {agent}'s sessions and resume them, but not delete them: they aren't kept as files of their own.",
+        "queqiao can list {agent}'s sessions, but cannot resume or delete them.",
+        "These {agent} sessions are read only; queqiao can list them, but cannot resume or delete them.",
         "Some {agent} sessions are read only and cannot be deleted.",
-        "Their files are moved to magpie's trash ({dir}), not erased: Trash puts them back. A session written to in the last minute is left alone, as {agent} may still be running it.",
-        "Deleted sessions are kept in {dir} until you erase them here; magpie never erases them by itself.",
+        "Their files are moved to queqiao's trash ({dir}), not erased: Trash puts them back. A session written to in the last minute is left alone, as {agent} may still be running it.",
+        "Deleted sessions are kept in {dir} until you erase them here; queqiao never erases them by itself.",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
       assert.deepEqual(errors, []);

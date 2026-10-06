@@ -2,7 +2,7 @@
 // Settings' Web search section (#419): the search APIs a model's search goes
 // to when no provider can search, in their order, and a row to add one. A
 // SearXNG picked asks for its address; Add sends the API, its key and its
-// address; Remove takes one away; a key magpie refuses is said in the row,
+// address; Remove takes one away; a key queqiao refuses is said in the row,
 // what was typed kept. A saved key is shown in its row and hidden again, or
 // copied, as a provider's is (OnurBen on Discord). In English and Chinese, Chromium and WebKit, with the
 // API faked.

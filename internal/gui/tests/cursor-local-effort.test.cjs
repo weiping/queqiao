@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Cursor Private Inference's effort (#1003): neither its environment nor,
 // for most models, its app can say one, so its row has an effort as other
-// agents' rows do, which magpie's gateway asks its requests for. The
+// agents' rows do, which queqiao's gateway asks its requests for. The
 // default (as Cursor asks) is the first stop, then the levels its models
 // have. In the window it is in the connected row, opened from its link,
 // under Settings (asked on every request from then on, not a new
@@ -21,7 +21,7 @@ const cursorLocal = (effort) => ({
   id: "cursor-local", name: "Cursor Private Inference", icon: "cursor", path: "", wired: true,
   models: { shown: 2, names: ["GPT-5.5", "DeepSeek V4 Pro"] },
   fields: [
-    { key: "provider", label: "provider", value: "magpie", options: [{ value: "magpie", label: "magpie", icon: "magpie" }] },
+    { key: "provider", label: "provider", value: "queqiao", options: [{ value: "queqiao", label: "queqiao", icon: "queqiao" }] },
     { key: "effort", label: "effort", value: effort, options: [{ value: "" }, ...levels.map((value) => ({ value }))] },
   ],
 });

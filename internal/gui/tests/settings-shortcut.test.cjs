@@ -2,7 +2,7 @@
 // Cmd+, (Ctrl+, off the Mac) opens Settings (#670: no shortcut for it; a
 // Mac app's is ⌘,): from the Agents page, from a text box, and in the tray
 // panel by asking for the window on its Settings page. Another modifier
-// (Ctrl on the Mac, Alt) doesn't, a browser tab (magpie web) leaves the
+// (Ctrl on the Mac, Alt) doesn't, a browser tab (queqiao web) leaves the
 // keys to the browser, and the gear's tooltip says the shortcut. English and
 // Chinese; no backend, the API is faked here.
 const assert = require("node:assert/strict");
@@ -15,7 +15,7 @@ const assets = path.resolve(__dirname, "../assets");
 
 function serve(lang, web, asked) {
   const settings = {
-    theme: "light", lang, tray: "panel", currency: "usd", textSize: 100, version: "0.1.700", dir: "~/.config/magpie",
+    theme: "light", lang, tray: "panel", currency: "usd", textSize: 100, version: "0.1.700", dir: "~/.config/queqiao",
     gateway: "http://127.0.0.1:3999", proxy: "", proxyNow: "none", proxySource: "none", redactWords: [], visionModels: [], imageGenModels: [],
     workbuddyCheckins: [], lanURLs: [], fx: { rate: 7.2, at: new Date().toISOString(), stale: false },
   };

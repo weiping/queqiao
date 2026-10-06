@@ -17,8 +17,8 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const options = [
-  { value: "magpie/group/mine", label: "Mine", note: "routing group · via magpie", group: "Routing groups", ref: "group/mine", icon: "generic" },
-  { value: "magpie/other/m1", label: "m1", note: "Other · via magpie", group: "Other", ref: "other/m1", icon: "generic" },
+  { value: "queqiao/group/mine", label: "Mine", note: "routing group · via queqiao", group: "Routing groups", ref: "group/mine", icon: "generic" },
+  { value: "queqiao/other/m1", label: "m1", note: "Other · via queqiao", group: "Other", ref: "other/m1", icon: "generic" },
 ];
 const unlisted = [
   { id: "hunyuan/hy4", name: "hy4", provider: "Hunyuan", icon: "generic", groups: [] },
@@ -47,7 +47,7 @@ const words = {
 };
 
 function serve(lang, posts) {
-  const state = () => ({ agents: [{ id: "claude", name: "Claude Code", path: "/test/claude", wired: true, fields: [{ key: "model", label: "model", value: "magpie/other/m1", options }] }],
+  const state = () => ({ agents: [{ id: "claude", name: "Claude Code", path: "/test/claude", wired: true, fields: [{ key: "model", label: "model", value: "queqiao/other/m1", options }] }],
     profiles: [], unlisted, settings: { lang, theme: "light" } });
   const groups = { groups: [], pools: [], deciders: [], models: [{ id: "hunyuan/hy4", name: "hy4", provider: "hunyuan", providerName: "Hunyuan", icon: "generic" }] };
   return async (r) => {
@@ -115,7 +115,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await kept.getByRole("button", { name: w.pick }).click();
       await page.waitForFunction(() => document.querySelector("#pop").hidden);
       for (let i = 0; i < 40 && !posts.some((p) => p.path === "/api/set"); i++) await page.waitForTimeout(50);
-      assert.deepEqual(posts.find((p) => p.path === "/api/set")?.body, { agent: "claude", field: "model", value: "magpie/group/mine" });
+      assert.deepEqual(posts.find((p) => p.path === "/api/set")?.body, { agent: "claude", field: "model", value: "queqiao/group/mine" });
       assert.equal(await view.evaluate((v) => v.scrollTop), top, "the pick moved the page");
 
       // hy4, in none: said, and a click opens a new group of it, saved as one

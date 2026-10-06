@@ -16,7 +16,7 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 
 const plugins = [
-  { id: "zcode", pid: "zcode", name: "ZCode", icon: "generic", spec: "@magpie-community/opencode-zcode-auth", signedIn: false, models: 3,
+  { id: "zcode", pid: "zcode", name: "ZCode", icon: "generic", spec: "@queqiao-community/opencode-zcode-auth", signedIn: false, models: 3,
     methods: [{ type: "oauth", label: "ZCode: Z.ai GLM Coding Plan" }, { type: "oauth", label: "ZCode: BigModel (智谱) GLM Coding Plan" }, { type: "oauth", label: "ZCode app's sign-in" }, { type: "api", label: "GLM Coding Plan API key" }] },
 ];
 
@@ -63,7 +63,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await sheet.locator('.tile[data-pick="ZCode"]').click();
         await box.locator('button[data-site="bigmodel"]').waitFor();
         // in a short window the step is under the tiles: the reader scrolls to it
-        // (with the wheel: magpie puts back a scroll the reader didn't make)
+        // (with the wheel: queqiao puts back a scroll the reader didn't make)
         await page.mouse.move(width / 2, height / 2);
         for (let i = 0; i < 20 && await box.evaluate((b) => b.getBoundingClientRect().bottom > innerHeight - 8); i++) {
           await page.mouse.wheel(0, 120);

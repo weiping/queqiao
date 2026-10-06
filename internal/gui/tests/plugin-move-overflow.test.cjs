@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // A Plugins card that offers a built-in's accounts keeps its button inside
 // the card: "Move my Grok (SuperGrok) accounts (1)" ran past the card's right
-// edge, and Kiro's shorter one squeezed its name to "K…" and cut "magpie
+// edge, and Kiro's shorter one squeezed its name to "K…" and cut "queqiao
 // community". It then had a solid row of its own at the card's foot, which
 // broke onto two lines ("Move my 2 Command Code Plan accounts"); it is now
 // one word beside the name, as Install is ("Move"), its title saying whose
@@ -16,7 +16,7 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const listing = (id, name, summary) => ({
-  package: `@magpie-community/opencode-${id}-auth`, name, icon: id, providers: [id], community: true, replaces: id,
+  package: `@queqiao-community/opencode-${id}-auth`, name, icon: id, providers: [id], community: true, replaces: id,
   summary: { en: summary, zh: summary }, npm: { version: "0.1.4" },
 });
 const listings = [

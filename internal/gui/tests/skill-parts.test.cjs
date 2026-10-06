@@ -67,7 +67,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await t.test(lang + " " + i, async () => {
           const state = {
             lib: {
-              dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+              dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
               agents: [agent("claude", "Claude Code", "claudecode-color"), agent("codex", "Codex", "openai")],
               instructions: { agents: [], sets: [] }, servers: [], foundServers: [], projects: [], foundSkills: [], problems: [],
               skills: c.skills,

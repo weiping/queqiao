@@ -23,7 +23,7 @@ function settingsPayload(over) {
     dock: false, dockWindow: false, proxy: "", redact: false, redactPersonal: false, redactWords: [],
     codexWarmup: "", claudeWarmup: "", codexWarmAt: "", claudeWarmAt: "", workbuddyCheckin: false, noStats: false,
     trayUsage: "", trayUsageEvery: 3, vision: "", imageGen: "",
-    version: "0.1.900", dir: "/config/magpie", gateway: "http://127.0.0.1:3425",
+    version: "0.1.900", dir: "/config/queqiao", gateway: "http://127.0.0.1:3425",
     proxyNow: "none", proxySource: "none", login: false,
     visionModels: [], imageGenModels: [], workbuddyCheckins: [],
     lan: false, lanURLs: [],
@@ -62,7 +62,7 @@ function server(lang, over, posts) {
 const words = {
   en: {
     name: "Gateway port", apply: "Apply",
-    now: (u) => "Agents magpie connected move with it. Now " + u,
+    now: (u) => "Agents queqiao connected move with it. Now " + u,
     range: "A port is a number from 1024 to 65535",
     taken: "Port 3500 is in use by another program: pick another one",
     moved: "Gateway on port 3591; 2 agents moved with it",
@@ -70,7 +70,7 @@ const words = {
   },
   zh: {
     name: "网关端口", apply: "应用",
-    now: (u) => "改了之后，已接入 magpie 的 Agent 会一起换过去。当前 " + u,
+    now: (u) => "改了之后，已接入 queqiao 的 Agent 会一起换过去。当前 " + u,
     range: "端口是 1024 到 65535 之间的数字",
     taken: "端口 3500 已被其他程序占用，请换一个",
     moved: "网关已换到端口 3591，2 个 Agent 已跟着换过去",

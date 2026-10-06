@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// The Plugins tab: Discover lists the plugins magpie suggests in two
+// The Plugins tab: Discover lists the plugins queqiao suggests in two
 // sections; a card installs its plugin, then offers its sign-in, which
 // opens in the Providers add sheet. A search filters at once and adds what
 // npm has. A card opens the plugin's page with its README — no pictures,
@@ -15,10 +15,10 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 
 const listings = [
-  { package: "@magpie-community/opencode-zed-auth", name: "Zed", icon: "zed", providers: ["zed"], community: true, replaces: "zed",
+  { package: "@queqiao-community/opencode-zed-auth", name: "Zed", icon: "zed", providers: ["zed"], community: true, replaces: "zed",
     summary: { en: "Claude, GPT, Gemini and Grok hosted by Zed, on your Zed plan.", zh: "用 Zed 订阅使用 Zed 托管的 Claude、GPT、Gemini 和 Grok。" },
-    npm: { version: "0.1.0", weekly: 120, license: "MIT", repository: "https://github.com/magpie-community/plugins" } },
-  { package: "@magpie-community/opencode-qoder-auth", name: "Qoder", icon: "qoder", providers: ["qoder"], community: true,
+    npm: { version: "0.1.0", weekly: 120, license: "MIT", repository: "https://github.com/queqiao-community/plugins" } },
+  { package: "@queqiao-community/opencode-qoder-auth", name: "Qoder", icon: "qoder", providers: ["qoder"], community: true,
     summary: { en: "Your Qoder subscription.", zh: "Qoder 订阅。" }, npm: { weekly: 0 } },
   { package: "opencode-copilot-auth", name: "GitHub Copilot", icon: "githubcopilot", providers: ["github-copilot"],
     summary: { en: "Your GitHub Copilot plan.", zh: "你的 GitHub Copilot 套餐。" },
@@ -138,13 +138,13 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.equal(await page.locator('#nav button[data-view="plugins"]').getAttribute("class"), "on");
         assert.match(page.url(), /view=plugins/);
 
-        // Discover: magpie's community's plugins alone, others' only found by a search
+        // Discover: queqiao's community's plugins alone, others' only found by a search
         await view.locator(".pm-sechead h3", { hasText: w.ours }).waitFor();
         assert.equal(await view.locator(".pm-sec").count(), 1);
         assert.equal(await view.locator('.pm-card[data-pkg="opencode-copilot-auth"]').count(), 0);
         assert.doesNotMatch(await view.innerText(), /OpenCode 社区|OpenCode's community/);
-        assert.equal(await view.locator('.pm-card[data-pkg="@magpie-community/opencode-qoder-auth"] .pm-act').innerText(), w.soon);
-        assert.ok(await view.locator('.pm-card[data-pkg="@magpie-community/opencode-qoder-auth"] .pm-act').isDisabled());
+        assert.equal(await view.locator('.pm-card[data-pkg="@queqiao-community/opencode-qoder-auth"] .pm-act').innerText(), w.soon);
+        assert.ok(await view.locator('.pm-card[data-pkg="@queqiao-community/opencode-qoder-auth"] .pm-act').isDisabled());
         await shot(view, `plugins-discover-${engine}-${lang}`);
         await view.locator(".pm-find input").fill("copilot");
         const copilot = view.locator('.pm-card[data-pkg="opencode-copilot-auth"]');

@@ -43,7 +43,7 @@ function settingsPayload(over) {
     dock: false, dockWindow: false, proxy: "", redact: false, redactPersonal: false, redactWords: [],
     codexWarmup: "", claudeWarmup: "", codexWarmAt: "", claudeWarmAt: "", workbuddyCheckin: false, noStats: false,
     trayUsage: "", trayUsageEvery: 3, vision: "", imageGen: "",
-    version: "0.1.400", dir: "~/.config/magpie", gateway: "http://127.0.0.1:3425",
+    version: "0.1.400", dir: "~/.config/queqiao", gateway: "http://127.0.0.1:3425",
     proxyNow: "none", proxySource: "none", login: false,
     visionModels: [], imageGenModels: [], workbuddyCheckins: [], lanURLs: [],
     fx: { rate: 7.2, at: new Date().toISOString(), stale: false },
@@ -51,7 +51,7 @@ function settingsPayload(over) {
   };
 }
 
-// one fake magpie per test: its settings live across reloads, as the real
+// one fake queqiao per test: its settings live across reloads, as the real
 // one's do, and every text size posted is kept in posts
 function server(lang, theme, size, posts) {
   let cur = settingsPayload({ lang, theme, textSize: size });
@@ -73,7 +73,7 @@ function server(lang, theme, size, posts) {
       return json(cur);
     }
     if (url.pathname === "/api/usage") return json(usage);
-    if (url.pathname === "/api/library") return json({ dir: "~/.config/magpie/library", backups: "", home: "~", agents: [], instructions: { agents: [], sets: [] }, servers: [], foundServers: [], skills: [] });
+    if (url.pathname === "/api/library") return json({ dir: "~/.config/queqiao/library", backups: "", home: "~", agents: [], instructions: { agents: [], sets: [] }, servers: [], foundServers: [], skills: [] });
     if (url.pathname === "/api/usage/quotas") return json([]);
     if (url.pathname === "/api/groups") return json({ groups: [], models: [] });
     if (url.pathname === "/api/providers") return json(providers);

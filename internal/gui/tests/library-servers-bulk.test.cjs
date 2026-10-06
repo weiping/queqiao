@@ -26,7 +26,7 @@ const HOME = "/Users/emo";
 const agent = (id, name, more = {}) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json`, ...more });
 const sv = (name, transport, agents, more = {}) => ({ name, transport, command: transport === "stdio" ? name + "-mcp" : "", url: transport === "stdio" ? "" : "http://localhost:9/" + name, agents, ...more });
 const lib = (servers) => ({
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex", { noSSE: true }), agent("copilot", "Copilot CLI"), agent("gemini", "Gemini CLI")],
   instructions: { agents: [] }, servers, skills: [], foundServers: [], projects: [], foundSkills: [], problems: [],
 });
@@ -197,7 +197,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.deepEqual(posts.shift(), { what: "servers/agents-some", body: { names: ["fs", "web"], agents: ["codex"], on: true } });
         assert.deepEqual(agentsOf("fs"), ["codex", "copilot"]);
         assert.deepEqual(agentsOf("docs"), [], "a server not picked was given");
-        // the bar drawn again from magpie's answer: the chip's title, not
+        // the bar drawn again from queqiao's answer: the chip's title, not
         // only its lit state, which a click sets before the answer
         await page.waitForFunction((tip) => document.querySelector('#view-library .lib-pickbar .lib-ag[data-agent="codex"]')?.title === tip,
           w("{agent} has all of these servers — click to take them away", { agent: "Codex" }));
@@ -238,7 +238,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.deepEqual(said, [
           // only the hidden Copilot CLI has one now, after Turn all off
           w("They are taken out of the library and out of {agents}.", { agents: "Copilot CLI" }),
-          w("magpie's sign-in to {n} of them is forgotten too.", { n: 1 }),
+          w("queqiao's sign-in to {n} of them is forgotten too.", { n: 1 }),
           w("Servers your agents have that aren't in the library stay as they are."),
         ]);
         await sheet.locator(".bar button", { hasText: w("Cancel") }).click();

@@ -1,9 +1,9 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Every agent's picker says which way each of its models goes (EZN7L2C3,
-// #834: Codex 的下拉选项中没有 via magpie). Codex's own models, while
-// Codex is routed through magpie by its base URL, are asked of magpie's
-// gateway: they say via magpie, as the catalog's do. Not routed, they and
-// Grok Build's own say direct, not via magpie. WebKit or Chromium, English
+// #834: Codex 的下拉选项中没有 via queqiao). Codex's own models, while
+// Codex is routed through queqiao by its base URL, are asked of queqiao's
+// gateway: they say via queqiao, as the catalog's do. Not routed, they and
+// Grok Build's own say direct, not via queqiao. WebKit or Chromium, English
 // and Chinese; no backend, the API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -42,12 +42,12 @@ function server(lang) {
   };
 }
 
-const words = { en: { via: "via magpie", direct: "direct, not via magpie" }, zh: { via: "经 magpie", direct: "直连，不经 magpie" } };
+const words = { en: { via: "via queqiao", direct: "direct, not via queqiao" }, zh: { via: "经 queqiao", direct: "直连，不经 queqiao" } };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: an agent's own models say whether they go via magpie`, async (t) => {
+    test(`${engine} ${lang}: an agent's own models say whether they go via queqiao`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       t.after(() => browser.close());
       const page = await (await browser.newContext({ viewport: { width: 980, height: 560 }, reducedMotion: "reduce" })).newPage();
@@ -67,7 +67,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.keyboard.press("Escape");
         return tag;
       };
-      assert.equal(await tagOf("codex", "GPT-5.4"), w.via, "Codex's own, routed through magpie");
+      assert.equal(await tagOf("codex", "GPT-5.4"), w.via, "Codex's own, routed through queqiao");
       assert.equal(await tagOf("codex", "m1"), w.via, "a catalog model");
       // Grok Build, its own model set, is under the fold
       await page.locator(".agent-more").click();

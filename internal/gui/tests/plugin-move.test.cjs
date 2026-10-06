@@ -17,7 +17,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const pkg = "@magpie-community/opencode-zed-auth";
+const pkg = "@queqiao-community/opencode-zed-auth";
 
 function serve(lang, posts) {
   let move = { package: pkg, state: "" };
@@ -57,7 +57,7 @@ function serve(lang, posts) {
       await new Promise((r) => setTimeout(r, 400)); // long enough to read the button
       // the first move can't reach npm; the second goes through
       if (url.pathname.endsWith("/move") && !tries++) {
-        move = { package: pkg, state: "failed", error: "magpie couldn't reach npm to install the plugin.", why: { code: "offline" } };
+        move = { package: pkg, state: "failed", error: "queqiao couldn't reach npm to install the plugin.", why: { code: "offline" } };
         return route.fulfill({ status: 400, json: { error: move.error, why: move.why } });
       }
       move = { package: pkg, state: url.pathname.endsWith("moveback") ? "back" : "plugin" };
@@ -73,13 +73,13 @@ function serve(lang, posts) {
 const L = {
   en: { runs: "Runs on", line: "Zed's built-in subscription is deprecated", look: "Review the move",
     move: "Move to the plugin", busy: "Installing the plugin and checking each account…", again: "Try again", back: "Use the built-in again",
-    failed: "It stays built-in: magpie couldn't reach npm to install the plugin. Check the network or proxy, then try again.",
-    onPlugin: "The community Zed plugin", builtin: "magpie's built-in · or the community Zed plugin", done: "Zed now runs on its plugin — 2 accounts, 1 model.",
+    failed: "It stays built-in: queqiao couldn't reach npm to install the plugin. Check the network or proxy, then try again.",
+    onPlugin: "The community Zed plugin", builtin: "queqiao's built-in · or the community Zed plugin", done: "Zed now runs on its plugin — 2 accounts, 1 model.",
     subs: "Subscriptions", card: "Move", own: "Zed itself stays signed in as it is." },
   zh: { runs: "运行方式", line: "Zed 的内置订阅已弃用", look: "查看迁移",
     move: "迁移到插件", busy: "正在安装插件并逐个检查账号…", again: "重试", back: "改回内置",
     failed: "仍使用内置：无法连接 npm 安装插件，请检查网络或代理后重试。",
-    onPlugin: "社区 Zed 插件", builtin: "magpie 内置 · 也可改用社区 Zed 插件", done: "Zed 已改由插件运行：2 个账号，1 个模型。",
+    onPlugin: "社区 Zed 插件", builtin: "queqiao 内置 · 也可改用社区 Zed 插件", done: "Zed 已改由插件运行：2 个账号，1 个模型。",
     subs: "订阅", card: "迁移", own: "Zed 本身的登录不变。" },
 };
 
@@ -163,7 +163,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await body.evaluate((e) => e.scrollTop), top, "the move moved the editor");
       assert.ok((await page.locator("#status").innerText()).startsWith(w.done), "no toast saying what moved");
       assert.deepEqual(posts.map((p) => [p.path, p.body.id]), [["/api/provider/move", "zed"], ["/api/provider/move", "zed"]]);
-      // its plugin:// URLs are magpie's own: no Endpoints, no Test
+      // its plugin:// URLs are queqiao's own: no Endpoints, no Test
       assert.equal(await ed.locator(".eps").count(), 0, "shows the plugin:// endpoints");
       assert.equal(await line.isVisible(), false, "the line still offers the move");
       if (process.env.ARTIFACT_DIR) await ed.screenshot({ path: path.join(process.env.ARTIFACT_DIR, `plugin-moved-${engine}-${lang}.png`) });

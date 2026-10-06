@@ -5,7 +5,7 @@
 // a model Pi would keep. Pi's and OmO's Default says it clears the default
 // and Pi picks one itself; other agents' says what it said. Pi's
 // openai-codex models are rows of their own beside openai's of the same
-// name. Both connected to magpie, so the pickers in their rows list every
+// name. Both connected to queqiao, so the pickers in their rows list every
 // choice there is. In English and Chinese; no backend, the API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -18,12 +18,12 @@ const piOptions = [
   { value: "openai/gpt-6-astra", note: "GPT-6 Astra", group: "OpenAI" },
   { value: "openai-codex/gpt-6-astra", note: "GPT-6 Astra", group: "OpenAI Codex" },
   { value: "openai-codex/gpt-5.5", note: "GPT-5.5", group: "OpenAI Codex" },
-  { value: "magpie/relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via magpie" },
+  { value: "queqiao/relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via queqiao" },
 ];
 const state = {
   agents: [
     { id: "pi", name: "Pi", icon: "generic", path: "/fixture/pi", wired: true, fields: [{ key: "model", label: "model", value: "openai/gpt-6-astra", options: piOptions }] },
-    { id: "claude", name: "Claude Code", icon: "generic", path: "/fixture/claude", wired: true, fields: [{ key: "model", label: "model", value: "opus", options: [{ value: "opus" }, { value: "sonnet" }, { value: "relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via magpie" }] }] },
+    { id: "claude", name: "Claude Code", icon: "generic", path: "/fixture/claude", wired: true, fields: [{ key: "model", label: "model", value: "opus", options: [{ value: "opus" }, { value: "sonnet" }, { value: "relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via queqiao" }] }] },
   ],
   profiles: [],
 };

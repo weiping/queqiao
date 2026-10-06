@@ -16,7 +16,7 @@ const HOME = "/Users/emo";
 const agent = (id, name, skills = true) => ({ id, name, icon: "", skills: skills ? `${HOME}/.${id}/skills` : "" });
 const sk = (name, agents) => ({ name, description: name, kind: "folder", agents });
 const lib = (skills) => ({
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex"), agent("pi", "Pi"), agent("goose", "Goose", false)],
   instructions: { agents: [] }, servers: [], skills, foundServers: [], projects: [], foundSkills: [],
 });

@@ -23,7 +23,7 @@ const skills = [
   { name: "kiwi", kind: "folder", source: `${HOME}/skills/kiwi`, description: "d", agents: ["claude"] },
 ];
 const lib = () => ({
-  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
+  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
   agents: [agent("claude", "Claude Code", "claudecode-color")],
   instructions: { agents: [], sets: [] }, servers: structuredClone(servers), foundServers: [], projects: [], foundSkills: [], skills: structuredClone(skills), problems: [],
 });
@@ -93,7 +93,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         const names = (sel) => page.locator(sel).evaluateAll((ns) => ns.map((n) => n.textContent.trim()));
         const tips = (sort) => page.locator(`.segs.sortby[data-sort="${sort}"] .opt`).evaluateAll((os) => os.map((o) => o.title));
 
-        // the Library's MCP servers: A→Z first, whatever order magpie gave them in
+        // the Library's MCP servers: A→Z first, whatever order queqiao gave them in
         const serverNames = () => names("#view-library .lib-list .lib-row > .who > .name");
         const openLib = async () => {
           await page.goto("http://magpie.test/");

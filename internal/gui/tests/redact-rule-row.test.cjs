@@ -13,7 +13,7 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 const settings = (lang) => ({ lang, theme: "light", redact: true, redactRules: [{ kind: "GATEWAY_KEY", prefix: "oc_sk_" }] });
 const words = {
-  en: { name: "Masking rules", sub: "Secrets magpie doesn't know", regex: "Regex" },
+  en: { name: "Masking rules", sub: "Secrets queqiao doesn't know", regex: "Regex" },
   zh: { name: "自定义脱敏规则", sub: "", regex: "正则" },
 };
 

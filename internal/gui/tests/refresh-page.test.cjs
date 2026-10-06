@@ -3,8 +3,8 @@
 // draws. On Agents it looks for the agents on this computer again (one just
 // installed shows, and leaves Install another agent); on Usage it reads the
 // usage and the allowances now; on Providers it refreshes the model lists.
-// It never looks for a newer magpie (that is Settings › About's Check, and
-// magpie's own timer), its tooltip says what it reads on the page shown, and
+// It never looks for a newer queqiao (that is Settings › About's Check, and
+// queqiao's own timer), its tooltip says what it reads on the page shown, and
 // a click doesn't move the page. The panel's does the same for its tabs.
 // English and Chinese; no backend, the API is faked here.
 const assert = require("node:assert/strict");

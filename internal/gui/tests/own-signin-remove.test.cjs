@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// An agent's own sign-in (kiro-cli's here) can be removed in magpie, even
-// while it is first: Remove says magpie only hides it, its files left as
-// they are, and posts login/forget; one of magpie's in use first still has
+// An agent's own sign-in (kiro-cli's here) can be removed in queqiao, even
+// while it is first: Remove says queqiao only hides it, its files left as
+// they are, and posts login/forget; one of queqiao's in use first still has
 // no Remove. In English and Chinese.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -39,7 +39,7 @@ function serve(lang, logins, posts) {
 }
 
 const title = {
-  en: "magpie stops showing and using Kiro's own sign-in; its files are left as they are, and it shows again when Kiro signs in anew",
+  en: "queqiao stops showing and using Kiro's own sign-in; its files are left as they are, and it shows again when Kiro signs in anew",
   zh: "不再显示和使用 Kiro 自己的登录；文件保持原样，Kiro 重新登录后再次出现",
 };
 const remove = { en: "Remove", zh: "移除" };
@@ -67,7 +67,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         { user: "Kiro account", plan: "KIRO FREE", on: true, own: true },
       ], posts);
       const mine = page.locator(".accts .acc", { hasText: "me@example.com" });
-      assert.equal(await mine.getByRole("button", { name: remove[lang], exact: true }).count(), 0, "the first of magpie's has no Remove");
+      assert.equal(await mine.getByRole("button", { name: remove[lang], exact: true }).count(), 0, "the first of queqiao's has no Remove");
       const own = page.locator(".accts .acc", { hasText: "Kiro account" }).getByRole("button", { name: remove[lang], exact: true });
       assert.equal(await own.getAttribute("title"), title[lang]);
       await own.click();

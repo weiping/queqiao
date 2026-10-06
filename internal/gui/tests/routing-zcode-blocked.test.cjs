@@ -15,7 +15,7 @@ const assets = path.resolve(__dirname, "../assets");
 const now = new Date();
 const day = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((n) => String(n).padStart(2, "0")).join("-");
 const at = (i) => new Date(now.getTime() - (i + 1) * 60e3).toISOString();
-const hint = "ZCode's Start Plan still turned this request away, though magpie sends it as the ZCode app does; it can be a network block of this IP, or ZCode checking for something new. Use an account with a GLM Coding Plan, or add another provider to this group";
+const hint = "ZCode's Start Plan still turned this request away, though queqiao sends it as the ZCode app does; it can be a network block of this IP, or ZCode checking for something new. Use an account with a GLM Coding Plan, or add another provider to this group";
 const vendor = "ZCode: 405 Method Not Allowed";
 const key = { id: "zcode", provider: "zcode", name: "ZCode", kind: "provider", model: "GLM-5.3-Flash" };
 // newest first: the block, then another 405 with nothing to add
@@ -88,7 +88,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.waitForTimeout(400);
       assert(Math.abs((await row.evaluate((e) => e.getBoundingClientRect().top)) - was) <= 1, "picking the request moved the page");
       let got = await steps();
-      // the vendor's words as they were, without magpie's hint in them
+      // the vendor's words as they were, without queqiao's hint in them
       assert.deepEqual(got.filter(([c]) => c === "aside said").map(([, s]) => s), [want[lang].said]);
       // and the hint on its own line, in the page's language
       assert.deepEqual(got.filter(([, s]) => s === want[lang].hint).map(([c]) => c), ["aside"]);

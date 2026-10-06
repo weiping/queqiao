@@ -14,9 +14,9 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const SLOW = 2500;
-const models = ["claude-sonnet-5-5", "claude-opus-5-5", "magpie/deepseek/pro", "magpie/kimi/k3"].map((m) => ({ value: m, ref: m.replace(/^magpie\//, ""), label: "Label " + m }));
+const models = ["claude-sonnet-5-5", "claude-opus-5-5", "queqiao/deepseek/pro", "queqiao/kimi/k3"].map((m) => ({ value: m, ref: m.replace(/^queqiao\//, ""), label: "Label " + m }));
 const agent = (id, name) => ({
-  id, name, path: "/test/" + id, wired: true, // on magpie models (#726: a connected one is in view)
+  id, name, path: "/test/" + id, wired: true, // on queqiao models (#726: a connected one is in view)
   fields: [{ key: "model", label: "model", value: "claude-sonnet-5-5", options: models }],
 });
 const fresh = () => ({
@@ -101,16 +101,16 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert(top > 0, "the list must be scrolled");
         await field.click();
         await page.locator("#pop:not([hidden]) #list li").first().waitFor();
-        const at = await pickModel(page, "magpie/deepseek/pro");
-        await page.waitForFunction((r) => document.querySelector(r + ' .field[data-key="model"] .v')?.textContent === "Label magpie/deepseek/pro", row, { timeout: 600 });
+        const at = await pickModel(page, "queqiao/deepseek/pro");
+        await page.waitForFunction((r) => document.querySelector(r + ' .field[data-key="model"] .v')?.textContent === "Label queqiao/deepseek/pro", row, { timeout: 600 });
         assert(Date.now() - at < SLOW, "shown before the answer came");
         assert.equal(sets.length, 1);
-        assert.deepEqual(sets[0], { agent: "claude", field: "model", value: "magpie/deepseek/pro" });
+        assert.deepEqual(sets[0], { agent: "claude", field: "model", value: "queqiao/deepseek/pro" });
         assert.equal(await view.evaluate((v) => v.scrollTop), top, "the pick moved the page");
         // the answer, drawn, keeps it
         await page.waitForTimeout(SLOW + 300);
-        assert.equal(await field.locator(".v").textContent(), "Label magpie/deepseek/pro");
-        assert.match(await page.locator("#status").textContent(), /Claude Code .*Label magpie\/deepseek\/pro/);
+        assert.equal(await field.locator(".v").textContent(), "Label queqiao/deepseek/pro");
+        assert.match(await page.locator("#status").textContent(), /Claude Code .*Label queqiao\/deepseek\/pro/);
         assert.equal(await view.evaluate((v) => v.scrollTop), top, "the answer moved the page");
       });
     }
@@ -122,13 +122,13 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.waitForTimeout(700);
       await page.locator(`${row} .ag-open .field[data-key="model"]`).click();
       await page.locator("#pop:not([hidden]) #list li").first().waitFor();
-      const at = await pickModel(page, "magpie/kimi/k3");
-      await page.waitForFunction((r) => document.querySelector(r + " .ag-sum .vt")?.textContent === "Label magpie/kimi/k3", row, { timeout: 600 });
+      const at = await pickModel(page, "queqiao/kimi/k3");
+      await page.waitForFunction((r) => document.querySelector(r + " .ag-sum .vt")?.textContent === "Label queqiao/kimi/k3", row, { timeout: 600 });
       assert(Date.now() - at < SLOW, "shown before the answer came");
-      assert.equal(await page.locator(`${row} .ag-open .field[data-key="model"] .v`).textContent(), "Label magpie/kimi/k3");
+      assert.equal(await page.locator(`${row} .ag-open .field[data-key="model"] .v`).textContent(), "Label queqiao/kimi/k3");
       assert.equal(await page.locator(`${row}.open`).count(), 1, "the row stays open");
       await page.waitForTimeout(SLOW + 300);
-      assert.equal(await page.locator(`${row} .ag-sum .vt`).textContent(), "Label magpie/kimi/k3");
+      assert.equal(await page.locator(`${row} .ag-sum .vt`).textContent(), "Label queqiao/kimi/k3");
       assert.equal(sets.length, 1);
     });
 

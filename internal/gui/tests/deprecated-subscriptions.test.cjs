@@ -1,8 +1,8 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Built-in subscriptions that a community plugin can run are deprecated: their
 // rows and Add tiles carry a Deprecated badge whose tooltip says why (a
-// subscription can break its vendor's terms, so it is decoupled from magpie to
-// keep magpie itself from being banned), and a notice over the list names the
+// subscription can break its vendor's terms, so it is decoupled from queqiao to
+// keep queqiao itself from being banned), and a notice over the list names the
 // signed-in ones with the same reason. One already on its plugin, or a
 // subscription with no plugin, carries no badge; Not now hides the notice
 // until another deprecated subscription signs in. One with no account isn't
@@ -17,7 +17,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const pkg = (id) => `@magpie-community/opencode-${id}-auth`;
+const pkg = (id) => `@queqiao-community/opencode-${id}-auth`;
 const sub = (id, name, state) => ({
   id, name, icon: id, chat: "", responses: "", anthropic: "", catalog: "", models: [{ id: "m", name: "M", on: true }],
   agents: [], fallback: [], headers: {}, keyList: [], key: {},
@@ -54,9 +54,9 @@ function serve(lang, calls) {
 }
 
 const L = {
-  en: { badge: "Deprecated", why: "So that magpie itself isn't banned over them", head: "These built-in subscriptions are deprecated: Cursor, Kiro", later: "Not now",
+  en: { badge: "Deprecated", why: "So that queqiao itself isn't banned over them", head: "These built-in subscriptions are deprecated: Cursor, Kiro", later: "Not now",
     more: "More in Plugins" },
-  zh: { badge: "已弃用", why: "为免 magpie 本体因此被封禁", head: "以下内置订阅已弃用：Cursor、Kiro", later: "暂不",
+  zh: { badge: "已弃用", why: "为免 queqiao 本体因此被封禁", head: "以下内置订阅已弃用：Cursor、Kiro", later: "暂不",
     more: "插件中还有更多" },
 };
 
