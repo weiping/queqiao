@@ -33,19 +33,43 @@ queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magp
 curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.sh | sh
 ```
 
+升级重跑同一条命令即可（始终装最新 release）；也可以指定版本或目录：
+
+```sh
+… | sh -s -- --version qq-v0.1.0   # 装某个版本
+… | sh -s -- --bin-dir ~/bin       # 装到别处
+```
+
+Windows 没有 shell 安装器：到 [releases](https://github.com/weiping/queqiao/releases) 下载 `queqiao-cli-windows-<arch>.exe`，改名 `queqiao.exe` 放入 PATH。所有版本见 releases 页（`qq-v*` 标签触发构建，见「分支」一节）。
+
 也可以从源码构建：
 
 ```sh
 make cli                                # 构建 ./queqiao（纯终端版，不需要 cgo）
 ```
 
+> ⚠️ 不要用 `go install github.com/yetone/magpie@…`：Go 模块路径保留为上游的 `github.com/yetone/magpie`（减少合并冲突），这样装到的是**上游 magpie**，不是 queqiao。
+
 装好以后：
 
 ```sh
-./queqiao router init --preset cn       # 生成 router.json 和四个路由组（还有 frontier/anthropic 预设）
-./queqiao serve                         # 启动网关，默认 127.0.0.1:3425
-./queqiao router status                 # 检查配置、映射和最近的决策
+queqiao router init --preset cn       # 生成 router.json 和四个路由组（还有 frontier/anthropic 预设）
+queqiao serve                         # 启动网关，默认 127.0.0.1:3425
+queqiao router status                 # 检查配置、映射和最近的决策
 ```
+
+### 从 magpie 切换
+
+不用卸载 magpie：两个二进制（`magpie` / `queqiao`）和配置目录（`~/.config/magpie` / `~/.config/queqiao`）互不相干。但**两个网关都监听 3425，不能同时运行**——退出 magpie（并 `magpie autostart off`）再 `queqiao serve`。要保留 providers、订阅登录、定价和使用记录，把配置整体拷过去：
+
+```sh
+magpie autostart off && pkill -x magpie   # 退出 magpie
+cp -R ~/.config/magpie/. ~/.config/queqiao/
+queqiao router init --preset cn           # 四个路由组 + router.json
+queqiao serve
+```
+
+订阅登录态（Claude Code、Codex 等）存在 agent 自己的目录（`~/.claude`、`~/.codex`），不在 magpie 配置里，不受影响。跑稳一阵子再决定是否删 `~/.local/bin/magpie` 和 `/Applications/Magpie.app`。
 
 再按你的 Agent 装对应的插件：
 
@@ -171,6 +195,7 @@ Claude Code 插件的网关地址另有 `gateway_url` 设置（`claude plugin in
 | `queqiao`（默认分支） | queqiao 的开发主干，定期合并 `main` |
 | `main` | 上游 yetone/magpie 的镜像，只做快进同步，不直接提交 |
 | `qq/sp<N>-<名字>` | 各子项目的功能分支，完成后 PR 合回 `queqiao` |
+| `qq-v*` 标签 | 发版标签：推送后自动构建各平台 CLI 并发布 Release（`install.sh` 从这里下载）；注意上游用的 `v*` 前缀会交接给 yetone/magpie-releases，queqiao 不用它 |
 
 为了让合并上游尽量不冲突，queqiao 的代码放在 `internal/router/`、`internal/harness/`、`clients/` 这几个新目录里，对上游文件只做少量挂钩；Go 模块路径保留 `github.com/yetone/magpie` 不改。
 
