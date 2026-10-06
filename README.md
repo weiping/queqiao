@@ -82,16 +82,14 @@ queqiao pi group/qq-balanced
 
 ### 从 magpie 切换
 
-不用卸载 magpie：两个二进制（`magpie` / `queqiao`）和配置目录（`~/.config/magpie` / `~/.config/queqiao`）互不相干。但**两个网关都监听 3425，不能同时运行**——退出 magpie（并 `magpie autostart off`）再 `queqiao serve`。要保留 providers、订阅登录、定价和使用记录，把配置整体拷过去：
+仓库里有一条经过完整往返测试的迁移脚本（迁移配置 → 停 magpie → 卸载 binary/app/缓存，一切只转移进备份，`restore` 一键回滚）：
 
 ```sh
-magpie autostart off && pkill -x magpie   # 退出 magpie
-cp -R ~/.config/magpie/. ~/.config/queqiao/
-queqiao router init --preset cn           # 四个路由组 + router.json
-queqiao serve
+curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/migrate-from-magpie.sh -o migrate-from-magpie.sh
+sh migrate-from-magpie.sh            # --dry-run 先看动作；--migrate-only 只迁配置；restore 回滚
 ```
 
-订阅登录态（Claude Code、Codex 等）存在 agent 自己的目录（`~/.claude`、`~/.codex`），不在 magpie 配置里，不受影响。跑稳一阵子再决定是否删 `~/.local/bin/magpie` 和 `/Applications/Magpie.app`。
+手动等价步骤（脚本内部即如此）：退出 magpie（两个网关同抢 3425，不能并行）→ `cp -R ~/.config/magpie/. ~/.config/queqiao/` → `queqiao router init --preset cn` → `queqiao serve`。订阅登录态（Claude Code、Codex 等）存在 agent 自己的目录（`~/.claude`、`~/.codex`），不在 magpie 配置里，不受影响。
 
 再按你的 Agent 装对应的插件：
 
@@ -114,9 +112,9 @@ Pi 侧默认模型会被 `router init` 指到 `magpie/group/qq-balanced`，扩�
 
 没有插件的 Agent（如 OpenCode）也可以直接选用路由组，由网关自己分类，只是少了 harness 侧的上下文。
 
-## 面板：`queqiao web` 与 `queqiao tui`
+## 面板：`queqiao web`、`queqiao tui` 与桌面 App
 
-一键安装的是终端版，不含桌面 app；需要图形界面时用这两个（改的都是 `~/.config/queqiao`，与 CLI 等价）：
+一键安装的是终端版；需要图形界面时有三个等价入口（同一套界面，改的都是 `~/.config/queqiao`）：
 
 ```sh
 queqiao web
@@ -136,6 +134,19 @@ queqiao tui                  # 同一套界面的终端版；没有别的网关�
 ```
 
 > magpie 的桌面 App（Magpie.app）改不了 queqiao 的配置——它只读写 `~/.config/magpie`，两个目录互不相干。
+
+### 桌面 App（macOS 菜单条）
+
+从源码构建（需 macOS + Xcode 命令行工具；发布物里不含 app）：
+
+```sh
+make app                                # 产出 queqiao.app（本仓库目录）
+cp -R queqiao.app /Applications/        # 装进启动台/Spotlight
+```
+
+App 与 CLI/web/tui 同一二进制：内嵌带路由的网关，Providers/Routing/Settings/Usage 各页直接改 `~/.config/queqiao`；菜单条 tooltip、窗口标题、页面标题都是 queqiao（页面内部文案仍为上游的 magpie 拼写——刻意保留，见「分支」节的同步策略）。开机自启二选一：`queqiao autostart on`（app 形态）或 launchd 无头 daemon（`queqiao serve`）——两者同抢 3425 不能并存。
+
+路由器专属字段（tier 分类器、Jev、A/B 实验）不在任何图形界面里，用 `queqiao router status / init` 管理。
 
 ## 配置
 
@@ -245,7 +256,7 @@ Claude Code 插件的网关地址另有 `gateway_url` 设置（`claude plugin in
 | `qq/sp<N>-<名字>` | 各子项目的功能分支，完成后 PR 合回 `queqiao` |
 | `qq-v*` 标签 | 发版标签：推送后自动构建各平台 CLI 并发布 Release（`install.sh` 从这里下载）；注意上游用的 `v*` 前缀会交接给 yetone/magpie-releases，queqiao 不用它 |
 
-为了让合并上游尽量不冲突，queqiao 的代码放在 `internal/router/`、`internal/harness/`、`clients/` 这几个新目录里，对上游文件只做少量挂钩；Go 模块路径保留 `github.com/yetone/magpie` 不改。
+为了让合并上游尽量不冲突，queqiao 的代码放在 `internal/router/`、`internal/harness/`、`clients/` 这几个新目录里，对上游文件只做少量挂钩；Go 模块路径保留 `github.com/yetone/magpie` 不改。品牌化同理按冲突面分层：应用身份（bundle、窗口/菜单条/页面标题）与 CLI 帮助文本是 queqiao（提交分叉），页面内部文案保持上游拼写；每周同步时工作流会自动重刷 CLI 品牌（`scripts/brand_cli.py`，合并后跑一次、幂等），手动解冲突时 issue 指引里也带这一步。
 
 ## 构建与测试
 
