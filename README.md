@@ -88,7 +88,8 @@ claude plugin install queqiao-router@queqiao
 codex plugin marketplace add weiping/queqiao
 codex plugin install queqiao-router-codex
 
-# Pi：本地包，在 ~/.pi/agent/settings.json 的 packages 里加上 clients/pi 的路径
+# Pi（npm 包 @weiping/pi-queqiao）
+# 在 ~/.pi/agent/settings.json 的 packages 里加 "npm:@weiping/pi-queqiao"
 ```
 
 线上 A/B 实验在 `~/.config/queqiao/router.json` 里开启（`experiment` 字段），跑满后用 `./queqiao router report --since 14d` 出报表。

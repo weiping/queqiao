@@ -1,23 +1,38 @@
 {
   "name": "@weiping/pi-queqiao",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Route every Pi turn across queqiao's fast/balanced/performance tiers via the queqiao gateway.",
-  "keywords": ["pi-package"],
-  "pi": { "extensions": ["./extensions"] },
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/queqiao.js"
+    ]
+  },
   "type": "module",
   "main": "./extensions/queqiao.js",
   "types": "./extensions/queqiao.d.ts",
+  "files": [
+    "extensions",
+    "src"
+  ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
+    "@types/node": "^26.6.4",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "prepublishOnly": "npm run check && npm test && npm run build"
   },
-  "author": { "name": "weiping" },
+  "author": {
+    "name": "weiping"
+  },
   "license": "MIT"
 }
