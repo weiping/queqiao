@@ -307,3 +307,77 @@ func TestRouterInitFrontierWithOnlyFastServed(t *testing.T) {
 		}
 	}
 }
+
+// router init points Pi at the balanced tier the way `queqiao pi` does:
+// settings.json's defaultProvider/defaultModel and the gateway provider in
+// models.json, the user's other settings kept. It also takes out the
+// top-level "magpie": {"default": …} an earlier router init wrote into
+// models.json, which Pi never read.
+func TestRouterInitPiSetsPisDefaultModel(t *testing.T) {
+	routerHome(t)
+	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(os.Getenv("HOME"), ".pi", "agent")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"theme": "dark"}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "models.json"), []byte(`{"magpie": {"default": "magpie/group/qq-balanced"}, "providers": {}}`), 0o644)
+	if _, err := captureStdout(t, routerInitPi); err != nil {
+		t.Fatal(err)
+	}
+	var settings map[string]any
+	b, _ := os.ReadFile(filepath.Join(dir, "settings.json"))
+	if err := json.Unmarshal(b, &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings["defaultProvider"] != "magpie" || settings["defaultModel"] != "group/qq-balanced" || settings["theme"] != "dark" {
+		t.Fatalf("settings.json: %s", b)
+	}
+	var models map[string]json.RawMessage
+	b, _ = os.ReadFile(filepath.Join(dir, "models.json"))
+	if err := json.Unmarshal(b, &models); err != nil {
+		t.Fatal(err)
+	}
+	if _, stray := models["magpie"]; stray {
+		t.Fatalf("models.json kept the stray top-level magpie: %s", b)
+	}
+	var providers map[string]json.RawMessage
+	json.Unmarshal(models["providers"], &providers)
+	if _, ok := providers["magpie"]; !ok {
+		t.Fatalf("models.json has no gateway provider: %s", b)
+	}
+}
+
+// A top-level "magpie" in models.json that isn't the one router init
+// wrote (any other shape) is the user's: it stays.
+func TestRouterInitPiKeepsAnotherTopLevelMagpie(t *testing.T) {
+	routerHome(t)
+	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(os.Getenv("HOME"), ".pi", "agent")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "models.json"), []byte(`{"magpie": {"note": "mine"}, "providers": {}}`), 0o644)
+	if _, err := captureStdout(t, routerInitPi); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "models.json"))
+	if !strings.Contains(string(b), `"note": "mine"`) && !strings.Contains(string(b), `"note":"mine"`) {
+		t.Fatalf("the user's own top-level magpie went: %s", b)
+	}
+}
+
+// Without Pi on this machine router init leaves no Pi files behind.
+func TestRouterInitPiWithoutPi(t *testing.T) {
+	routerHome(t)
+	t.Setenv("PATH", t.TempDir())
+	if _, err := captureStdout(t, routerInitPi); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("HOME"), ".pi")); err == nil {
+		t.Fatal("router init made ~/.pi with no Pi here")
+	}
+}

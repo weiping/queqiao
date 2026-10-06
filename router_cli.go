@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yetone/magpie/internal/agent"
 	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/catalog"
 	"github.com/yetone/magpie/internal/codexcat"
@@ -288,14 +289,39 @@ var piModelsPath = func() string {
 	return filepath.Join(home, ".pi", "agent", "models.json")
 }
 
-// routerInitPi points Pi's magpie provider's default model at the balanced
-// tier (§4.5; the extension switches per turn after that).
+// routerInitPi points Pi at the balanced tier (§4.5) exactly as
+// `queqiao pi group/qq-balanced` does: settings.json's defaultProvider and
+// defaultModel, the gateway provider in models.json and Pi's scope list,
+// through the agent's own wiring. Without Pi here it writes nothing. It
+// also takes out the top-level "magpie": {"default": …} an earlier router
+// init put in models.json, which Pi never read.
 func routerInitPi() error {
-	path := piModelsPath()
-	fmt.Println(muted.Render("  edit"), path)
-	return edit.SetJSON(path,
-		edit.KV{Path: "magpie.default", Value: "magpie/group/qq-balanced"},
-	)
+	dropStrayPiDefault(piModelsPath())
+	a, err := agent.Find("pi")
+	if err != nil || !a.Detected() {
+		fmt.Println(muted.Render("  pi: not installed here, skipped · after installing it: queqiao pi group/qq-balanced"))
+		return nil
+	}
+	return set(a, "model", "group/qq-balanced")
+}
+
+// dropStrayPiDefault removes models.json's top-level "magpie" when it is
+// exactly what an earlier router init wrote there (an object holding one
+// string "default"); any other value under that key is the user's.
+func dropStrayPiDefault(path string) {
+	raw, ok := edit.GetJSON(path, "magpie")
+	if !ok {
+		return
+	}
+	var v map[string]any
+	if json.Unmarshal([]byte(raw), &v) != nil || len(v) != 1 {
+		return
+	}
+	if d, ok := v["default"].(string); ok && strings.HasPrefix(d, "magpie/group/") {
+		if err := edit.DelJSON(path, "magpie"); err == nil {
+			fmt.Println(muted.Render("  edit"), path, "→ removed the unused top-level magpie.default")
+		}
+	}
 }
 
 // routerStatus is `queqiao router status`: config validity, the tier→group
