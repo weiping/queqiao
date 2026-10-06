@@ -14,18 +14,18 @@ import (
 	"github.com/yetone/magpie/internal/provider"
 )
 
-const pluginUsage = `usage: magpie plugin [list] [--json]
-       magpie plugin add <npm | git | path>        install an OpenCode provider plugin, a pi package or a gateway middleware (opencode-gemini-auth, pi-antigravity, github:owner/repo, ./my-plugin.js, ./alias.middleware.js)
-       magpie plugin rm <name>                     remove one
-       magpie plugin update                        install the newest version of each
-       magpie plugin on|off <name>                 turn one on or off
-       magpie plugin options <name> [<json> | off] show or set what a plugin is handed (a middleware's ctx.options)
-       magpie plugin login <provider> [<method>]   sign in to a provider a plugin adds
-       magpie plugin logout <provider>             forget the sign-in
-       magpie plugin move|migrate <subscription>   run a built-in subscription's accounts on its community plugin
-       magpie plugin move-back|unmigrate <subscription>   go back to the built-in, with its accounts`
+const pluginUsage = `usage: queqiao plugin [list] [--json]
+       queqiao plugin add <npm | git | path>      install an OpenCode provider plugin, a pi package or a gateway middleware (opencode-gemini-auth, pi-antigravity, github:owner/repo, ./my-plugin.js, ./alias.middleware.js)
+       queqiao plugin rm <name>                   remove one
+       queqiao plugin update                      install the newest version of each
+       queqiao plugin on|off <name>               turn one on or off
+       queqiao plugin options <name> [<json> | off] show or set what a plugin is handed (a middleware's ctx.options)
+       queqiao plugin login <provider> [<method>] sign in to a provider a plugin adds
+       queqiao plugin logout <provider>           forget the sign-in
+       queqiao plugin move|migrate <subscription> run a built-in subscription's accounts on its community plugin
+       queqiao plugin move-back|unmigrate <subscription> go back to the built-in, with its accounts`
 
-// pluginCmd: `magpie plugin …` — OpenCode's provider plugins and pi's
+// pluginCmd: `queqiao plugin …` — OpenCode's provider plugins and pi's
 // packages, which sign in to a subscription and carry its requests
 // (internal/plugin), and gateway middleware (internal/middleware).
 func pluginCmd(args []string) error {
@@ -132,7 +132,7 @@ func pluginCmd(args []string) error {
 		if err := provider.Move(ctx, rest[0]); err != nil {
 			return fmt.Errorf("%s stays built-in: %w", rest[0], err)
 		}
-		fmt.Println(green.Render("✓"), rest[0], "runs on", provider.MovePackage(rest[0]), muted.Render("(magpie plugin move-back "+rest[0]+" to undo)"))
+		fmt.Println(green.Render("✓"), rest[0], "runs on", provider.MovePackage(rest[0]), muted.Render("(queqiao plugin move-back "+rest[0]+" to undo)"))
 		return nil
 	case "move-back", "moveback", "unmigrate":
 		if len(rest) != 1 {
@@ -160,7 +160,7 @@ func listPlugins(ctx context.Context, asJSON bool) error {
 			fmt.Println("[]")
 			return nil
 		}
-		fmt.Println("No plugins. Add one: magpie plugin add <npm package | git repo | path>")
+		fmt.Println("No plugins. Add one: queqiao plugin add <npm package | git repo | path>")
 		return nil
 	}
 	loaded, lerr := plugin.Plugins(ctx)
@@ -207,9 +207,9 @@ func listPlugins(ctx context.Context, asJSON bool) error {
 			if p.Spec != e.Spec {
 				continue
 			}
-			who := muted.Render("not signed in · magpie plugin login " + p.ID)
+			who := muted.Render("not signed in · queqiao plugin login " + p.ID)
 			if c, ok := onBuiltin[p.ID]; ok && !p.SignedIn {
-				who = muted.Render(fmt.Sprintf("runs on magpie's built-in (%d accounts) · magpie plugin move %s", c.Accounts, p.ID))
+				who = muted.Render(fmt.Sprintf("runs on magpie's built-in (%d accounts) · queqiao plugin move %s", c.Accounts, p.ID))
 			}
 			if p.SignedIn {
 				who = green.Render("signed in")
@@ -316,7 +316,7 @@ func pluginProvider(ctx context.Context, name string) (plugin.Provider, error) {
 		ids = append(ids, p.ID)
 	}
 	if len(ids) == 0 {
-		return plugin.Provider{}, fmt.Errorf("no plugin signs in to %q — add one: magpie plugin add <npm package>", name)
+		return plugin.Provider{}, fmt.Errorf("no plugin signs in to %q — add one: queqiao plugin add <npm package>", name)
 	}
 	return plugin.Provider{}, fmt.Errorf("no plugin signs in to %q; they sign in to %s", name, strings.Join(ids, ", "))
 }

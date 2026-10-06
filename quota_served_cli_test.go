@@ -14,7 +14,7 @@ import (
 	"github.com/yetone/magpie/internal/provider"
 )
 
-// magpie quota --json tells when each key last answered through the gateway
+// queqiao quota --json tells when each key last answered through the gateway
 // — a process of its own, which wrote it down — and marks the latest last,
 // as GET /v1/magpie/quotas does (#570).
 func TestQuotaJSONLastServedAt(t *testing.T) {

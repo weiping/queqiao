@@ -37,7 +37,7 @@ func printed(t *testing.T, fn func() error) (string, error) {
 }
 
 // A providers.json that can't be read is not "no providers yet": magpie
-// providers and magpie models end in why, and leave the file as it is
+// providers and queqiao models end in why, and leave the file as it is
 // (#415's review).
 func TestProvidersCmdSaysUnreadable(t *testing.T) {
 	groupsHome(t)

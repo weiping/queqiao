@@ -31,88 +31,88 @@ import (
 
 var version = "dev"
 
-const usage = `magpie — one place to pick every agent's model
+const usage = `queqiao — one place to pick every agent's model
 
-  magpie                          open the app: a window plus a menu bar icon
-  magpie tray                     start in the menu bar only
-  magpie panel                    open the menu bar icon's quick panel, or close it
-  magpie autostart [on|off]       open magpie (in the menu bar) when you log in, or say whether it does
-  magpie tui                      the same thing, in the terminal (serves the gateway while open when no magpie does)
-  magpie web [--addr host:port] [--lan] [--no-open] [--gateway]
+  queqiao                        open the app: a window plus a menu bar icon
+  queqiao tray                   start in the menu bar only
+  queqiao panel                  open the menu bar icon's quick panel, or close it
+  queqiao autostart [on|off]     open queqiao (in the menu bar) when you log in, or say whether it does
+  queqiao tui                    the same thing, in the terminal (serves the gateway while open when no queqiao does)
+  queqiao web [--addr host:port] [--lan] [--no-open] [--gateway]
                                   the app's window in a browser, with the gateway (no desktop needed: WSL, a server over SSH)
                                   a new key each run; MAGPIE_WEB_KEY (16+ letters, digits, - . _ ~) keeps one, signed in for 400 days
                                   --gateway: gateway mode, no Agents, Sessions or Library (on by itself with no agents here; Settings › General turns it off)
-  magpie ls                       list detected agents and their settings
-  magpie <agent>                  show one agent
-  magpie <agent> <model>          set an agent's model   e.g. magpie claude deepseek/deepseek-chat
-  magpie <agent> <field> <value>  set another field   e.g. magpie codex effort high
-  magpie <agent> default          take magpie out: the agent back on what it had before
-  magpie <agent> <field> default  that field back to the agent's own default
+  queqiao ls                     list detected agents and their settings
+  queqiao <agent>                show one agent
+  queqiao <agent> <model>        set an agent's model   e.g. queqiao claude deepseek/deepseek-chat
+  queqiao <agent> <field> <value>  set another field   e.g. queqiao codex effort high
+  queqiao <agent> default        take queqiao out: the agent back on what it had before
+  queqiao <agent> <field> default  that field back to the agent's own default
 
-  magpie save <name>              snapshot every agent's settings as a profile
-  magpie use <name>               apply a profile
-  magpie profiles                 list profiles
-  magpie rm <name>                delete a profile
+  queqiao save <name>            snapshot every agent's settings as a profile
+  queqiao use <name>             apply a profile
+  queqiao profiles               list profiles
+  queqiao rm <name>              delete a profile
 
-  magpie backup [--no-keys] [--no-library] [file]    providers, keys, settings, profiles, agent models and the library in one file, sealed with a passphrase
-  magpie restore [--no-agents] [--no-library] <file> put a backup in on this machine
-  magpie webdav [on <address>|set k=v…|now|off]      the same, kept the same on every computer through a WebDAV folder (magpie webdav help)
-  magpie s3 [on s3://<bucket>[/<prefix>]|set k=v…|now|off]   the same through an S3-compatible bucket: AWS, R2, B2, MinIO… (magpie s3 help)
+  queqiao backup [--no-keys] [--no-library] [file]  providers, keys, settings, profiles, agent models and the library in one file, sealed with a passphrase
+  queqiao restore [--no-agents] [--no-library] <file> put a backup in on this machine
+  queqiao webdav [on <address>|set k=v…|now|off]    the same, kept the same on every computer through a WebDAV folder (queqiao webdav help)
+  queqiao s3 [on s3://<bucket>[/<prefix>]|set k=v…|now|off] the same through an S3-compatible bucket: AWS, R2, B2, MinIO… (queqiao s3 help)
 
-  magpie library [sync|instructions|mcp|skill]   the instructions, MCP servers and skills written into every agent (magpie library help)
+  queqiao library [sync|instructions|mcp|skill] the instructions, MCP servers and skills written into every agent (queqiao library help)
 
-  magpie providers                list your providers: host, key, models, who uses them
-  magpie presets                  the vendors magpie knows: add one with just a key
-  magpie provider add <preset> <key>   e.g. magpie provider add deepseek sk-…
-  magpie provider add <name> k=v…      a custom vendor (magpie provider for the fields)
-  magpie provider key|models|test|rm <id>
-  magpie provider fallback <id> <provider/model>…   use these when it's out of quota or down
-  magpie import [-y] <link>       add the provider a magpie://import?… link describes
-  magpie models [<agent>]         every model agents can pick, as provider/model; an agent's, and why others aren't
-  magpie model name <provider/model> <name>|--reset       the name a model goes by, everywhere
-  magpie model efforts <provider/model> <l>,<l>|--reset   the reasoning levels a model offers (magpie model help)
-  magpie visible [<agent> <family|provider|group>,… | all]
-                                  which models an agent is shown: families (magpie provider/group set <id> family=…)
-  magpie search [add <api> <key>|rm <api>]   Tavily, Brave, Exa, Firecrawl or SearXNG for web search when no provider can search
-  magpie groups                   routing groups: several models agents pick as one, group/<id>
-  magpie group add <name> models=<m1>,<m2> [routing=smart|order|rotate|usage|pace] [stays=auto|session|turn|off]
-  magpie group <id> | set <id> k=v… | rm <id>   show, change or remove one (magpie group help for more)
-  magpie accounts [agent] [--json]  every subscription magpie knows, with each one's allowance used and when it resets
-  magpie accounts add <agent>     sign in to one more Claude, ChatGPT or Google (Gemini CLI, Antigravity) subscription
-  magpie accounts add copilot [--host <name>.ghe.com]   one more Copilot account, on github.com or an enterprise's GHE.com
-  magpie accounts switch <agent> <email>   sign the agent in to another of them
-  magpie accounts refresh         renew the saved ChatGPT sign-ins now (the gateway does it daily)
-  magpie accounts checkin         WorkBuddy's daily check-in (签到) for each WorkBuddy account, now (Settings can do it daily)
-  magpie accounts project <gemini|antigravity> <email> <project>   the Google Cloud project a Google account's requests go to
-  magpie plugin [add <package>|rm|update|on|off|login <provider>|logout <provider>]
+  queqiao providers              list your providers: host, key, models, who uses them
+  queqiao presets                the vendors queqiao knows: add one with just a key
+  queqiao provider add <preset> <key> e.g. queqiao provider add deepseek sk-…
+  queqiao provider add <name> k=v…    a custom vendor (queqiao provider for the fields)
+  queqiao provider key|models|test|rm <id>
+  queqiao provider fallback <id> <provider/model>… use these when it's out of quota or down
+  queqiao import [-y] <link>     add the provider a queqiao://import?… link describes
+  queqiao models [<agent>]       every model agents can pick, as provider/model; an agent's, and why others aren't
+  queqiao model name <provider/model> <name>|--reset     the name a model goes by, everywhere
+  queqiao model efforts <provider/model> <l>,<l>|--reset the reasoning levels a model offers (queqiao model help)
+  queqiao visible [<agent> <family|provider|group>,… | all]
+                                  which models an agent is shown: families (queqiao provider/group set <id> family=…)
+  queqiao search [add <api> <key>|rm <api>] Tavily, Brave, Exa, Firecrawl or SearXNG for web search when no provider can search
+  queqiao groups                 routing groups: several models agents pick as one, group/<id>
+  queqiao group add <name> models=<m1>,<m2> [routing=smart|order|rotate|usage|pace] [stays=auto|session|turn|off]
+  queqiao group <id> | set <id> k=v… | rm <id> show, change or remove one (queqiao group help for more)
+  queqiao accounts [agent] [--json]  every subscription queqiao knows, with each one's allowance used and when it resets
+  queqiao accounts add <agent>   sign in to one more Claude, ChatGPT or Google (Gemini CLI, Antigravity) subscription
+  queqiao accounts add copilot [--host <name>.ghe.com] one more Copilot account, on github.com or an enterprise's GHE.com
+  queqiao accounts switch <agent> <email> sign the agent in to another of them
+  queqiao accounts refresh       renew the saved ChatGPT sign-ins now (the gateway does it daily)
+  queqiao accounts checkin       WorkBuddy's daily check-in (签到) for each WorkBuddy account, now (Settings can do it daily)
+  queqiao accounts project <gemini|antigravity> <email> <project> the Google Cloud project a Google account's requests go to
+  queqiao plugin [add <package>|rm|update|on|off|login <provider>|logout <provider>]
                                   OpenCode provider plugins and pi packages: subscriptions signed in to, and served, through a plugin
-  magpie plugin move|migrate <subscription>   run a built-in subscription's accounts on its community plugin
-  magpie plugin move-back|unmigrate <subscription>   go back to the built-in, with its accounts
+  queqiao plugin move|migrate <subscription> run a built-in subscription's accounts on its community plugin
+  queqiao plugin move-back|unmigrate <subscription> go back to the built-in, with its accounts
 
-  magpie serve                    run the gateway alone (the app runs it too)
-  magpie healthcheck              exit 0 when the gateway answers (a container's HEALTHCHECK)
-  magpie gateway-key list|add <name>|rotate <id>|remove <id>   manage the keys clients use to call a shared gateway
-  magpie gateway-key limit <id> [off|day|week|month --tokens N --cost USD --cache-reads]   a key's own limit, and what it used
-  magpie gateway-key models <id> [all|<provider>/<model>|<provider>/* ...]   the models a key may use, every one unless it names some
-  magpie mcp image                the image and video generation MCP server an agent is given from the library (stdio)
-  magpie usage [today|7d|30d|all] tokens and cost per agent, model and subscription account (30d)
-  magpie usage --csv [--account <name>] [today|7d|30d|all]   every request as CSV (or one account's): the model asked for, sent and served, tokens, cost, time, status, account
-  magpie sessions [--model <m>] [--folder <f>] [--json]   the latest Claude Code, Codex, OpenCode and Pi sessions, with what each cost
-  magpie sessions --days N|today|all [--model <m>] [--folder <f>] [--json]
+  queqiao serve                  run the gateway alone (the app runs it too)
+  queqiao healthcheck            exit 0 when the gateway answers (a container's HEALTHCHECK)
+  queqiao gateway-key list|add <name>|rotate <id>|remove <id> manage the keys clients use to call a shared gateway
+  queqiao gateway-key limit <id> [off|day|week|month --tokens N --cost USD --cache-reads] a key's own limit, and what it used
+  queqiao gateway-key models <id> [all|<provider>/<model>|<provider>/* ...] the models a key may use, every one unless it names some
+  queqiao mcp image              the image and video generation MCP server an agent is given from the library (stdio)
+  queqiao usage [today|7d|30d|all] tokens and cost per agent, model and subscription account (30d)
+  queqiao usage --csv [--account <name>] [today|7d|30d|all] every request as CSV (or one account's): the model asked for, sent and served, tokens, cost, time, status, account
+  queqiao sessions [--model <m>] [--folder <f>] [--json] the latest Claude Code, Codex, OpenCode and Pi sessions, with what each cost
+  queqiao sessions --days N|today|all [--model <m>] [--folder <f>] [--json]
                                   what every session spent, day by day, with the top models and folders (7 days)
-  magpie quota [<provider>] [--json]  what is left of every subscription, plan and key balance
-  magpie quota wait <provider|account> [--timeout <d>] [--quiet]
+  queqiao quota [<provider>] [--json]  what is left of every subscription, plan and key balance
+  queqiao quota wait <provider|account> [--timeout <d>] [--quiet]
                                   block until that subscription (any of its accounts) or account has allowance again
-  magpie quota history [<provider|account>] [--days N] [--json]
+  queqiao quota history [<provider|account>] [--days N] [--json]
                                   each window's readings over time, kept 45 days
-  magpie sync                     refresh the model catalog and vendor model lists
-  magpie agents                   list every supported agent
-  magpie update [check] [--proxy <url>] [--mirror <prefix>]
+  queqiao sync                   refresh the model catalog and vendor model lists
+  queqiao agents                 list every supported agent
+  queqiao update [check] [--proxy <url>] [--mirror <prefix>]
                                   install the newest release (check: only say if there is one); --proxy: an
                                   http(s):// or socks5:// proxy for it; --mirror: a GitHub download mirror put
                                   before the github.com URL (none unless given; still checked against usemagpie.ai's SHA-256)
-  magpie update mirror [<prefix>|off]  the mirror every update, the app's own too, is downloaded through
-  magpie update auto [on|off] [30m|1h|6h|24h]  whether the app looks for updates by itself, and how often (6h)
+  queqiao update mirror [<prefix>|off]  the mirror every update, the app's own too, is downloaded through
+  queqiao update auto [on|off] [30m|1h|6h|24h]  whether the app looks for updates by itself, and how often (6h)
 
 agents: claude (cc), codex, gemini, opencode (oc), mimocode, pi, goose, cursor, zed, copilot, crush, aside
 `
@@ -128,21 +128,21 @@ func main() {
 	appdir.SetName("queqiao")
 	// before anything reads or writes a file: no home, or a relative one,
 	// would put the agents' configs and magpie's keys under the working
-	// folder. What needs no file still answers (magpie version in a
+	// folder. What needs no file still answers (queqiao version in a
 	// container or a script without HOME): run makes magpie's folders first.
 	ignored, err := appdir.CheckEnv()
 	if err != nil {
 		if len(os.Args) > 1 {
 			switch os.Args[1] {
 			case "-v", "--version", "version":
-				fmt.Println("magpie", version)
+				fmt.Println("queqiao", version)
 				return
 			case "-h", "--help", "help":
 				fmt.Print(usage)
 				return
 			}
 		}
-		fmt.Fprintln(os.Stderr, "magpie:", err)
+		fmt.Fprintln(os.Stderr, "queqiao:", err)
 		os.Exit(1)
 	}
 	slices.Sort(ignored)
@@ -168,7 +168,7 @@ func main() {
 			code = e.code
 		}
 		if msg := err.Error(); msg != "" {
-			fmt.Fprintln(os.Stderr, "magpie:", msg)
+			fmt.Fprintln(os.Stderr, "queqiao:", msg)
 		}
 		os.Exit(code)
 	}
@@ -248,7 +248,7 @@ func run(args []string) error {
 	case "web":
 		return webCmd(args[1:])
 	case "app", "gui":
-		// `magpie gui settings`: the window on that tab, as a restart to
+		// `queqiao gui settings`: the window on that tab, as a restart to
 		// update from it comes back (update.RelaunchArgs)
 		if len(args) > 1 {
 			return runWindow(args[1])
@@ -269,7 +269,7 @@ func run(args []string) error {
 		fmt.Print(usage)
 		return nil
 	case "-v", "--version", "version":
-		fmt.Println("magpie", version)
+		fmt.Println("queqiao", version)
 		return nil
 	case "ls", "list":
 		// in the order the app lists them; those hidden there come last, dimmed
@@ -349,7 +349,7 @@ func run(args []string) error {
 		return err
 	}
 	if len(a.Fields) == 0 && a.Import != nil {
-		// `magpie cindy`: it takes magpie through its own link, confirmed there
+		// `queqiao cindy`: it takes magpie through its own link, confirmed there
 		if len(args) > 1 {
 			link := a.Import()
 			openInBrowser(link)
@@ -368,7 +368,7 @@ func run(args []string) error {
 			}
 			return set(a, a.Fields[0].Key, "")
 		}
-		// `magpie codex xhigh`: a bare value that belongs to a non-model field
+		// `queqiao codex xhigh`: a bare value that belongs to a non-model field
 		// (effort levels, for instance) is routed there; anything else is a model.
 		if f := fieldForValue(a, args[1]); f != nil {
 			return set(a, f.Key, args[1])
@@ -420,10 +420,10 @@ func set(a *agent.Agent, key, value string) error {
 	return nil
 }
 
-// disconnect is `magpie <agent> default` on an agent magpie is wired into:
+// disconnect is `queqiao <agent> default` on an agent magpie is wired into:
 // the Agents page's Disconnect, which puts back what the user had before
 // magpie — Claude Code's own model, its endpoint — where a field's default
-// leaves the agent as installed (__jingling on X: magpie claude default
+// leaves the agent as installed (__jingling on X: queqiao claude default
 // took the model they had set away with magpie's)
 func disconnect(a *agent.Agent) error {
 	before := a.Values()
@@ -556,7 +556,7 @@ func profiles(args []string) error {
 			return err
 		}
 		if len(ps) == 0 {
-			fmt.Println(muted.Render("no profiles yet · magpie save <name>"))
+			fmt.Println(muted.Render("no profiles yet · queqiao save <name>"))
 			return nil
 		}
 		for _, n := range profile.Names(ps) {
@@ -565,7 +565,7 @@ func profiles(args []string) error {
 		return nil
 	case "save":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: magpie save <name>")
+			return fmt.Errorf("usage: queqiao save <name>")
 		}
 		p, err := profile.Snapshot()
 		if err != nil {
@@ -581,7 +581,7 @@ func profiles(args []string) error {
 		return nil
 	case "use":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: magpie use <name>")
+			return fmt.Errorf("usage: queqiao use <name>")
 		}
 		ps, err := profile.Load()
 		if err != nil {
@@ -602,7 +602,7 @@ func profiles(args []string) error {
 		return nil
 	case "rm":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: magpie rm <name>")
+			return fmt.Errorf("usage: queqiao rm <name>")
 		}
 		if err := profile.Delete(args[1]); err != nil {
 			return err

@@ -13,23 +13,23 @@ import (
 	stats "github.com/yetone/magpie/internal/usage"
 )
 
-// Which models each agent is shown, from the terminal: magpie visible.
+// Which models each agent is shown, from the terminal: queqiao visible.
 
 const visibleUsage = `usage:
-  magpie visible                          which models each agent is shown
-  magpie visible <agent> <name>[,<name>…] show the agent only these: families (a tag set with
-                                          magpie provider set <id> family=relay, or magpie group set),
+  queqiao visible                        which models each agent is shown
+  queqiao visible <agent> <name>[,<name>…] show the agent only these: families (a tag set with
+                                          queqiao provider set <id> family=relay, or queqiao group set),
                                           provider ids and group ids
-  magpie visible <agent> all              show the agent every model again
+  queqiao visible <agent> all            show the agent every model again
 
   An agent not narrowed is shown every model. The gateway's model list and the model lists
-  magpie writes into the agents' files are narrowed alike; a model kept from an agent still
-  answers when the agent asks for it by name. magpie models <agent> shows what it is shown,
+  queqiao writes into the agents' files are narrowed alike; a model kept from an agent still
+  answers when the agent asks for it by name. queqiao models <agent> shows what it is shown,
   and why the others aren't.
 
-  e.g. magpie provider set opencode-go family=ocgo
-       magpie group set gpt-plus-auto family=relay
-       magpie visible zcode relay,ocgo`
+  e.g. queqiao provider set opencode-go family=ocgo
+       queqiao group set gpt-plus-auto family=relay
+       queqiao visible zcode relay,ocgo`
 
 func agentIDs() []string {
 	var ids []string
@@ -67,7 +67,7 @@ func visibleCmd(args []string) error {
 	s := settings.Load()
 	if len(args) == 0 {
 		if len(s.Visible) == 0 {
-			fmt.Println(muted.Render("  every agent is shown every model · magpie visible <agent> <family>,… narrows one"))
+			fmt.Println(muted.Render("  every agent is shown every model · queqiao visible <agent> <family>,… narrows one"))
 		}
 		for _, id := range slices.Sorted(maps.Keys(s.Visible)) {
 			shown, hidden := provider.CatalogFor(id)
@@ -94,7 +94,7 @@ func visibleCmd(args []string) error {
 		for i, n := range list {
 			n = strings.TrimPrefix(n, provider.GroupPrefix)
 			if !slices.ContainsFunc(known, func(k string) bool { return strings.EqualFold(k, n) }) {
-				return fmt.Errorf("%s is no family, provider or group (families: %s; magpie provider set <id> family=%s makes one)",
+				return fmt.Errorf("%s is no family, provider or group (families: %s; queqiao provider set <id> family=%s makes one)",
 					n, orNone(provider.Families()), n)
 			}
 			list[i] = n
@@ -126,7 +126,7 @@ func orNone(xs []string) string {
 func explainHidden(id string, hidden []provider.Entry) {
 	names, ok := provider.VisibleTo(id)
 	if !ok {
-		fmt.Println(faint.Render("  " + id + " is shown every model · magpie visible " + id + " <family>,… narrows it"))
+		fmt.Println(faint.Render("  " + id + " is shown every model · queqiao visible " + id + " <family>,… narrows it"))
 		return
 	}
 	fmt.Println(faint.Render("  " + id + " is shown " + strings.Join(names, ", ")))

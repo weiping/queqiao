@@ -12,59 +12,58 @@ import (
 	"github.com/yetone/magpie/internal/settings"
 )
 
-// A model's name and reasoning levels, from the terminal: magpie model.
+// A model's name and reasoning levels, from the terminal: queqiao model.
 
-const modelUsage = `usage:
-  magpie model name <provider/model>             the name the model goes by
-  magpie model name <provider/model> <name>      name it so everywhere: in magpie, in the gateway's
-                                                 model list, and in the lists magpie writes into the agents
-  magpie model name <provider/model> --reset     give it back its own name
-  magpie model efforts <provider/model>          the reasoning levels it offers, and those it has
-  magpie model efforts <provider/model> <l>,<l>  offer only these of them, e.g. low,medium,high
-  magpie model efforts <provider/model> --reset  offer every level it has again
-  magpie model price <provider/model>            what the model costs you, and what you said it costs
-  magpie model price <provider/model> <in>,<out>,<cache read>,<cache write>
-                                                 say what it costs, in USD per million tokens, all four parts as
-                                                 0.12,1.20,0.01,0.15; 0 is a model served for nothing, which is
-                                                 a price, not the absence of one; a fifth part is a 1-hour cache
-                                                 write's (not given: a Claude model's is 2× input, any other's the 4th)
-  magpie model price <provider/model> <in>,<out>,<cache read>,<cache write> --tier 272k <in>,<out>,<cr>,<cw>
-                                                 and what a request whose input, cached tokens included, is over
-                                                 272K costs, the whole request; --tier may be given again
-  magpie model price <provider/model> --reset    take your price off this model
-  magpie model price <model> <in>,<out>,<cache read>,<cache write>
-                                                 what the model costs from any provider you have not priced it
-                                                 for, kept as '*/<model>': for usage whose provider is gone, or
-                                                 a model models.dev doesn't price, e.g. gemini-3-pro-preview
-  magpie model prices                            the models you priced
-  magpie model context <provider/model>          how long a request it takes, and what you said it takes
-  magpie model context <provider/model> <n>      say how long, as 200000 or 1m; '<provider>/*' is every model
-  magpie model context <provider/model> --reset  take your limit off this model
-  magpie model output <provider/model>           the most a reply of it may hold, and what you said
-  magpie model output <provider/model> <n>       say the most, as 128000 or 128k; '<provider>/*' is every model
-  magpie model output <provider/model> --reset   take your limit off this model
-  magpie model wire <provider/model>             the name the vendor is asked for, and the one you gave
-  magpie model wire <provider/model> <name>      ask for the model by this name, for a relay that serves it
-  magpie model wire '<provider>/*' <name>        ask for every model of that provider by this name; a * in
-                                                 it is the model, so vendor-c/* asks for model-3 as
-                                                 vendor-c/model-3. Quote it: a shell reads a bare * as a glob
-  magpie model wire <provider/model> --reset     ask for it by the name magpie knows it by again, under an
-                                                 id of its own for a provider that has since been deleted,
-                                                 and says when there was no name of its own to take away
-  magpie model wires                             the names your vendors are asked for models by
-  magpie model names                             the models you named or narrowed
-  magpie model suffix [on|own|off]               whether the agents' lists name each model with its provider
-                                                 (or "routing group") after it: on, as by default, "Sol · OpenAI";
-                                                 own, a name you gave a model just as you wrote it, "Opus 5.5",
-                                                 the others as on; off, "Sol" alone — but two a list would name
-                                                 the same keep it
-  magpie model compact [on|off|<size>]           whether Codex and Claude Code compact a long conversation at
-                                                 272K: on, as by default, for a model of a longer window (in
-                                                 Claude Code, a Claude model runs to its own); off, at the
-                                                 model's whole window, 1M for a [1m] one; a size such as 500k
-                                                 compacts there instead. The app's Settings → Long
-                                                 conversations is the same switch; a provider's own Compact
-                                                 at (its editor) comes before it
+const modelUsage = `  queqiao model name <provider/model>              the name the model goes by
+  queqiao model name <provider/model> <name>       name it so everywhere: in magpie, in the gateway's
+                                                   model list, and in the lists magpie writes into the agents
+  queqiao model name <provider/model> --reset      give it back its own name
+  queqiao model efforts <provider/model>           the reasoning levels it offers, and those it has
+  queqiao model efforts <provider/model> <l>,<l>   offer only these of them, e.g. low,medium,high
+  queqiao model efforts <provider/model> --reset   offer every level it has again
+  queqiao model price <provider/model>             what the model costs you, and what you said it costs
+  queqiao model price <provider/model> <in>,<out>,<cache read>,<cache write>
+                                                   say what it costs, in USD per million tokens, all four parts as
+                                                   0.12,1.20,0.01,0.15; 0 is a model served for nothing, which is
+                                                   a price, not the absence of one; a fifth part is a 1-hour cache
+                                                   write's (not given: a Claude model's is 2× input, any other's the 4th)
+  queqiao model price <provider/model> <in>,<out>,<cache read>,<cache write> --tier 272k <in>,<out>,<cr>,<cw>
+                                                   and what a request whose input, cached tokens included, is over
+                                                   272K costs, the whole request; --tier may be given again
+  queqiao model price <provider/model> --reset     take your price off this model
+  queqiao model price <model> <in>,<out>,<cache read>,<cache write>
+                                                   what the model costs from any provider you have not priced it
+                                                   for, kept as '*/<model>': for usage whose provider is gone, or
+                                                   a model models.dev doesn't price, e.g. gemini-3-pro-preview
+  queqiao model prices                             the models you priced
+  queqiao model context <provider/model>           how long a request it takes, and what you said it takes
+  queqiao model context <provider/model> <n>       say how long, as 200000 or 1m; '<provider>/*' is every model
+  queqiao model context <provider/model> --reset   take your limit off this model
+  queqiao model output <provider/model>            the most a reply of it may hold, and what you said
+  queqiao model output <provider/model> <n>        say the most, as 128000 or 128k; '<provider>/*' is every model
+  queqiao model output <provider/model> --reset    take your limit off this model
+  queqiao model wire <provider/model>              the name the vendor is asked for, and the one you gave
+  queqiao model wire <provider/model> <name>       ask for the model by this name, for a relay that serves it
+  queqiao model wire '<provider>/*' <name>         ask for every model of that provider by this name; a * in
+                                                   it is the model, so vendor-c/* asks for model-3 as
+                                                   vendor-c/model-3. Quote it: a shell reads a bare * as a glob
+  queqiao model wire <provider/model> --reset      ask for it by the name magpie knows it by again, under an
+                                                   id of its own for a provider that has since been deleted,
+                                                   and says when there was no name of its own to take away
+  queqiao model wires                              the names your vendors are asked for models by
+  queqiao model names                              the models you named or narrowed
+  queqiao model suffix [on|own|off]                whether the agents' lists name each model with its provider
+                                                   (or "routing group") after it: on, as by default, "Sol · OpenAI";
+                                                   own, a name you gave a model just as you wrote it, "Opus 5.5",
+                                                   the others as on; off, "Sol" alone — but two a list would name
+                                                   the same keep it
+  queqiao model compact [on|off|<size>]            whether Codex and Claude Code compact a long conversation at
+                                                   272K: on, as by default, for a model of a longer window (in
+                                                   Claude Code, a Claude model runs to its own); off, at the
+                                                   model's whole window, 1M for a [1m] one; a size such as 500k
+                                                   compacts there instead. The app's Settings → Long
+                                                   conversations is the same switch; a provider's own Compact
+                                                   at (its editor) comes before it
 
   Each is looked for in this order: this model, then <provider id>/*, then the provider's own
   list, then models.dev. --reset removes only the first, and says so when a <provider id>/* value
@@ -77,10 +76,10 @@ const modelUsage = `usage:
   usage and session totals report, and nothing an agent can see, and it is saved without
   rewriting the model lists in the agents' own files.
 
-  e.g. magpie model name claude/claude-opus-5-5 "Opus 5.5"
-       magpie model efforts openai/gpt-6 low,medium,high
-       magpie model price relay-a/gpt-5.5 0.12,0.60,0.01,0.15
-       magpie model context relay-a/claude-opus-5-5 1m`
+  e.g. queqiao model name claude/claude-opus-5-5 "Opus 5.5"
+       queqiao model efforts openai/gpt-6 low,medium,high
+       queqiao model price relay-a/gpt-5.5 0.12,0.60,0.01,0.15
+       queqiao model context relay-a/claude-opus-5-5 1m`
 
 func modelCmd(args []string) error {
 	if len(args) == 0 {
@@ -137,7 +136,7 @@ func splitModelRef(s string) (string, string, error) {
 	ref := strings.TrimPrefix(strings.TrimSpace(s), "magpie/")
 	pid, model, ok := strings.Cut(ref, "/")
 	if !ok || model == "" {
-		return "", "", fmt.Errorf("name a model as provider/model, not %q (magpie models lists them)", s)
+		return "", "", fmt.Errorf("name a model as provider/model, not %q (queqiao models lists them)", s)
 	}
 	return pid, model, nil
 }
@@ -259,7 +258,7 @@ func modelPrice(args []string) error {
 	rest := args[1:]
 	// --reset comes before the provider is looked for, and works off the
 	// key the price is stored at: a price outlives the provider it was set
-	// for, and one whose provider is gone is still listed by `magpie model
+	// for, and one whose provider is gone is still listed by `queqiao model
 	// prices` and still counted, so a reset that resolved the provider
 	// first could not take it away — and would take another provider's
 	// price away instead where the gone one's name has been given to one.
@@ -298,15 +297,15 @@ func modelPrice(args []string) error {
 		case "model":
 			fmt.Println(faint.Render("  · what you said this model costs · --reset takes that away"))
 		case "provider":
-			fmt.Println(faint.Render("  · what you said every model of this provider costs · magpie model price " +
+			fmt.Println(faint.Render("  · what you said every model of this provider costs · queqiao model price " +
 				typedRef(p.ID+"/*") + " --reset takes that away"))
 		case "any":
-			fmt.Println(faint.Render("  · what you said this model costs from any provider · magpie model price " +
+			fmt.Println(faint.Render("  · what you said this model costs from any provider · queqiao model price " +
 				typedRef(provider.AnyPriceKey(model)) + " --reset takes that away"))
 		case "ignored":
 			fmt.Println(faint.Render("  · a price you gave is not usable and is ignored"))
 		default:
-			fmt.Println(faint.Render("  · what its provider lists, else its maker's on models.dev · magpie model price " +
+			fmt.Println(faint.Render("  · what its provider lists, else its maker's on models.dev · queqiao model price " +
 				typedRef(id) + " <in>,<out>,<cache read>,<cache write> to change it"))
 		}
 		return nil
@@ -434,7 +433,7 @@ func anyModelPrice(ref string, rest []string) error {
 			fmt.Println(faint.Render("  · what you said this model costs from any provider · --reset takes that away"))
 			return nil
 		}
-		fmt.Println(muted.Render(key), faint.Render("· no price of yours · magpie model price "+typedRef(key)+" <in>,<out>,<cache read>,<cache write>"))
+		fmt.Println(muted.Render(key), faint.Render("· no price of yours · queqiao model price "+typedRef(key)+" <in>,<out>,<cache read>,<cache write>"))
 		return nil
 	}
 	pr, err := parsePrice(rest)
@@ -475,7 +474,7 @@ func resetModelPrice(ref string) error {
 	wid, _, _ := strings.Cut(key, "/")
 	if strings.HasPrefix(key, settings.AnyProvider) {
 		if !dropped {
-			return fmt.Errorf("%s has no price of yours to reset — magpie model prices lists the ones you set", key)
+			return fmt.Errorf("%s has no price of yours to reset — queqiao model prices lists the ones you set", key)
 		}
 		fmt.Println(green.Render("✓"), key,
 			muted.Render("no longer has a price of yours; it is costed at what its provider lists, or its maker's on models.dev"))
@@ -483,10 +482,10 @@ func resetModelPrice(ref string) error {
 	}
 	if !dropped {
 		if _, wide := statedPrice(s.ModelPrices, wid+"/*"); wide {
-			return fmt.Errorf("%s has no price of its own; what it costs is what you set for every model of this provider, %s/*, which magpie model price %s --reset takes away",
+			return fmt.Errorf("%s has no price of its own; what it costs is what you set for every model of this provider, %s/*, which queqiao model price %s --reset takes away",
 				key, wid, typedRef(wid+"/*"))
 		}
-		return fmt.Errorf("%s has no price of its own to reset — magpie model prices lists the ones you set", key)
+		return fmt.Errorf("%s has no price of its own to reset — queqiao model prices lists the ones you set", key)
 	}
 	if !there {
 		fmt.Println(green.Render("✓"), key,
@@ -552,7 +551,7 @@ func modelPrices() error {
 	prices := settings.Load().ModelPrices
 	if len(prices) == 0 {
 		fmt.Println(muted.Render("no model is priced by you yet"))
-		fmt.Println(faint.Render("magpie model price <provider/model> <in>,<out>,<cache read>,<cache write>"))
+		fmt.Println(faint.Render("queqiao model price <provider/model> <in>,<out>,<cache read>,<cache write>"))
 		return nil
 	}
 	for _, id := range slices.Sorted(maps.Keys(prices)) {
@@ -577,11 +576,11 @@ func modelSuffix(args []string) error {
 	if len(args) == 0 {
 		switch provider.SuffixMode() {
 		case provider.SuffixOff:
-			fmt.Println("off", muted.Render("· agents' lists name a model alone, \"Sol\" · magpie model suffix on|own"))
+			fmt.Println("off", muted.Render("· agents' lists name a model alone, \"Sol\" · queqiao model suffix on|own"))
 		case provider.SuffixOwn:
-			fmt.Println("own", muted.Render("· a name you gave a model just as you wrote it, \"Opus 5.5\"; the others \"Sol · OpenAI\" · magpie model suffix on|off"))
+			fmt.Println("own", muted.Render("· a name you gave a model just as you wrote it, \"Opus 5.5\"; the others \"Sol · OpenAI\" · queqiao model suffix on|off"))
 		default:
-			fmt.Println("on", muted.Render("· agents' lists name a model with its provider, \"Sol · OpenAI\" · magpie model suffix own|off"))
+			fmt.Println("on", muted.Render("· agents' lists name a model with its provider, \"Sol · OpenAI\" · queqiao model suffix own|off"))
 		}
 		return nil
 	}
@@ -593,7 +592,7 @@ func modelSuffix(args []string) error {
 	case "off", "no", "false":
 		mode = provider.SuffixOff
 	default:
-		return fmt.Errorf("magpie model suffix on|own|off, not %q", args[0])
+		return fmt.Errorf("queqiao model suffix on|own|off, not %q", args[0])
 	}
 	if err := provider.SetSuffixMode(mode); err != nil {
 		return err
@@ -616,9 +615,9 @@ func modelSuffix(args []string) error {
 func modelCompact(args []string) error {
 	if len(args) == 0 {
 		if s := settings.Load(); s.FullContext {
-			fmt.Println("off", muted.Render("· Codex and Claude Code run a conversation to the model's whole window · magpie model compact on"))
+			fmt.Println("off", muted.Render("· Codex and Claude Code run a conversation to the model's whole window · queqiao model compact on"))
 		} else {
-			fmt.Println("on", muted.Render(fmt.Sprintf("· Codex and Claude Code compact at %dK on a longer window; in Claude Code a Claude model runs to its own · magpie model compact off", s.Compact()/1000)))
+			fmt.Println("on", muted.Render(fmt.Sprintf("· Codex and Claude Code compact at %dK on a longer window; in Claude Code a Claude model runs to its own · queqiao model compact off", s.Compact()/1000)))
 		}
 		return nil
 	}
@@ -630,7 +629,7 @@ func modelCompact(args []string) error {
 	default:
 		n, err := provider.ParseTokens(args[0])
 		if err != nil || n <= 0 {
-			return fmt.Errorf("magpie model compact on|off|<size such as 500k>, not %q", args[0])
+			return fmt.Errorf("queqiao model compact on|off|<size such as 500k>, not %q", args[0])
 		}
 		if err := provider.SetCompactAt(n); err != nil {
 			return err
@@ -659,7 +658,7 @@ func modelNames() error {
 	}
 	slices.Sort(keys)
 	if len(keys) == 0 {
-		fmt.Println(muted.Render("no model is named or narrowed yet · magpie model name <provider/model> <name>"))
+		fmt.Println(muted.Render("no model is named or narrowed yet · queqiao model name <provider/model> <name>"))
 		return nil
 	}
 	w := 0
@@ -680,7 +679,7 @@ func modelNames() error {
 }
 
 // modelWires lists the names the user gave the vendors their models are asked
-// for, and which provider and model each is for. It is `magpie model prices`
+// for, and which provider and model each is for. It is `queqiao model prices`
 // for the wire names: those are what a provider is asked for, and no other
 // command says what is kept for a provider as a whole, so a name given for
 // every model of one was written with no way to read it back.
@@ -706,7 +705,7 @@ func modelWires() error {
 		}
 	}
 	if len(rows) == 0 {
-		fmt.Println(muted.Render("no vendor is asked for a model by another name yet · magpie model wire <provider/model> <name>"))
+		fmt.Println(muted.Render("no vendor is asked for a model by another name yet · queqiao model wire <provider/model> <name>"))
 		return nil
 	}
 	for _, r := range rows {
@@ -734,7 +733,7 @@ func modelContext(args []string) error {
 			if n > 0 {
 				fmt.Println(faint.Render("  · what you said every model of this provider takes, unless that model has a window of its own"))
 			} else {
-				fmt.Println(faint.Render("  · what the vendor's list and models.dev say · magpie model context " + typedRef(id) + " <tokens> to say one for all of them"))
+				fmt.Println(faint.Render("  · what the vendor's list and models.dev say · queqiao model context " + typedRef(id) + " <tokens> to say one for all of them"))
 			}
 			return nil
 		}
@@ -755,7 +754,7 @@ func modelContext(args []string) error {
 		case p.Contexts["*"] > 0:
 			fmt.Println(faint.Render("  · what you set for every model of this provider"))
 		default:
-			fmt.Println(faint.Render("  · what the vendor's list and models.dev say · magpie model context " + typedRef(id) + " <tokens> to change it"))
+			fmt.Println(faint.Render("  · what the vendor's list and models.dev say · queqiao model context " + typedRef(id) + " <tokens> to change it"))
 		}
 		return nil
 	}
@@ -774,11 +773,11 @@ func modelContext(args []string) error {
 					id, p.ID+"/*", resetCommand("context", p.ID+"/*"))
 			}
 			if _, served := provider.ServedEntryOf(id); served {
-				return fmt.Errorf("%s has no window of its own to reset — magpie model context %s says what it takes now", id, typedRef(id))
+				return fmt.Errorf("%s has no window of its own to reset — queqiao model context %s says what it takes now", id, typedRef(id))
 			}
 			return fmt.Errorf("%s has no window of its own to reset", id)
 		}
-		fmt.Println(green.Render("✓"), id, muted.Render("has no window of your own · magpie model context "+typedRef(id)+" says what it takes now"))
+		fmt.Println(green.Render("✓"), id, muted.Render("has no window of your own · queqiao model context "+typedRef(id)+" says what it takes now"))
 		return nil
 	}
 	n, err := parseTokens(rest[0])
@@ -822,7 +821,7 @@ func modelOutput(args []string) error {
 					key, wid+"/*", resetCommand("output", wid+"/*"))
 			}
 			if _, served := provider.ServedEntryOf(key); served {
-				return fmt.Errorf("%s has no reply limit of its own to reset — magpie model output %s says what it answers with now", key, typedRef(key))
+				return fmt.Errorf("%s has no reply limit of its own to reset — queqiao model output %s says what it answers with now", key, typedRef(key))
 			}
 			return fmt.Errorf("%s has no reply limit of its own to reset", key)
 		}
@@ -833,7 +832,7 @@ func modelOutput(args []string) error {
 		// provider's model instead of the one taken off here
 		line := "has no reply limit of your own"
 		if clearedEntryIs(key) {
-			line += " · magpie model output " + typedRef(key) + " says what it answers with now"
+			line += " · queqiao model output " + typedRef(key) + " says what it answers with now"
 		}
 		fmt.Println(green.Render("✓"), key, muted.Render(line))
 		return nil
@@ -853,7 +852,7 @@ func modelOutput(args []string) error {
 			if n > 0 {
 				fmt.Println(faint.Render("  · what you said every model of this provider answers with, unless that model has a limit of its own"))
 			} else {
-				fmt.Println(faint.Render("  · what the vendor's list and models.dev say · magpie model output " + typedRef(id) + " <tokens> to say one for all of them"))
+				fmt.Println(faint.Render("  · what the vendor's list and models.dev say · queqiao model output " + typedRef(id) + " <tokens> to say one for all of them"))
 			}
 			return nil
 		}
@@ -874,7 +873,7 @@ func modelOutput(args []string) error {
 		case s.ModelOutputs[p.ID+"/*"] > 0:
 			fmt.Println(faint.Render("  · what you set for every model of this provider"))
 		default:
-			fmt.Println(faint.Render("  · what the vendor's list and models.dev say · magpie model output " + typedRef(id) + " <tokens> to change it"))
+			fmt.Println(faint.Render("  · what the vendor's list and models.dev say · queqiao model output " + typedRef(id) + " <tokens> to change it"))
 		}
 		return nil
 	}
@@ -907,7 +906,7 @@ func typedRef(ref string) string {
 
 // resetCommand is the command that takes a limit off, over the ref as typed.
 func resetCommand(verb, ref string) string {
-	return fmt.Sprintf("magpie model %s %s --reset", verb, typedRef(ref))
+	return fmt.Sprintf("queqiao model %s %s --reset", verb, typedRef(ref))
 }
 
 // resetTakesOff is what the command taking a limit off would take off. The
@@ -1006,10 +1005,10 @@ func modelWire(args []string) error {
 		fmt.Println(bold.Render(asked), muted.Render("· what "+p.Name+" is asked for, for "+shown))
 		switch {
 		case asked == model:
-			fmt.Println(faint.Render("  · the same name magpie knows it by · magpie model wire " + shown + " <name> to change it"))
+			fmt.Println(faint.Render("  · the same name magpie knows it by · queqiao model wire " + shown + " <name> to change it"))
 		case model == "*":
 			fmt.Println(faint.Render("  · " + exampleOf(p, asked)))
-			fmt.Println(faint.Render("  · --reset takes it away · magpie model wire " + p.ID + "/<model> <name> gives a single model one of its own"))
+			fmt.Println(faint.Render("  · --reset takes it away · queqiao model wire " + p.ID + "/<model> <name> gives a single model one of its own"))
 		case own:
 			fmt.Println(faint.Render("  · magpie and the agents still know it as " + model + " · --reset asks for that again"))
 		case one:
@@ -1031,7 +1030,7 @@ func modelWire(args []string) error {
 	// read as a name being gone that never was there, and under a
 	// provider-wide name as the model's own name being the one in force,
 	// which it is not. So the removal is asked for rather than made blind,
-	// the way `magpie model price --reset` asks DropModelPrice.
+	// the way `queqiao model price --reset` asks DropModelPrice.
 	if strings.TrimSpace(name) == "" {
 		return resetWireName(*p, model, id, shown)
 	}
@@ -1091,7 +1090,7 @@ func resetWireName(p provider.Provider, model, id, shown string) error {
 		}
 		every := "'" + p.ID + "/*'"
 		if provider.HasUpstreamName(p.ID + "/*") {
-			return fmt.Errorf("%s has no name of its own; what it is asked for is %s, the name given for every model of %s, which magpie model wire %s --reset takes away",
+			return fmt.Errorf("%s has no name of its own; what it is asked for is %s, the name given for every model of %s, which queqiao model wire %s --reset takes away",
 				id, now, p.Name, every)
 		}
 		if model == "*" {

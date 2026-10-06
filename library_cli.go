@@ -13,30 +13,30 @@ import (
 	"github.com/yetone/magpie/internal/library"
 )
 
-const libraryUsage = `magpie library                     what the library gives each agent: instructions, MCP servers, skills
-  magpie library sync                write it into the agents again (after one is installed, or edited by hand)
-  magpie library instructions        print the shared instructions
-  magpie library instructions set <file|->   replace them with a file's text (- for stdin)
-  magpie library instructions agents <a,b…|none>   the agents that get them
-  magpie library mcp add <name> <url | command args…> [agents=a,b…]
-  magpie library mcp agents <name> <a,b…|none>
-  magpie library mcp rm <name>
-  magpie library skill agents <name> <a,b…|none>
-  magpie library skill rm <name>     (skills are installed from the app's Library page)
-  magpie library skill rm --all [--yes]   every skill out of the library and the agents (asks first; --yes doesn't)
-  magpie library skill update [name] fetch a skill from GitHub again; with no name, every one from there
-  magpie library skill how link|copy [agent]   give skills as links to the library's or as copies: every agent's way, or one agent's
-  magpie library skill how default <agent>     the agent goes the library's way again
-  magpie library skill use-library <name> <agent>   an agent's own skill by that name is in the way: set it aside, link the library's
-  magpie library skill keep-own <name> <agent>      …or keep the agent's, and take the agent off the library's
-  magpie library rtk                 which agents run their shell commands through RTK (rtk-ai.app), to save tokens
-  magpie library rtk on|off <agent>  switch it (on with RTK's own installer; off works with RTK gone)
-  magpie library rtk install         install RTK (Homebrew, winget, or RTK's own script)
-  magpie library rtk upgrade         bring RTK up to its latest release, the way it was installed
-  magpie library rtk path            put RTK on the PATH the agents get, when it isn't (their hooks run it by name)
+const libraryUsage = `queqiao library                     what the library gives each agent: instructions, MCP servers, skills
+  queqiao library sync              write it into the agents again (after one is installed, or edited by hand)
+  queqiao library instructions      print the shared instructions
+  queqiao library instructions set <file|-> replace them with a file's text (- for stdin)
+  queqiao library instructions agents <a,b…|none> the agents that get them
+  queqiao library mcp add <name> <url | command args…> [agents=a,b…]
+  queqiao library mcp agents <name> <a,b…|none>
+  queqiao library mcp rm <name>
+  queqiao library skill agents <name> <a,b…|none>
+  queqiao library skill rm <name>   (skills are installed from the app's Library page)
+  queqiao library skill rm --all [--yes] every skill out of the library and the agents (asks first; --yes doesn't)
+  queqiao library skill update [name] fetch a skill from GitHub again; with no name, every one from there
+  queqiao library skill how link|copy [agent] give skills as links to the library's or as copies: every agent's way, or one agent's
+  queqiao library skill how default <agent>   the agent goes the library's way again
+  queqiao library skill use-library <name> <agent> an agent's own skill by that name is in the way: set it aside, link the library's
+  queqiao library skill keep-own <name> <agent>    …or keep the agent's, and take the agent off the library's
+  queqiao library rtk               which agents run their shell commands through RTK (rtk-ai.app), to save tokens
+  queqiao library rtk on|off <agent>  switch it (on with RTK's own installer; off works with RTK gone)
+  queqiao library rtk install       install RTK (Homebrew, winget, or RTK's own script)
+  queqiao library rtk upgrade       bring RTK up to its latest release, the way it was installed
+  queqiao library rtk path          put RTK on the PATH the agents get, when it isn't (their hooks run it by name)
 `
 
-// libraryCmd is magpie library …: the instructions, MCP servers and skills
+// libraryCmd is queqiao library …: the instructions, MCP servers and skills
 // magpie keeps once and writes into every agent.
 func libraryCmd(args []string) error {
 	if len(args) < 2 {
@@ -166,7 +166,7 @@ func libraryCmd(args []string) error {
 	return nil
 }
 
-// removeEverySkill is magpie library skill rm --all [--yes] (#449): every
+// removeEverySkill is queqiao library skill rm --all [--yes] (#449): every
 // skill out of the library, each as rm takes one. It asks first on a
 // terminal; with no terminal to ask on, only --yes takes them. A library
 // with no skills is said, and answers a nil result.
@@ -252,8 +252,8 @@ func printLibraryResult(res *library.Result) {
 	for _, p := range res.Problems {
 		fmt.Println(amber.Render("!"), p.Agent, muted.Render(p.What+":"), p.Error)
 		if n, ok := strings.CutPrefix(p.What, "skill:"); ok && p.Own {
-			fmt.Println(muted.Render("  use the library's (the agent's kept aside): magpie library skill use-library " + n + " " + p.Agent))
-			fmt.Println(muted.Render("  or keep the agent's:                       magpie library skill keep-own " + n + " " + p.Agent))
+			fmt.Println(muted.Render("  use the library's (the agent's kept aside): queqiao library skill use-library " + n + " " + p.Agent))
+			fmt.Println(muted.Render("  or keep the agent's:                       queqiao library skill keep-own " + n + " " + p.Agent))
 		}
 	}
 	if len(res.Updated) > 0 {
@@ -292,7 +292,7 @@ func libraryStatus() error {
 		}
 	}
 	if strings.TrimSpace(v.Instructions.Shared) == "" {
-		fmt.Println(" ", muted.Render("none yet · magpie library instructions set <file>"))
+		fmt.Println(" ", muted.Render("none yet · queqiao library instructions set <file>"))
 	} else {
 		fmt.Printf("  %d lines → %s\n", strings.Count(strings.TrimRight(v.Instructions.Shared, "\n"), "\n")+1, on(to))
 	}
@@ -339,11 +339,11 @@ func libraryStatus() error {
 			fmt.Println("   ", amber.Render("!"), muted.Render("its folder is gone"))
 		}
 	}
-	fmt.Println(muted.Render("  kept in " + v.Dir + " · magpie library help"))
+	fmt.Println(muted.Render("  kept in " + v.Dir + " · queqiao library help"))
 	return nil
 }
 
-// rtkCmd is magpie library rtk …: RTK's hook in each agent.
+// rtkCmd is queqiao library rtk …: RTK's hook in each agent.
 func rtkCmd(args []string) error {
 	var v *library.RTKView
 	switch {
@@ -380,7 +380,7 @@ func rtkCmd(args []string) error {
 	if v.Path == "" {
 		fmt.Println(amber.Render("!"), "rtk isn't installed —", v.URL)
 		if v.Install != "" {
-			fmt.Println(muted.Render("  magpie library rtk install runs: " + v.Install))
+			fmt.Println(muted.Render("  queqiao library rtk install runs: " + v.Install))
 		}
 	} else {
 		fmt.Println(bold.Render("RTK"), muted.Render(v.Version+" · "+v.Path))
@@ -391,7 +391,7 @@ func rtkCmd(args []string) error {
 		case v.Latest != "" && v.Version != "" && library.RTKNewer(v.Latest, v.Version):
 			up := "update it the way it was installed"
 			if v.Upgrade != "" {
-				up = "magpie library rtk upgrade runs: " + v.Upgrade
+				up = "queqiao library rtk upgrade runs: " + v.Upgrade
 			}
 			fmt.Println(amber.Render("  RTK "+v.Latest+" is out"), muted.Render("— "+up))
 		case len(args) == 1 && args[0] == "upgrade":
@@ -403,9 +403,9 @@ func rtkCmd(args []string) error {
 			case v.PathDir == "":
 				fmt.Println(muted.Render("  add " + filepath.Dir(v.Path) + " to PATH in your shell profile"))
 			case v.PathLink:
-				fmt.Println(muted.Render("  magpie library rtk path links it into " + v.PathDir))
+				fmt.Println(muted.Render("  queqiao library rtk path links it into " + v.PathDir))
 			default:
-				fmt.Println(muted.Render("  magpie library rtk path adds " + v.PathDir + " to your user PATH"))
+				fmt.Println(muted.Render("  queqiao library rtk path adds " + v.PathDir + " to your user PATH"))
 			}
 		}
 		switch g := v.Gain; {

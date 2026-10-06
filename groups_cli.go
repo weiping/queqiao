@@ -15,41 +15,41 @@ import (
 // the same provider.SaveGroup, DeleteGroup and ShowGroup.
 
 const groupUsage = `usage:
-  magpie groups                           list routing groups: yours, then those magpie found
-  magpie group <id>                       show one group and its models (also: magpie group show <id>)
-  magpie group add <name> models=<m1>[,m2…] [routing=…] [stays=…]
+  queqiao groups                         list routing groups: yours, then those queqiao found
+  queqiao group <id>                     show one group and its models (also: queqiao group show <id>)
+  queqiao group add <name> models=<m1>[,m2…] [routing=…] [stays=…]
                                           make a group; agents pick it as group/<id>, the id made from the name;
                                           a name in use replaces that group
-  magpie group set <id> k=v…              change one: name, models (the whole list, in order, patterns too),
+  queqiao group set <id> k=v…            change one: name, models (the whole list, in order, patterns too),
                                           models+=<m>[,m2…] (append), models-=<m>[,m2…] (drop), routing, stays,
                                           context (how long a request agents are told it takes: 272k; smallest
                                           is its smallest model's; empty is its largest model's), levels (the reasoning levels agents are offered:
                                           levels=none,low,medium,high,xhigh,max; empty is those every model has —
                                           a model without the one asked is sent its nearest),
-                                          family (a tag: magpie visible shows agents families, not each group),
+                                          family (a tag: queqiao visible shows agents families, not each group),
                                           id (what agents pick it as: id=gpt-6-astra drops auto-; the groups
                                           it is in follow; an agent set to the old id needs setting again),
                                           effort=auto (the classifier picks each turn's reasoning; needs classifier=),
                                           effort=agent (the agent's again), classifier=<provider/model>|group/<id>,
                                           pick=<model> (routing=manual, every request to that one of its models),
                                           fast=<m1>[,m2…] (the models sent in their vendor's fast mode; empty for none)
-  magpie group pick <id> <model>          route the group manually, every request to that one of its models
+  queqiao group pick <id> <model>        route the group manually, every request to that one of its models
                                           (as clicking it on the group's card in the Routing view does)
-  magpie group rm <id>…                   remove groups (one magpie found is hidden instead)
-  magpie group restore <id>               bring back a group magpie found that you removed
-  magpie group auto [on|off]              whether magpie finds groups on its own (on by default); off, none is
+  queqiao group rm <id>…                 remove groups (one queqiao found is hidden instead)
+  queqiao group restore <id>             bring back a group queqiao found that you removed
+  queqiao group auto [on|off]            whether queqiao finds groups on its own (on by default); off, none is
                                           listed or served — yours, and found ones you changed, stay — and an
                                           agent set to one is moved to its model from one provider; on brings
                                           them back
-  magpie group rule add|rm|mv <id> …      rules: which model a turn goes to first, by its length, an image,
-                                          the reasoning asked for or the agent (magpie group rule help)
+  queqiao group rule add|rm|mv <id> …    rules: which model a turn goes to first, by its length, an image,
+                                          the reasoning asked for or the agent (queqiao group rule help)
 
-  magpie finds a group for each model two or more providers serve (auto-<model>, never stored;
-  magpie group auto off stops it);
+  queqiao finds a group for each model two or more providers serve (auto-<model>, never stored;
+  queqiao group auto off stops it);
   removing one stores {"id":…,"hidden":true} in providers.json, which is what keeps it removed:
   take that record out of the file and the group is back
 
-  models   provider/model ids as magpie models lists them; a bare model id works when one provider serves it;
+  models   provider/model ids as queqiao models lists them; a bare model id works when one provider serves it;
            group/<id> puts another group in it, routed by its own routing and rules in its place —
            never one the group is in already (that would put it in itself), at most 8 groups deep
            provider/model:<effort> fixes the member's reasoning — none, minimal, low, medium, high, xhigh
@@ -59,13 +59,13 @@ const groupUsage = `usage:
            provider/model[:effort]:fast sends the member in its vendor's fast mode: priority processing on a
            ChatGPT account (Codex's Fast) or an OpenAI key, Cursor's -fast model, Claude's fast mode on an
            Anthropic key for Opus 4.8 and 5; a model without one is refused (codex/gpt-6.1-sol:high:fast)
-           a pattern puts in every model it matches, as magpie models lists them now and later: a glob, where
+           a pattern puts in every model it matches, as queqiao models lists them now and later: a glob, where
            * is any run of characters, / too, over the provider/model id in any case (openrouter/*:free,
            *-free, opencode-zen/*), or re:<regexp> matching the whole id (re:openrouter/.*:(free|beta)).
            Quote it for the shell. The group keeps the pattern, not its models: one the vendor adds joins,
            one it drops leaves. The models you name come first, in your order, then those the patterns
-           match, in the order magpie models lists them; one both named and matched keeps its named place.
-           A pattern never matches a group. models-=<pattern> drops the pattern; magpie group <id> shows
+           match, in the order queqiao models lists them; one both named and matched keeps its named place.
+           A pattern never matches a group. models-=<pattern> drops the pattern; queqiao group <id> shows
            how many models each matches now, and says when one matches nothing
   routing  smart   (default) of the subscriptions with quota to spare, the one renewing soonest first
            order   the first model until it can't answer, then the next
@@ -81,20 +81,20 @@ const groupUsage = `usage:
            off     every request routed afresh
   effort   agent   (default) each request reasons as much as the agent asked, but at a member's own :<effort>
            auto    as a turn begins, the group's classifier — Jev, from a TypeSafe provider
-                   (magpie provider add typesafe key=…), or any model, as Jev Router on OpenRouter,
+                   (queqiao provider add typesafe key=…), or any model, as Jev Router on OpenRouter,
                    asked in words — rates how hard it is, and the turn's requests
                    reason at low, medium, high or xhigh; only those the agent asked to reason
 
-  e.g. magpie group add "Opus anywhere" models=claude/claude-opus-5-5,copilot/claude-opus-5.5 routing=order
-       magpie group set opus-anywhere stays=session models+=openrouter/anthropic/claude-opus-5.5
-       magpie group set auto-gpt-6-astra id=gpt-6-astra
-       magpie group add Everything models=group/opus-anywhere,deepseek/deepseek-v4-flash routing=order
-       magpie group set opus-anywhere effort=auto classifier=typesafe/jev-latest
-       magpie group add Fast models=codex/gpt-5.6-luna:low,deepseek/deepseek-v4-flash,glm/glm-5.3-flash:high
-       magpie group set fast models+=gcloud/gemini-3.8-flash:medium
-       magpie group add my-free-pool models='openrouter/*:free,opencode-zen/*-free' routing=order
-       magpie group pick opus-anywhere copilot/claude-opus-5.5
-       magpie claude group/opus-anywhere`
+  e.g. queqiao group add "Opus anywhere" models=claude/claude-opus-5-5,copilot/claude-opus-5.5 routing=order
+       queqiao group set opus-anywhere stays=session models+=openrouter/anthropic/claude-opus-5.5
+       queqiao group set auto-gpt-6-astra id=gpt-6-astra
+       queqiao group add Everything models=group/opus-anywhere,deepseek/deepseek-v4-flash routing=order
+       queqiao group set opus-anywhere effort=auto classifier=typesafe/jev-latest
+       queqiao group add Fast models=codex/gpt-5.6-luna:low,deepseek/deepseek-v4-flash,glm/glm-5.3-flash:high
+       queqiao group set fast models+=gcloud/gemini-3.8-flash:medium
+       queqiao group add my-free-pool models='openrouter/*:free,opencode-zen/*-free' routing=order
+       queqiao group pick opus-anywhere copilot/claude-opus-5.5
+       queqiao claude group/opus-anywhere`
 
 // routingNames: each routing's value in the file, what the CLI calls it,
 // and the other spellings it takes.
@@ -215,7 +215,7 @@ func memberResolver(keep []string) func(string) (string, error) {
 					return provider.GroupPrefix + g.ID, nil
 				}
 			}
-			return "", fmt.Errorf("magpie has no group %q (magpie groups lists them)", gid)
+			return "", fmt.Errorf("magpie has no group %q (queqiao groups lists them)", gid)
 		}
 		if slices.Contains(ids, id) || slices.Contains(keep, id) {
 			return id, nil
@@ -236,7 +236,7 @@ func memberResolver(keep []string) func(string) (string, error) {
 		if near := closeMatches(id, ids, 6); len(near) > 0 {
 			msg += "; did you mean " + strings.Join(near, ", ") + "?"
 		}
-		return "", fmt.Errorf("%s (magpie models lists them)", msg)
+		return "", fmt.Errorf("%s (queqiao models lists them)", msg)
 	}
 	return resolve
 }
@@ -326,7 +326,7 @@ func applyGroupPairs(g *provider.Group, pairs []string, resolve func(string) (st
 	for _, kv := range pairs {
 		k, v, ok := strings.Cut(kv, "=")
 		if !ok {
-			return fmt.Errorf("expected key=value, got %q (magpie group help)", kv)
+			return fmt.Errorf("expected key=value, got %q (queqiao group help)", kv)
 		}
 		var err error
 		switch strings.ToLower(strings.TrimSpace(k)) {
@@ -448,7 +448,7 @@ func applyGroupPairs(g *provider.Group, pairs []string, resolve func(string) (st
 			g.Pick, err = pickMember(g.Members, v)
 			g.Routing = provider.Manual
 		default:
-			return fmt.Errorf("unknown field %q (fields: name, models, models+, models-, routing, pick, stays, context, levels, family, effort, classifier, fast; magpie group help)", k)
+			return fmt.Errorf("unknown field %q (fields: name, models, models+, models-, routing, pick, stays, context, levels, family, effort, classifier, fast; queqiao group help)", k)
 		}
 		if err != nil {
 			return err
@@ -499,7 +499,7 @@ func findGroup(ref string) (provider.Group, error) {
 		}
 	}
 	if len(ids) == 0 {
-		return provider.Group{}, fmt.Errorf("no group %q; there are none yet (magpie group add <name> models=…)", ref)
+		return provider.Group{}, fmt.Errorf("no group %q; there are none yet (queqiao group add <name> models=…)", ref)
 	}
 	return provider.Group{}, fmt.Errorf("no group %q (groups: %s)", ref, strings.Join(ids, ", "))
 }
@@ -522,7 +522,7 @@ func newGroupID(name string) string {
 	return id
 }
 
-// groupCmd: `magpie group <verb> …`
+// groupCmd: `queqiao group <verb> …`
 func groupCmd(args []string) error {
 	if len(args) < 2 {
 		return fmt.Errorf("%s", groupUsage)
@@ -534,7 +534,7 @@ func groupCmd(args []string) error {
 		return nil
 	case "add", "new":
 		if len(rest) == 0 || strings.Contains(rest[0], "=") {
-			return fmt.Errorf("magpie group add <name> models=<m1>[,m2…] [routing=…] [stays=…]\n\n%s", groupUsage)
+			return fmt.Errorf("queqiao group add <name> models=<m1>[,m2…] [routing=…] [stays=…]\n\n%s", groupUsage)
 		}
 		verb := "added"
 		if slices.ContainsFunc(provider.Groups(), func(o provider.Group) bool {
@@ -550,7 +550,7 @@ func groupCmd(args []string) error {
 		return showGroup(g)
 	case "set", "edit":
 		if len(rest) < 2 {
-			return fmt.Errorf("magpie group set <id> k=v…\n\n%s", groupUsage)
+			return fmt.Errorf("queqiao group set <id> k=v…\n\n%s", groupUsage)
 		}
 		g, err := setGroup(rest[0], rest[1:])
 		if err != nil {
@@ -560,7 +560,7 @@ func groupCmd(args []string) error {
 		return showGroup(g)
 	case "rm", "remove", "delete":
 		if len(rest) < 1 {
-			return fmt.Errorf("magpie group rm <id>…")
+			return fmt.Errorf("queqiao group rm <id>…")
 		}
 		gs, err := removeGroups(rest)
 		if err != nil {
@@ -568,7 +568,7 @@ func groupCmd(args []string) error {
 		}
 		for _, g := range gs {
 			if g.Auto {
-				fmt.Println(green.Render("✓"), "removed", bold.Render(g.Name), muted.Render("· magpie found it, so it's hidden: magpie group restore "+g.ID+" brings it back"))
+				fmt.Println(green.Render("✓"), "removed", bold.Render(g.Name), muted.Render("· magpie found it, so it's hidden: queqiao group restore "+g.ID+" brings it back"))
 			} else {
 				fmt.Println(green.Render("✓"), "removed", bold.Render(g.Name))
 			}
@@ -576,7 +576,7 @@ func groupCmd(args []string) error {
 		return nil
 	case "pick", "use":
 		if len(rest) != 2 {
-			return fmt.Errorf("magpie group pick <id> <model>")
+			return fmt.Errorf("queqiao group pick <id> <model>")
 		}
 		g, err := setGroup(rest[0], []string{"pick=" + rest[1]})
 		if err != nil {
@@ -588,7 +588,7 @@ func groupCmd(args []string) error {
 		return ruleCmd(rest)
 	case "show":
 		if len(rest) != 1 {
-			return fmt.Errorf("magpie group show <id>")
+			return fmt.Errorf("queqiao group show <id>")
 		}
 		g, err := findGroup(rest[0])
 		if err != nil {
@@ -599,7 +599,7 @@ func groupCmd(args []string) error {
 		return autoGroupsCmd(rest)
 	case "restore", "unhide":
 		if len(rest) != 1 {
-			return fmt.Errorf("magpie group restore <id>")
+			return fmt.Errorf("queqiao group restore <id>")
 		}
 		g, err := restoreGroup(rest[0])
 		if err != nil {
@@ -613,7 +613,7 @@ func groupCmd(args []string) error {
 		return showGroup(g)
 	}
 	if len(rest) > 0 {
-		return fmt.Errorf("magpie group has no %q\n\n%s", verb, groupUsage)
+		return fmt.Errorf("queqiao group has no %q\n\n%s", verb, groupUsage)
 	}
 	g, err := findGroup(verb)
 	if err != nil {
@@ -629,7 +629,7 @@ func addGroup(name string, pairs []string) (provider.Group, error) {
 	}
 	if g.ID = strings.ToLower(strings.TrimSpace(g.ID)); g.ID != "" {
 		if old, err := findGroup(g.ID); err == nil && old.ID == g.ID {
-			return g, fmt.Errorf("there is a group %s already: magpie group set %s k=v… changes it", g.ID, g.ID)
+			return g, fmt.Errorf("there is a group %s already: queqiao group set %s k=v… changes it", g.ID, g.ID)
 		}
 	} else {
 		// a group is known by its name: adding one under a name taken
@@ -646,7 +646,7 @@ func addGroup(name string, pairs []string) (provider.Group, error) {
 		g.Name = g.ID
 	}
 	if len(g.Members) == 0 && len(g.Match) == 0 {
-		return g, fmt.Errorf("a group needs a model in it: models=<provider/model>[,…] (magpie models lists them), or a pattern: models='openrouter/*:free'")
+		return g, fmt.Errorf("a group needs a model in it: models=<provider/model>[,…] (queqiao models lists them), or a pattern: models='openrouter/*:free'")
 	}
 	if err := provider.SaveGroup(g); err != nil {
 		return g, err
@@ -660,14 +660,14 @@ func setGroup(ref string, pairs []string) (provider.Group, error) {
 		return g, err
 	}
 	if g.Hidden {
-		return g, fmt.Errorf("%s was removed: magpie group restore %s brings it back first", g.ID, g.ID)
+		return g, fmt.Errorf("%s was removed: queqiao group restore %s brings it back first", g.ID, g.ID)
 	}
 	from := g.ID
 	if err := applyGroupPairs(&g, pairs, memberResolver(g.Members), true); err != nil {
 		return g, err
 	}
 	if len(g.Members) == 0 && len(g.Match) == 0 {
-		return g, fmt.Errorf("a group needs a model in it; magpie group rm %s removes it", from)
+		return g, fmt.Errorf("a group needs a model in it; queqiao group rm %s removes it", from)
 	}
 	pruneRules(&g)
 	to := strings.ToLower(strings.TrimSpace(g.ID))
@@ -713,7 +713,7 @@ func removeGroups(refs []string) ([]provider.Group, error) {
 			return nil, err
 		}
 		if g.Hidden {
-			return nil, fmt.Errorf("%s is removed already; magpie group restore %s brings it back", g.ID, g.ID)
+			return nil, fmt.Errorf("%s is removed already; queqiao group restore %s brings it back", g.ID, g.ID)
 		}
 		gs, ids = append(gs, g), append(ids, g.ID)
 	}
@@ -724,12 +724,12 @@ func removeGroup(ref string) (provider.Group, error) {
 	g, err := findGroup(ref)
 	if err != nil {
 		if id, ok := removedOnly(ref); ok {
-			return g, fmt.Errorf("%s is removed already (and no two providers serve its model now); magpie group restore %s brings it back", id, id)
+			return g, fmt.Errorf("%s is removed already (and no two providers serve its model now); queqiao group restore %s brings it back", id, id)
 		}
 		return g, err
 	}
 	if g.Hidden {
-		return g, fmt.Errorf("%s is removed already; magpie group restore %s brings it back", g.ID, g.ID)
+		return g, fmt.Errorf("%s is removed already; queqiao group restore %s brings it back", g.ID, g.ID)
 	}
 	return g, provider.DeleteGroup(g.ID)
 }
@@ -811,16 +811,16 @@ func catalogByID() map[string]provider.Entry {
 	return out
 }
 
-// groups: `magpie groups`
+// groups: `queqiao groups`
 // autoGroupsCmd says whether magpie finds groups on its own, or turns
 // that on or off: off, the agents set to one are moved to its model from
 // one provider (agent.Reseat), as the Routing view's switch does.
 func autoGroupsCmd(args []string) error {
 	if len(args) == 0 {
 		if provider.AutoGroupsOn() {
-			fmt.Println("found groups are", green.Render("on"), muted.Render("· a model two or more providers serve is a group of them (auto-<model>); magpie group auto off turns them off"))
+			fmt.Println("found groups are", green.Render("on"), muted.Render("· a model two or more providers serve is a group of them (auto-<model>); queqiao group auto off turns them off"))
 		} else {
-			fmt.Println("found groups are", amber.Render("off"), muted.Render("· only the groups you made or changed; magpie group auto on brings the others back"))
+			fmt.Println("found groups are", amber.Render("off"), muted.Render("· only the groups you made or changed; queqiao group auto on brings the others back"))
 		}
 		return nil
 	}
@@ -830,10 +830,10 @@ func autoGroupsCmd(args []string) error {
 		on = true
 	case "off", "false", "no", "0":
 	default:
-		return fmt.Errorf("magpie group auto [on|off]")
+		return fmt.Errorf("queqiao group auto [on|off]")
 	}
 	if len(args) > 1 {
-		return fmt.Errorf("magpie group auto [on|off]")
+		return fmt.Errorf("queqiao group auto [on|off]")
 	}
 	moved, err := agent.Reseat(func() error { return provider.SetAutoGroups(on) })
 	if err != nil {
@@ -859,10 +859,10 @@ func groups() error {
 		}
 	}
 	if len(shown) == 0 {
-		fmt.Println(muted.Render("no routing groups yet ·"), "magpie group add <name> models=<m1>,<m2>", muted.Render("· magpie group help"))
+		fmt.Println(muted.Render("no routing groups yet ·"), "queqiao group add <name> models=<m1>,<m2>", muted.Render("· queqiao group help"))
 	}
 	if !provider.AutoGroupsOn() {
-		defer fmt.Println(" ", muted.Render("found groups are off · magpie group auto on brings them back"))
+		defer fmt.Println(" ", muted.Render("found groups are off · queqiao group auto on brings them back"))
 	}
 	names, uses := catalogByID(), groupUses()
 	for _, e := range provider.Served() {
@@ -942,7 +942,7 @@ func groups() error {
 	}
 	if len(ids) > 0 {
 		fmt.Println()
-		fmt.Println(" ", muted.Render("removed: "+strings.Join(ids, ", ")+" · magpie group restore <id> brings one back"))
+		fmt.Println(" ", muted.Render("removed: "+strings.Join(ids, ", ")+" · queqiao group restore <id> brings one back"))
 		fmt.Println(" ", muted.Render("  (each is a {\"hidden\": true} record in providers.json that keeps it removed; deleting the record brings it back)"))
 	}
 	return nil
@@ -955,11 +955,11 @@ func showGroup(g provider.Group) error {
 		head += faint.Render("  found by magpie — changing it makes it yours")
 	}
 	if g.Hidden {
-		head += amber.Render("  removed") + muted.Render(" · magpie group restore "+g.ID)
+		head += amber.Render("  removed") + muted.Render(" · queqiao group restore "+g.ID)
 	}
 	fmt.Println(" ", head)
 	if g.Routing == provider.Manual {
-		kv("routing", "manual"+muted.Render("  every request to "+g.Picked()+"; magpie group pick "+g.ID+" <model> picks another"))
+		kv("routing", "manual"+muted.Render("  every request to "+g.Picked()+"; queqiao group pick "+g.ID+" <model> picks another"))
 	} else {
 		kv("routing", routingName(g.Routing))
 	}

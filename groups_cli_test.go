@@ -229,7 +229,7 @@ func TestCloseMatches(t *testing.T) {
 	}
 }
 
-// magpie group set <id> id=<new>: a found group loses its auto- prefix and
+// queqiao group set <id> id=<new>: a found group loses its auto- prefix and
 // stays removed under the old id.
 func TestGroupSetID(t *testing.T) {
 	groupsHome(t)

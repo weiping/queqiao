@@ -14,17 +14,17 @@ import (
 	"github.com/yetone/magpie/internal/settings"
 )
 
-const quotaUsage = `usage: magpie quota [<provider>…] [--json]
-       magpie quota reset [<codex account>] [--yes]
-       magpie quota auto-reset [<codex account>] [on|off]
-       magpie quota alert [<percent>|off] [--balance <amount>|off]
-       magpie quota wait <provider|account> [--timeout <duration>] [--quiet]
-       magpie quota history [<provider|account>…] [--days <n>] [--json]
-  what is left of every subscription, plan and key magpie has: each window's use and
+const quotaUsage = `usage: queqiao quota [<provider>…] [--json]
+       queqiao quota reset [<codex account>] [--yes]
+       queqiao quota auto-reset [<codex account>] [on|off]
+       queqiao quota alert [<percent>|off] [--balance <amount>|off]
+       queqiao quota wait <provider|account> [--timeout <duration>] [--quiet]
+       queqiao quota history [<provider|account>…] [--days <n>] [--json]
+  what is left of every subscription, plan and key queqiao has: each window's use and
   when it starts again, and each key's balance, asked of the vendors now (or less than
   a minute ago). --json is for scripts and agents, each entry with lastServedAt, when it
   last answered through the gateway, and last: true on the latest; the gateway answers the same at
-  GET http://127.0.0.1:3425/v1/magpie/quotas (on Settings' Gateway port), and to another machine only while magpie is
+  GET http://127.0.0.1:3425/v1/magpie/quotas (on Settings' Gateway port), and to another machine only while queqiao is
   shared on the local network, with its key as the API key (Authorization: Bearer or x-api-key)
   A Codex account that holds rate-limit resets says how many; quota reset spends one,
   starting the account's current windows again (the one Codex is signed in to unless
@@ -36,20 +36,20 @@ const quotaUsage = `usage: magpie quota [<provider>…] [--json]
   then and it isn't lost; at once when the account is held up until after then.
   It is the account's standing setting, held resets or not; off stops it, and alone
   it says which accounts have it on. It is off until turned on.
-  quota alert 80 has the magpie app notify when any window of a subscription or plan
+  quota alert 80 has the queqiao app notify when any window of a subscription or plan
   reaches 80% used, once each time the window runs (not windows set aside, such as
   on-demand spending); --balance 5 when a balance falls to 5 or under, in its own
   currency or credits, once until topped up past it. off turns either off, and alone
   it says what is set. Both are off until set.
-  quota wait codex returns once any Codex account magpie has on has allowance again
+  quota wait codex returns once any Codex account queqiao has on has allowance again
   (a window that stops it no longer used up), and an account's email or login, or
   <provider>/<account>, waits for that one alone: it reads the vendors itself, gateway
   running or not, again shortly after the soonest reset (every 1 to 10 minutes), and
   says on stderr what it waits for. For a script to go on with work it stopped:
-  until codex exec …; do magpie quota wait codex || break; done. Exit 0 once there
+  until codex exec …; do queqiao quota wait codex || break; done. Exit 0 once there
   is allowance, 1 when --timeout (30m, 6h) passes first, 2 for a name it doesn't
   know, 130 on Ctrl+C.
-  quota history is what magpie has read of each subscription's and plan's windows
+  quota history is what queqiao has read of each subscription's and plan's windows
   over time, kept 45 days (UTC times, a reading only when it changed, each window's
   runs apart by when they reset): the latest readings of each window, or with --json
   every one since --days days ago, as GET /v1/magpie/quotas/history?days=&provider=&user=
@@ -57,7 +57,7 @@ const quotaUsage = `usage: magpie quota [<provider>…] [--json]
   A reading is kept at the time it was read: a Claude account's, which Claude Code
   tells only as it answers or runs /usage, isn't written again each time it is shown.`
 
-// quotaCmd: magpie quota [<provider>…] [--json]
+// quotaCmd: queqiao quota [<provider>…] [--json]
 func quotaCmd(args []string) error {
 	if len(args) > 1 && args[1] == "reset" {
 		return quotaResetCmd(args[2:])
@@ -151,7 +151,7 @@ func resetsCell(r *provider.ResetCredits, auto bool) string {
 	return cell
 }
 
-// quotaResetCmd: magpie quota reset [<codex account>] [--yes] — spends one
+// quotaResetCmd: queqiao quota reset [<codex account>] [--yes] — spends one
 // of the account's rate-limit resets, once the user has said so.
 func quotaResetCmd(args []string) error {
 	yes, user := false, ""
@@ -214,7 +214,7 @@ func quotaResetCmd(args []string) error {
 	return nil
 }
 
-// quotaAutoResetCmd: magpie quota auto-reset [<codex account>] [on|off] —
+// quotaAutoResetCmd: queqiao quota auto-reset [<codex account>] [on|off] —
 // whether the account spends a reset by itself once its week is used up.
 func quotaAutoResetCmd(args []string) error {
 	user, set, on := "", false, false
@@ -235,7 +235,7 @@ func quotaAutoResetCmd(args []string) error {
 	if !set && user == "" {
 		on := settings.Load().CodexAutoReset
 		if len(on) == 0 {
-			fmt.Println(muted.Render("no Codex account uses a reset by itself ·"), "magpie quota auto-reset <account> on")
+			fmt.Println(muted.Render("no Codex account uses a reset by itself ·"), "queqiao quota auto-reset <account> on")
 			return nil
 		}
 		for _, u := range on {
@@ -273,7 +273,7 @@ func quotaAutoResetCmd(args []string) error {
 	return nil
 }
 
-// quotaAlertCmd: magpie quota alert [<percent>|off] [--balance <amount>|off]
+// quotaAlertCmd: queqiao quota alert [<percent>|off] [--balance <amount>|off]
 // — the usage alerts Settings sets (#368), the notifications the app shows.
 func quotaAlertCmd(args []string) error {
 	s := settings.Load()
@@ -379,7 +379,7 @@ func withUntold(qs []provider.Quota, only []string) ([]provider.Quota, error) {
 	return qs, nil
 }
 
-// quotaHistoryCmd: magpie quota history [<provider|account>…] [--days <n>] [--json]
+// quotaHistoryCmd: queqiao quota history [<provider|account>…] [--days <n>] [--json]
 func quotaHistoryCmd(args []string) error {
 	asJSON, days := false, ""
 	var only []string

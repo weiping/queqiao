@@ -8,13 +8,13 @@ import (
 	"github.com/yetone/magpie/internal/provider"
 )
 
-// The web search APIs, from the terminal: magpie search (#419).
+// The web search APIs, from the terminal: queqiao search (#419).
 
 const searchUsage = `usage:
-  magpie search                              the search APIs a model's web search goes to
-  magpie search add <api> <key> [url=<address>]   add one, or give one a new key
-  magpie search add searxng url=<address> [<key>]
-  magpie search rm <api>                     take one away
+  queqiao search                            the search APIs a model's web search goes to
+  queqiao search add <api> <key> [url=<address>] add one, or give one a new key
+  queqiao search add searxng url=<address> [<key>]
+  queqiao search rm <api>                   take one away
 
   apis: tavily, brave, exa, firecrawl, searxng
 
@@ -24,14 +24,14 @@ const searchUsage = `usage:
   added: what they find goes to the model as it is, and no model is asked to read it.
   Without any of them, the client's search is left out.
 
-  e.g. magpie search add tavily tvly-…
-       magpie search add searxng url=https://searx.example.com`
+  e.g. queqiao search add tavily tvly-…
+       queqiao search add searxng url=https://searx.example.com`
 
 func searchCmd(args []string) error {
 	if len(args) == 0 {
 		as := provider.StoredSearchAPIs()
 		if len(as) == 0 {
-			fmt.Println(muted.Render("  no search API · magpie search add <tavily|brave|exa|firecrawl|searxng> <key>"))
+			fmt.Println(muted.Render("  no search API · queqiao search add <tavily|brave|exa|firecrawl|searxng> <key>"))
 			return nil
 		}
 		for i, a := range as {
@@ -56,7 +56,7 @@ func searchCmd(args []string) error {
 		return nil
 	case "add", "set":
 		if len(args) < 2 {
-			return fmt.Errorf("magpie search add <api> <key> [url=<address>]")
+			return fmt.Errorf("queqiao search add <api> <key> [url=<address>]")
 		}
 		a := provider.SearchAPI{Vendor: strings.ToLower(args[1])}
 		for _, v := range args[2:] {
@@ -65,7 +65,7 @@ func searchCmd(args []string) error {
 			} else if a.Key == "" {
 				a.Key = v
 			} else {
-				return fmt.Errorf("magpie search add <api> <key> [url=<address>]")
+				return fmt.Errorf("queqiao search add <api> <key> [url=<address>]")
 			}
 		}
 		if err := provider.SetSearchAPI(a); err != nil {
@@ -77,7 +77,7 @@ func searchCmd(args []string) error {
 		return nil
 	case "rm", "remove":
 		if len(args) != 2 {
-			return fmt.Errorf("magpie search rm <api>")
+			return fmt.Errorf("queqiao search rm <api>")
 		}
 		if err := provider.RemoveSearchAPI(strings.ToLower(args[1])); err != nil {
 			return err
@@ -85,5 +85,5 @@ func searchCmd(args []string) error {
 		fmt.Println(green.Render("✓"), "removed")
 		return nil
 	}
-	return fmt.Errorf("magpie search [add|rm] (magpie search help)")
+	return fmt.Errorf("queqiao search [add|rm] (queqiao search help)")
 }

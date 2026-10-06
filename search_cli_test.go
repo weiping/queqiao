@@ -7,7 +7,7 @@ import (
 	"github.com/yetone/magpie/internal/provider"
 )
 
-// magpie search add, with a key and an address in either order, and rm.
+// queqiao search add, with a key and an address in either order, and rm.
 func TestSearchCLI(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("USERPROFILE", os.Getenv("HOME"))

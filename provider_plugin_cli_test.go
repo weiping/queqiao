@@ -10,7 +10,7 @@ import (
 	"github.com/yetone/magpie/internal/provider"
 )
 
-// magpie provider zed, once Zed is moved onto its plugin, reads as the
+// queqiao provider zed, once Zed is moved onto its plugin, reads as the
 // built-in did: the account from Zed's own sign-in, and no plugin:// URL
 // the user can't reach.
 func TestShowMovedProvider(t *testing.T) {
@@ -45,6 +45,6 @@ func TestShowMovedProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(out, "plugin://") || strings.Contains(out, "plugin's") || !strings.Contains(out, "from zed's own sign-in") {
-		t.Fatalf("magpie provider zed:\n%s", out)
+		t.Fatalf("queqiao provider zed:\n%s", out)
 	}
 }

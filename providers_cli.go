@@ -24,63 +24,63 @@ import (
 var amber = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B45309", Dark: "#F2B544"})
 
 const providerUsage = `usage:
-  magpie providers                        list providers, keys and who uses them
-  magpie presets                          list the vendors magpie knows out of the box
-  magpie provider <id>                    show one provider and its models
-  magpie provider add <preset> <key>      add a preset vendor   e.g. magpie provider add deepseek sk-…
+  queqiao providers                      list providers, keys and who uses them
+  queqiao presets                        list the vendors queqiao knows out of the box
+  queqiao provider <id>                  show one provider and its models
+  queqiao provider add <preset> <key>    add a preset vendor   e.g. queqiao provider add deepseek sk-…
                                           again, it adds another (deepseek-2); k=v pairs too: id, name, header.X-Foo
-  magpie provider add <name> k=v…         add a custom vendor   k: url, anthropic, responses, decide, key, models, catalog, icon, header.X-Foo, balance, balance.path, balance.token, models.url, search
-  magpie provider set <id> k=v…           change a provider's settings, with the same k=v pairs as add
-  magpie provider key <id> <key>          change the API key
-  magpie provider icon <id> <file|name>   give a custom provider a picture (PNG, JPEG, SVG…) or a built-in icon
-  magpie provider fallback <id> <provider/model>…   where requests go when it's out of quota or down (none clears)
-  magpie provider models <id> [ids…]      fetch the vendor's model list, or choose which models to expose
-  magpie provider refresh <id>            fetch the vendor's model list again (as the app's Refresh)
-  magpie provider account-models <id> [account|key [ids…|all]]
+  queqiao provider add <name> k=v…       add a custom vendor   k: url, anthropic, responses, decide, key, models, catalog, icon, header.X-Foo, balance, balance.path, balance.token, models.url, search
+  queqiao provider set <id> k=v…         change a provider's settings, with the same k=v pairs as add
+  queqiao provider key <id> <key>        change the API key
+  queqiao provider icon <id> <file|name> give a custom provider a picture (PNG, JPEG, SVG…) or a built-in icon
+  queqiao provider fallback <id> <provider/model>… where requests go when it's out of quota or down (none clears)
+  queqiao provider models <id> [ids…]    fetch the vendor's model list, or choose which models to expose
+  queqiao provider refresh <id>          fetch the vendor's model list again (as the app's Refresh)
+  queqiao provider account-models <id> [account|key [ids…|all]]
                                           the models one account or key alone serves; all: every model the provider has
-  magpie provider account-cap <id> [account [percent|off]]
+  queqiao provider account-cap <id> [account [percent|off]]
                                           use a subscription account up to a share of each usage window (e.g. 70):
                                           at it, routing takes the account for used up until the window renews
-  magpie provider account-concurrency <id> [account|key [n|off|default]]
+  queqiao provider account-concurrency <id> [account|key [n|off|default]]
                                           how many requests one account or key has out at once, over every model,
                                           routing group and agent: its own, off for none, default for the provider's
-  magpie provider queue <id> [length [seconds]]
+  queqiao provider queue <id> [length [seconds]]
                                           how many may wait for each account or key past its limit, and how long;
                                           past either a request is turned away with a 429 (0: no bound)
-  magpie provider listed <id> yes|no      no: its models serve only through routing groups, not in the list
-  magpie provider off|on <id>             switch it off (kept, but no agent or request uses it), or on again
-  magpie provider test <id> [model…]      send a tiny request through each endpoint, or to each model
-  magpie provider rm <id>                 remove a provider
+  queqiao provider listed <id> yes|no    no: its models serve only through routing groups, not in the list
+  queqiao provider off|on <id>           switch it off (kept, but no agent or request uses it), or on again
+  queqiao provider test <id> [model…]    send a tiny request through each endpoint, or to each model
+  queqiao provider rm <id>               remove a provider
 
-  e.g. magpie provider add "My Relay" url=https://relay.example.com/v1 key=sk-…
-       magpie provider add "Own Claude" anthropic=https://gw.example.com key=sk-… catalog=anthropic
-       magpie provider add "My Relay" url=https://relay.example.com/v1 key=sk-… header.X-Org-Id=acme
-       magpie provider add remote-magpie sk-magpie-… url=http://192.168.1.20:3425 id=office
-                                   (another computer's magpie, shared on its network: its models and routing
+  e.g. queqiao provider add "My Relay" url=https://relay.example.com/v1 key=sk-…
+       queqiao provider add "Own Claude" anthropic=https://gw.example.com key=sk-… catalog=anthropic
+       queqiao provider add "My Relay" url=https://relay.example.com/v1 key=sk-… header.X-Org-Id=acme
+       queqiao provider add remote-magpie sk-magpie-… url=http://192.168.1.20:3425 id=office
+                                   (another computer's queqiao, shared on its network: its models and routing
                                     groups as office/…, each request sent on in the API the agent spoke)
-       magpie provider add bailian-decision sk-… workspace=<workspace id>   (or region=ap-southeast-1, or region=token-plan with an sk-sp- key)
-       magpie provider add "My Decider" decide=https://decide.example.com/v1 key=sk-… models=my-decision-model
+       queqiao provider add bailian-decision sk-… workspace=<workspace id> (or region=ap-southeast-1, or region=token-plan with an sk-sp- key)
+       queqiao provider add "My Decider" decide=https://decide.example.com/v1 key=sk-… models=my-decision-model
                                    (a System One API, POST …/systemone: it routes groups, its models are never an agent's)
-       magpie provider add anthropic sk-… id=anthropic-ws2 name="Anthropic WS2" header.anthropic-workspace-id=wrkspc_…
-       magpie provider set my-relay models.url=https://relay.example.com/api/models catalog=
-       magpie provider set my-relay search=yes
+       queqiao provider add anthropic sk-… id=anthropic-ws2 name="Anthropic WS2" header.anthropic-workspace-id=wrkspc_…
+       queqiao provider set my-relay models.url=https://relay.example.com/api/models catalog=
+       queqiao provider set my-relay search=yes
                                    (the relay answers Claude Code's WebSearch and Codex's web_search itself:
-                                    those go to it as sent, not through magpie's own search)
-       magpie provider add "My Relay" url=https://relay.example.com/v1 key=sk-… balance=https://relay.example.com/api/usage/token balance.path='$data.total_available / 500000'
-       magpie provider set my-relay balance.path='(1 - credits.monthlyCredits / 70) %'
-       magpie provider set my-relay balance=https://relay.example.com/api/user/self balance.path='$data.quota / 500000' balance.token=<access token> header.New-Api-User=<user id>
+                                    those go to it as sent, not through queqiao's own search)
+       queqiao provider add "My Relay" url=https://relay.example.com/v1 key=sk-… balance=https://relay.example.com/api/usage/token balance.path='$data.total_available / 500000'
+       queqiao provider set my-relay balance.path='(1 - credits.monthlyCredits / 70) %'
+       queqiao provider set my-relay balance=https://relay.example.com/api/user/self balance.path='$data.quota / 500000' balance.token=<access token> header.New-Api-User=<user id>
                                    (a new-api relay's whole account: its access token and user id, from its personal settings)
                                    (balance.path: where the amount is in the reply, or a sum of those with + - * / and
                                     brackets; $ or ¥ in front adds the sign, % after it shows a percent of 1;
                                     several go apart by ; each with a label: '5h: a.used / a.cap %; $credits.left')
-       magpie provider set my-relay context=272k context.gpt-6=1m
+       queqiao provider set my-relay context=272k context.gpt-6=1m
                                    (context: how long a request agents are told the models take, over what the
                                     vendor or models.dev says; context.<model> for one of them; empty clears)
-       magpie provider set opencode-go family=ocgo
-       magpie provider set my-relay id=relay   (renames it: groups and agents on my-relay/… move to relay/…)
-                                   (family: a tag for which agents are shown its models, see magpie visible)`
+       queqiao provider set opencode-go family=ocgo
+       queqiao provider set my-relay id=relay (renames it: groups and agents on my-relay/… move to relay/…)
+                                   (family: a tag for which agents are shown its models, see queqiao visible)`
 
-// providers: `magpie providers`
+// providers: `queqiao providers`
 func providers() error {
 	all := provider.All()
 	// a providers.json that can't be read is not "no providers yet": what
@@ -90,7 +90,7 @@ func providers() error {
 		if bad != nil {
 			return bad
 		}
-		fmt.Println(muted.Render("no providers yet ·"), "magpie provider add deepseek sk-…", muted.Render("· magpie presets lists the vendors"))
+		fmt.Println(muted.Render("no providers yet ·"), "queqiao provider add deepseek sk-…", muted.Render("· queqiao presets lists the vendors"))
 		return nil
 	}
 	uses := usesByProvider()
@@ -151,7 +151,7 @@ func providers() error {
 		}
 		back := ""
 		if x.Provider != "" {
-			back = " · magpie provider add " + x.Provider + " brings it back"
+			back = " · queqiao provider add " + x.Provider + " brings it back"
 		}
 		fmt.Println(" ", muted.Render(name+" is signed in but not offered: "+x.Why+back))
 	}
@@ -177,7 +177,7 @@ func usesByProvider() map[string][]string {
 	return out
 }
 
-// presets: `magpie presets`
+// presets: `queqiao presets`
 func presets() error {
 	have := map[string]bool{}
 	for _, p := range provider.All() {
@@ -193,9 +193,9 @@ func presets() error {
 		if pr.Sponsored {
 			name += " " + faint.Render("sponsored")
 		}
-		state := muted.Render("magpie provider add " + pr.ID + " <key>")
+		state := muted.Render("queqiao provider add " + pr.ID + " <key>")
 		if pr.NoKey {
-			state = muted.Render("magpie provider add " + pr.ID)
+			state = muted.Render("queqiao provider add " + pr.ID)
 		}
 		if have[pr.ID] {
 			state = green.Render("✓ added")
@@ -205,7 +205,7 @@ func presets() error {
 	return nil
 }
 
-// models: `magpie models [<agent>]` — the catalog every agent sees, or the
+// models: `queqiao models [<agent>]` — the catalog every agent sees, or the
 // one agent is shown and what is kept from it
 func models(args []string) error {
 	entries := provider.Catalog()
@@ -224,11 +224,11 @@ func models(args []string) error {
 	}
 	if len(entries) == 0 && agentID != "" {
 		names, _ := provider.VisibleTo(agentID)
-		fmt.Println(amber.Render("!"), agentID, "is shown none of them: nothing is in", strings.Join(names, ", "), muted.Render("· magpie visible "+agentID+" all shows it every model"))
+		fmt.Println(amber.Render("!"), agentID, "is shown none of them: nothing is in", strings.Join(names, ", "), muted.Render("· queqiao visible "+agentID+" all shows it every model"))
 	} else if len(entries) == 0 && bad != nil {
 		return bad
 	} else if len(entries) == 0 {
-		fmt.Println(muted.Render("no models yet · add a provider first:"), "magpie provider add deepseek sk-…")
+		fmt.Println(muted.Render("no models yet · add a provider first:"), "queqiao provider add deepseek sk-…")
 		return nil
 	}
 	w := 0
@@ -261,7 +261,7 @@ func models(args []string) error {
 	return bad
 }
 
-// providerCmd: `magpie provider <verb> …`
+// providerCmd: `queqiao provider <verb> …`
 func providerCmd(args []string) error {
 	if len(args) < 2 {
 		return fmt.Errorf("%s", providerUsage)
@@ -273,7 +273,7 @@ func providerCmd(args []string) error {
 	case "set":
 		// the same k=v pairs as add, on a provider already here
 		if len(rest) < 2 {
-			return fmt.Errorf("magpie provider set <id> k=v…\n\n%s", providerUsage)
+			return fmt.Errorf("queqiao provider set <id> k=v…\n\n%s", providerUsage)
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
@@ -304,7 +304,7 @@ func providerCmd(args []string) error {
 		return nil
 	case "key":
 		if len(rest) != 2 {
-			return fmt.Errorf("magpie provider key <id> <key>")
+			return fmt.Errorf("queqiao provider key <id> <key>")
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
@@ -318,7 +318,7 @@ func providerCmd(args []string) error {
 		return nil
 	case "icon":
 		if len(rest) != 2 {
-			return fmt.Errorf("magpie provider icon <id> <picture file | built-in name | \"\">")
+			return fmt.Errorf("queqiao provider icon <id> <picture file | built-in name | \"\">")
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
@@ -343,7 +343,7 @@ func providerCmd(args []string) error {
 		// where requests go when this provider is out of quota, rate
 		// limited or down; "none" clears the list
 		if len(rest) < 1 {
-			return fmt.Errorf("magpie provider fallback <id> [provider/model… | none]")
+			return fmt.Errorf("queqiao provider fallback <id> [provider/model… | none]")
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
@@ -354,7 +354,7 @@ func providerCmd(args []string) error {
 			if !(len(rest) == 2 && rest[1] == "none") {
 				for _, id := range rest[1:] {
 					if _, _, ok := provider.Resolve(id); !ok {
-						return fmt.Errorf("magpie knows no model %q (magpie models lists them)", id)
+						return fmt.Errorf("magpie knows no model %q (queqiao models lists them)", id)
 					}
 					p.Fallback = append(p.Fallback, id)
 				}
@@ -367,7 +367,7 @@ func providerCmd(args []string) error {
 			}
 		}
 		if len(p.Fallback) == 0 {
-			fmt.Println(p.Name, muted.Render("has no fallback · magpie provider fallback "+p.ID+" <provider/model>…"))
+			fmt.Println(p.Name, muted.Render("has no fallback · queqiao provider fallback "+p.ID+" <provider/model>…"))
 			return nil
 		}
 		fmt.Println(green.Render("✓"), p.Name, "falls back to", strings.Join(p.Fallback, muted.Render(" → ")),
@@ -375,7 +375,7 @@ func providerCmd(args []string) error {
 		return nil
 	case "rm", "remove", "delete":
 		if len(rest) != 1 {
-			return fmt.Errorf("magpie provider rm <id>")
+			return fmt.Errorf("queqiao provider rm <id>")
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
@@ -391,7 +391,7 @@ func providerCmd(args []string) error {
 	case "test":
 		// with models named, a request to each of them; else one per endpoint
 		if len(rest) < 1 {
-			return fmt.Errorf("magpie provider test <id> [model…]")
+			return fmt.Errorf("queqiao provider test <id> [model…]")
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
@@ -435,7 +435,7 @@ func providerCmd(args []string) error {
 		// no: the provider's models leave the list agents see and serve
 		// only through the routing groups they are in
 		if len(rest) != 2 || (rest[1] != "yes" && rest[1] != "no") {
-			return fmt.Errorf("magpie provider listed <id> yes|no")
+			return fmt.Errorf("queqiao provider listed <id> yes|no")
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
@@ -455,7 +455,7 @@ func providerCmd(args []string) error {
 		// off: kept with its keys, but agents are given none of its
 		// models and no request goes to it
 		if len(rest) != 1 {
-			return fmt.Errorf("magpie provider %s <id>", verb)
+			return fmt.Errorf("queqiao provider %s <id>", verb)
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
@@ -474,14 +474,14 @@ func providerCmd(args []string) error {
 		return nil
 	case "models", "refresh", "fetch":
 		if len(rest) < 1 {
-			return fmt.Errorf("magpie provider %s <id> [model ids to expose…]", verb)
+			return fmt.Errorf("queqiao provider %s <id> [model ids to expose…]", verb)
 		}
 		p, err := provider.Find(rest[0])
 		if err != nil {
 			return err
 		}
 		if len(rest) > 1 && verb != "models" {
-			return fmt.Errorf("magpie provider %s <id> fetches its list · magpie provider models <id> <ids…> picks from it", verb)
+			return fmt.Errorf("queqiao provider %s <id> fetches its list · queqiao provider models <id> <ids…> picks from it", verb)
 		}
 		if len(rest) > 1 {
 			p.Models = rest[1:]
@@ -508,7 +508,7 @@ func providerCmd(args []string) error {
 		}
 		return showProvider(*p)
 	}
-	// `magpie provider <id>`
+	// `queqiao provider <id>`
 	p, err := provider.Find(verb)
 	if err != nil {
 		return err
@@ -516,10 +516,10 @@ func providerCmd(args []string) error {
 	return showProvider(*p)
 }
 
-// addProvider: `magpie provider add <preset> [key]` or `magpie provider add <name> k=v…`
+// addProvider: `queqiao provider add <preset> [key]` or `queqiao provider add <name> k=v…`
 func addProvider(rest []string) error {
 	if len(rest) == 0 {
-		return fmt.Errorf("magpie provider add <preset> <key>   or   magpie provider add <name> k=v…\n\n%s", providerUsage)
+		return fmt.Errorf("queqiao provider add <preset> <key>   or   queqiao provider add <name> k=v…\n\n%s", providerUsage)
 	}
 	if len(rest) == 1 && slices.ContainsFunc(provider.Excluded(), func(x provider.Exclusion) bool { return x.Provider == strings.ToLower(rest[0]) }) {
 		// a signed-in account the user removed comes back with its picks
@@ -583,14 +583,14 @@ func announce(id string) error {
 	}
 	n := len(saved.Exposed())
 	if saved.Decides() {
-		fmt.Println("  it routes groups: magpie group set <id> effort=auto classifier="+saved.ID+"/"+saved.Jev(),
+		fmt.Println("  it routes groups: queqiao group set <id> effort=auto classifier="+saved.ID+"/"+saved.Jev(),
 			muted.Render("· or a rule's intent=…"))
 		return nil
 	}
 	if n == 0 {
-		fmt.Println(amber.Render("!"), "no models exposed yet ·", "magpie provider models", saved.ID, "<ids…>")
+		fmt.Println(amber.Render("!"), "no models exposed yet ·", "queqiao provider models", saved.ID, "<ids…>")
 	} else {
-		fmt.Printf("  %d models in the catalog · %s\n", n, muted.Render("magpie models"))
+		fmt.Printf("  %d models in the catalog · %s\n", n, muted.Render("queqiao models"))
 	}
 	return nil
 }
@@ -632,7 +632,7 @@ func showProvider(p provider.Provider) error {
 	case p.Ready():
 		kv("key", muted.Render("none needed"))
 	default:
-		kv("key", amber.Render("not set")+muted.Render("  magpie provider key "+p.ID+" …"))
+		kv("key", amber.Render("not set")+muted.Render("  queqiao provider key "+p.ID+" …"))
 	}
 	kv("catalog", p.Catalog)
 	kv("website", p.Website)
@@ -839,7 +839,7 @@ func ago(t time.Time) string {
 	}
 }
 
-// refreshLive re-fetches the model list of every ready provider; `magpie sync`
+// refreshLive re-fetches the model list of every ready provider; `queqiao sync`
 // calls it after the catalog download.
 func refreshLive(ctx context.Context) {
 	var names []string
@@ -864,7 +864,7 @@ func refreshLive(ctx context.Context) {
 // without sharing it from Settings, when it is anyone who reaches it.
 func keyNote() string {
 	if s := settings.Load(); s.LAN {
-		return "(anything works from this machine; from others, an enabled gateway key — magpie gateway-key add <name>)"
+		return "(anything works from this machine; from others, an enabled gateway key — queqiao gateway-key add <name>)"
 	}
 	if gateway.OpenToAnyone() {
 		return "(anything works, from anyone who reaches it — share it from Settings to require a key)"
@@ -902,7 +902,7 @@ func advertisedURL() string {
 	return gateway.URL()
 }
 
-// serve: `magpie serve` — the gateway alone, in the foreground.
+// serve: `queqiao serve` — the gateway alone, in the foreground.
 func serve() error {
 	s := gateway.New()
 	wireRouter(s)
@@ -921,9 +921,9 @@ func serve() error {
 		fmt.Println(amber.Render("!"), err) // served without it, as no providers
 	}
 	if n == 0 {
-		fmt.Println(amber.Render("!"), "no models yet ·", "magpie provider add deepseek sk-…")
+		fmt.Println(amber.Render("!"), "no models yet ·", "queqiao provider add deepseek sk-…")
 	} else {
-		fmt.Printf("  %d models · %s\n", n, muted.Render("magpie models"))
+		fmt.Printf("  %d models · %s\n", n, muted.Render("queqiao models"))
 	}
 	for _, x := range provider.Excluded() {
 		if x.SignedOut {
@@ -934,7 +934,7 @@ func serve() error {
 }
 
 // importCmd adds the provider a magpie://import link describes, after
-// showing it: magpie import [-y] <link>.
+// showing it: queqiao import [-y] <link>.
 func importCmd(args []string) error {
 	yes := false
 	var link string
@@ -947,7 +947,7 @@ func importCmd(args []string) error {
 		}
 	}
 	if link == "" {
-		return errors.New("magpie import [-y] 'magpie://import?…'")
+		return errors.New("queqiao import [-y] 'magpie://import?…'")
 	}
 	p, err := provider.ParseImport(link)
 	if err != nil {
@@ -971,7 +971,7 @@ func importCmd(args []string) error {
 		}
 	}
 	if p.Key == "" && !p.Ready() {
-		fmt.Println(amber.Render("!"), "the link has no key · magpie provider key", p.ID, "<key>")
+		fmt.Println(amber.Render("!"), "the link has no key · queqiao provider key", p.ID, "<key>")
 	}
 	return saveNew(p)
 }
@@ -986,12 +986,12 @@ func fetchedFrom(p provider.Provider) string {
 	return p.Name
 }
 
-// accountModelsCmd: `magpie provider account-models <id> [account|key
+// accountModelsCmd: `queqiao provider account-models <id> [account|key
 // [ids…|all]]` — the models one account or key of a provider alone serves
 // (#474), each account's with none named, all for every one the provider has.
 func accountModelsCmd(rest []string) error {
 	if len(rest) < 1 {
-		return fmt.Errorf("magpie provider account-models <id> [account|key [model ids…|all]]")
+		return fmt.Errorf("queqiao provider account-models <id> [account|key [model ids…|all]]")
 	}
 	p, err := provider.Find(rest[0])
 	if err != nil {
@@ -1046,7 +1046,7 @@ func accountModelsCmd(rest []string) error {
 // (provider.AccountCaps).
 func accountCapCmd(rest []string) error {
 	if len(rest) < 1 {
-		return fmt.Errorf("magpie provider account-cap <id> [account [percent|off]]")
+		return fmt.Errorf("queqiao provider account-cap <id> [account [percent|off]]")
 	}
 	p, err := provider.Find(rest[0])
 	if err != nil {
@@ -1094,7 +1094,7 @@ func accountCapCmd(rest []string) error {
 // /v1/magpie/concurrency and on the app's account rows.
 func accountConcurrencyCmd(rest []string) error {
 	if len(rest) < 1 {
-		return fmt.Errorf("magpie provider account-concurrency <id> [account|key [n|off|default]]")
+		return fmt.Errorf("queqiao provider account-concurrency <id> [account|key [n|off|default]]")
 	}
 	p, err := provider.Find(rest[0])
 	if err != nil {
@@ -1158,7 +1158,7 @@ func accountConcurrencyCmd(rest []string) error {
 // (#892).
 func queueCmd(rest []string) error {
 	if len(rest) < 1 || len(rest) > 3 {
-		return fmt.Errorf("magpie provider queue <id> [length [seconds]]")
+		return fmt.Errorf("queqiao provider queue <id> [length [seconds]]")
 	}
 	p, err := provider.Find(rest[0])
 	if err != nil {

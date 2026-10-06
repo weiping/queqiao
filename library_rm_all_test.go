@@ -9,7 +9,7 @@ import (
 	"github.com/yetone/magpie/internal/library"
 )
 
-// magpie library skill rm --all (#449): with nobody at a terminal to ask,
+// queqiao library skill rm --all (#449): with nobody at a terminal to ask,
 // it takes nothing unless --yes says so; with --yes, every skill goes, a
 // folder of the user's only unlinked.
 func TestLibrarySkillRmAll(t *testing.T) {

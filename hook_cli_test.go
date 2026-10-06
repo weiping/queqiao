@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -62,6 +63,14 @@ var buildQueqiao = func(t *testing.T) string {
 	}
 	bin := dir + "/queqiao-test"
 	cmd := exec.Command("go", "build", "-tags", "nogui", "-o", bin, ".")
+	// TestMain's sandbox swaps HOME, which would give this build a cold
+	// module and build cache every run: every module re-downloaded, the
+	// whole tree recompiled. A stable folder under the OS temp dir keeps
+	// the isolation (nothing of the user's cache is written) while making
+	// reruns download once and build from cache.
+	cmd.Env = append(os.Environ(),
+		"GOMODCACHE="+filepath.Join(os.TempDir(), "queqiao-hook-test-modcache"),
+		"GOCACHE="+filepath.Join(os.TempDir(), "queqiao-hook-test-buildcache"))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v %s", err, out)
 	}
