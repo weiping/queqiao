@@ -95,6 +95,29 @@ codex plugin install queqiao-router-codex
 
 没有插件的 Agent（如 OpenCode）也可以直接选用路由组，由网关自己分类，只是少了 harness 侧的上下文。
 
+## 面板：`queqiao web` 与 `queqiao tui`
+
+一键安装的是终端版，不含桌面 app；需要图形界面时用这两个（改的都是 `~/.config/queqiao`，与 CLI 等价）：
+
+```sh
+queqiao web
+# ● queqiao web on http://127.0.0.1:3430/?k=<本次的 key>
+```
+
+`web` 就是 app 那套界面跑在浏览器里：Providers、订阅登录、路由组、用量、Settings 全能改，**自带网关**（不需要先 `serve`；已有网关在跑则直接用）。每次启动生成新 key，链接里直接带上；要固定 key（比如每天打开不想重新拿链接）设 `MAGPIE_WEB_KEY`（≥16 位，可用字母/数字/`-`、`.`、`_`、`~`，登入 400 天）：
+
+```sh
+MAGPIE_WEB_KEY=固定的一串字符 queqiao web --addr 0.0.0.0:3430 --lan   # --lan：局域网可访问
+queqiao web --no-open        # 不自动开浏览器（无头/SSH 场景）
+queqiao web --gateway        # 精简模式：只留网关页，无 Agents/Sessions/Library
+```
+
+```sh
+queqiao tui                  # 同一套界面的终端版；没有别的网关在跑时，开着它就顺便把网关服务了
+```
+
+> magpie 的桌面 App（Magpie.app）改不了 queqiao 的配置——它只读写 `~/.config/magpie`，两个目录互不相干。
+
 ## 配置
 
 queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.config/queqiao/providers.json`），和 `~/.config/queqiao/router.json`。两者都由 `queqiao router init --preset <frontier|anthropic|cn>` 生成，之后直接改文件即可。
