@@ -7399,7 +7399,7 @@ function pickedOf(p) {
 
 // draftOf is a saved provider as its editor's form holds it.
 function draftOf(p) {
-  return { id: p.id, name: p.name, preset: p.preset, chat: p.chat, responses: p.responses, anthropic: p.anthropic, catalog: p.catalog, decide: p.decide || "", key: "", api: p.chat ? "openai" : p.anthropic ? "anthropic" : p.responses ? "responses" : p.decide ? "decide" : "openai", chosen: pickedOf(p), extra: [], headers: headerRows(p.headers), icon: p.icon || "", fallback: [...(p.fallback || [])], unlisted: !!p.unlisted, searches: !!p.searches, pinUpstream: !!p.pinUpstream, balanceURL: p.balanceURL || "", balancePath: p.balancePath || "", modelsURL: p.modelsURL || "", contexts: contextsText(p.contexts), outputs: contextsText(p.outputs), compacts: contextsText(p.compacts), keysUrl: p.keysUrl || "", ...proxyDraft(p), ...concurrencyDraft(p) };
+  return { id: p.id, name: p.name, preset: p.preset, chat: p.chat, responses: p.responses, anthropic: p.anthropic, catalog: p.catalog, decide: p.decide || "", key: "", api: p.chat ? "openai" : p.anthropic ? "anthropic" : p.responses ? "responses" : p.decide ? "decide" : "openai", chosen: pickedOf(p), extra: [], headers: headerRows(p.headers), icon: p.icon || "", fallback: [...(p.fallback || [])], unlisted: !!p.unlisted, searches: !!p.searches, unredacted: !!p.unredacted, pinUpstream: !!p.pinUpstream, balanceURL: p.balanceURL || "", balancePath: p.balancePath || "", modelsURL: p.modelsURL || "", contexts: contextsText(p.contexts), outputs: contextsText(p.outputs), compacts: contextsText(p.compacts), keysUrl: p.keysUrl || "", ...proxyDraft(p), ...concurrencyDraft(p) };
 }
 
 // duplicateProvider opens the Add form on a copy of p (#268): its URLs,
@@ -7540,6 +7540,9 @@ function drawEditor(p, presetID) {
   // the Web search row, shown while there is an API it can search on
   const searchable = () => !!((draft.anthropic || "").trim() || (draft.responses || "").trim());
   let showSearch = () => {};
+  // the Redaction row, shown while every address is on this computer or
+  // the local network
+  let showLocal = () => {};
   if (custom) {
     name = input(draft.name, t("e.g. My Relay"));
     name.oninput = () => { draft.name = name.value; if (isNew) draft.id = slug(name.value); };
@@ -7579,10 +7582,11 @@ function drawEditor(p, presetID) {
       url.placeholder = v === "anthropic" ? "https://…" : "https://…/v1";
       fillEndpoints();
       showSearch();
+      showLocal();
     };
     queueMicrotask(() => slide(seg, "api"));
     url = input(draft[apiField[draft.api]], draft.api === "anthropic" ? "https://…" : "https://…/v1", "url");
-    url.oninput = () => { draft[apiField[draft.api]] = url.value; showSearch(); };
+    url.oninput = () => { draft[apiField[draft.api]] = url.value; showSearch(); showLocal(); };
     const urlWrap = el("div", "stack");
     urlWrap.append(seg, url);
     // the APIs that answered a detection, taken for the provider: their
@@ -7779,6 +7783,21 @@ function drawEditor(p, presetID) {
     ed.append(...row);
   }
 
+  // a model on this computer or the local network (Ollama, LM Studio, a
+  // vLLM box) may be sent requests unmasked by Settings' redaction (lc on
+  // Discord). Only the user can say it is local all the way: a relay run
+  // locally, or Ollama's cloud models, pass a request on to a vendor
+  const addressOf = (k) => (draft[k] ?? (isNew && pr ? pr[k] : "")) || "";
+  const onLAN = () => !p?.account && (p?.preset || pr?.id) !== "remote-magpie" && localAddresses(["chat", "responses", "anthropic", "decide"].map(addressOf));
+  if (!p?.account) {
+    const [ltk, lcb] = tick(t("Send requests unmasked"), !!draft.unredacted);
+    lcb.onchange = () => { draft.unredacted = lcb.checked; };
+    const row = field(t("Redaction"), ltk, t("For a model running on this computer or your local network: secrets, personal data and your masked words go to it as written. Leave it off for a local relay or proxy that passes requests on to a vendor."));
+    showLocal = () => { for (const e of row) e.style.display = onLAN() ? "" : "none"; };
+    showLocal();
+    ed.append(...row);
+  }
+
   // a vendor that tells the whole account's balance only to a token of its
   // own (AiHubMix's system access token), where a key knows just its own
   // — or a custom provider's, whose Balance URL may not be named yet: a
@@ -7933,7 +7952,7 @@ function drawEditor(p, presetID) {
       const add = (label, key, ph, hint) => {
         if (apiField[draft.api] === key) return;
         const i = input(draft[key], ph, "url");
-        i.oninput = () => { draft[key] = i.value; showSearch(); };
+        i.oninput = () => { draft[key] = i.value; showSearch(); showLocal(); };
         eps.append(...field(t(label), i, t(hint)));
       };
       add("OpenAI URL", "chat", "https://…/v1", "if the vendor also serves chat completions");
@@ -8020,6 +8039,7 @@ function drawEditor(p, presetID) {
     if (p) { body.fallback = draft.fallback; body.unlisted = draft.unlisted; body.modelPrefs = modelPrefsOfDraft(); Object.assign(body, routingOfDraft(p)); }
     body.searches = !!draft.searches && searchable();
     body.pinUpstream = !!draft.pinUpstream;
+    body.unredacted = !!draft.unredacted && onLAN();
     const cx = parseContexts(draft.contexts || "");
     if (cx.error) return editorError(t("Context window: {v} is not a length like 128k or 1m", { v: cx.error }), "warn");
     body.contexts = cx.map;
@@ -17878,6 +17898,25 @@ function syncWhen(iso) {
   const d = new Date(iso);
   const time = d.toLocaleTimeString(intlLang(), { hour: "2-digit", minute: "2-digit" });
   return new Date().toDateString() === d.toDateString() ? t("at {time}", { time }) : d.toLocaleDateString(intlLang()) + " " + time;
+}
+
+// localAddresses: every address given is on this computer or the local
+// network (localhost, *.local, a loopback or private IP), as
+// provider.LocalAddresses says, and there is at least one
+function localAddresses(urls) {
+  const given = urls.map((u) => (u || "").trim()).filter(Boolean);
+  return given.length > 0 && given.every((u) => {
+    let h;
+    try { h = new URL(u).hostname.toLowerCase(); } catch { return false; }
+    if (h.startsWith("[")) h = h.slice(1, -1);
+    if (h === "localhost" || h.endsWith(".local") || h === "::1") return true;
+    const v4 = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (v4) {
+      const a = +v4[1], b = +v4[2];
+      return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+    }
+    return /^f[cd][0-9a-f]{2}:/.test(h);
+  });
 }
 
 function tick(label, on) {
