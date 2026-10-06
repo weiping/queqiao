@@ -4,7 +4,7 @@
 
 queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magpie 的全部功能，在它的本地网关之上加一层路由。名字取自“鹊桥”：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。
 
-> **状态：设计阶段。** 目前还没有可用的版本。总体设计见 [`docs/superpowers/specs/2026-10-02-queqiao-design.md`](docs/superpowers/specs/2026-10-02-queqiao-design.md)，接下来按其中的子项目用 [superpowers](https://github.com/obra/superpowers) 逐个实施。
+> **状态：已实现，线上验收中。** 全部七个子项目（SP0–SP6）已按设计完成并合并（PR #4–#11），Claude Code、Pi、Codex 三条通路的真机验收全部通过。当前处于线上 A/B 实验阶段，首份真实报表待实验跑满后产出。总体设计与各子项目的执行结果见 [`docs/superpowers/specs/2026-10-02-queqiao-design.md`](docs/superpowers/specs/2026-10-02-queqiao-design.md) 与 `docs/superpowers/plans/`。
 
 ## 要做什么
 
@@ -15,17 +15,120 @@ queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magp
 - **失败安全**：分类器、hook、网关任何一环出错，请求照常完成，只是少了路由。
 - **自带验收**：按会话分组做线上 A/B，统计成本、合并 PR 的比例和手动换模型的次数。
 
-## 计划提供的组件
+## 组件
 
 | 组件 | 用于 | 子项目 | 状态 |
 | --- | --- | --- | --- |
-| queqiao 网关与路由核心 | 所有 Agent | SP1、SP2 | 规划中 |
-| Claude Code 插件 `queqiao-router` | Claude Code | SP3 | 规划中 |
-| Pi 包 `pi-queqiao` | Pi | SP4 | 规划中 |
-| Codex 插件 `queqiao-router-codex` | Codex | SP6 | 规划中 |
-| 验收报表 `queqiao router report` | 所有 Agent | SP5 | 规划中 |
+| queqiao 网关与路由核心（`internal/router/`、`internal/harness/`） | 所有 Agent | SP1、SP2 | ✅ 已合并 |
+| Claude Code 插件 `queqiao-router`（`clients/claude-code/`） | Claude Code | SP3 | ✅ 已合并，真机验收 4/4 |
+| Pi 包 `@weiping/pi-queqiao`（`clients/pi/`） | Pi | SP4 | ✅ 已合并，真机验收 4/4 |
+| Codex 插件 `queqiao-router-codex`（`clients/codex/`） | Codex | SP6 | ✅ 已合并，hook 验收通过 |
+| 验收报表 `queqiao router report` | 所有 Agent | SP5 | ✅ 已合并，首份真实报表待实验跑满 |
+
+## 快速开始
+
+```sh
+make cli                                # 构建 ./queqiao（纯终端版，不需要 cgo）
+./queqiao router init --preset cn       # 生成 router.json 和四个路由组（还有 frontier/anthropic 预设）
+./queqiao serve                         # 启动网关，默认 127.0.0.1:3425
+./queqiao router status                 # 检查配置、映射和最近的决策
+```
+
+再按你的 Agent 装对应的插件：
+
+```sh
+# Claude Code（需要 ≥ v2.1.287，见 clients/claude-code/README.md）
+claude plugin marketplace add weiping/queqiao
+claude plugin install queqiao-router@queqiao
+
+# Codex（需要 queqiao 在 PATH 里，装完要在 /hooks 里信任 hook，见 clients/codex/README.md）
+codex plugin marketplace add weiping/queqiao
+codex plugin install queqiao-router-codex
+
+# Pi：本地包，在 ~/.pi/agent/settings.json 的 packages 里加上 clients/pi 的路径
+```
+
+线上 A/B 实验在 `~/.config/queqiao/router.json` 里开启（`experiment` 字段），跑满后用 `./queqiao router report --since 14d` 出报表。
 
 没有插件的 Agent（如 OpenCode）也可以直接选用路由组，由网关自己分类，只是少了 harness 侧的上下文。
+
+## 配置
+
+queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.config/queqiao/providers.json`），和 `~/.config/queqiao/router.json`。两者都由 `queqiao router init --preset <frontier|anthropic|cn>` 生成，之后直接改文件即可。
+
+### 路由组
+
+| 组 | 用途 | 路由策略 |
+| --- | --- | --- |
+| `qq-fast` / `qq-balanced` / `qq-perf` | 三个档位组，各自是「主成员 + 失败转移成员」的列表 | `order`，`stays=auto`（缓存还热就留在同一账号） |
+| `queqiao` | 路由组，Agent 的模型就指到它：`group/queqiao` | `order`，`stays=turn`（每轮重新选档，同一轮内不变） |
+
+换模型只改档位组的成员，例如 `queqiao group set qq-fast models=glm/glm-5.3-flash:high,deepseek/deepseek-v4-flash`。成员可以带 `:effort` 后缀指定推理强度。
+
+### `router.json`
+
+`queqiao router init` 生成的默认值如下，字段都可以改：
+
+```json
+{
+  "version": 1,
+  "router_group": "queqiao",
+  "tiers": {
+    "fast":        { "group": "qq-fast",     "claude_alias": "haiku",  "criteria": "…" },
+    "balanced":    { "group": "qq-balanced", "claude_alias": "sonnet", "criteria": "…" },
+    "performance": { "group": "qq-perf",     "claude_alias": "opus",   "criteria": "…" }
+  },
+  "default_tier": "balanced",
+  "classifier": "local",
+  "classify_timeout_ms": 1500,
+  "thresholds": { "tier_min": 0.4, "dissatisfied_min": 0.7 },
+  "escalate_turns": 2,
+  "cache_ttl_seconds": 300,
+  "fixed_agents": { "Explore": "fast", "Plan": "performance" },
+  "experiment": { "enabled": false, "router_percent": 50, "control_tier": "performance", "salt": "…" }
+}
+```
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `router_group` | `queqiao` | 路由组名，Agent 的模型指到 `group/<这个名字>` |
+| `tiers.<档>.group` | — | 该档对应的网关路由组 |
+| `tiers.<档>.claude_alias` | — | Claude Code 侧的别名映射（`haiku`/`sonnet`/`opus`） |
+| `tiers.<档>.criteria` | — | 交给分类器的选档标准（自然语言） |
+| `default_tier` | `balanced` | 分类失败或不可信时的落档（规则 R8） |
+| `classifier` | `local` | 分类器：`typesafe/jev-latest`，或任意 `provider/model`（普通模型没有置信度，`tier_min` 按回答是否合法记 1/0） |
+| `classify_timeout_ms` | `1500` | 分类超时；超时该轮不落新档，下一轮补偿 |
+| `thresholds.tier_min` | `0.4` | 分类结果的最低置信度（R5） |
+| `thresholds.dissatisfied_min` | `0.7` | 「用户在说上一轮不对」的判定阈值（R3 升档） |
+| `escalate_turns` | `2` | 升档后保持的轮数（R4） |
+| `cache_ttl_seconds` | `300` | 降档迟滞：距上次请求超过它才允许立即降档（R6） |
+| `fixed_agents` | 见下 | 固定档位的子代理类型（R1）：`Explore`、`statusline-setup`、`claude-code-guide`、`explorer` → `fast`；`Plan` → `performance` |
+| `experiment.enabled` | `false` | 开启线上 A/B |
+| `experiment.router_percent` | `50` | 走路由的会话比例（0–100，其余走对照组） |
+| `experiment.control_tier` | `performance` | 对照组钉死的档位 |
+| `experiment.salt` | init 随机生成 | 分组哈希的盐，**写死后不要改**，否则实验前后不可比 |
+
+配置无效时路由自动降级：网关照常服务，只是少了选档。`queqiao router status` 会报告具体的配置错误。
+
+### 项目级覆盖
+
+在项目根目录放 `.queqiao/router.json`，只能覆盖各档的 `criteria`（比如告诉分类器「这个仓库的改动大多是跨服务的」），其余字段一律忽略：
+
+```json
+{
+  "tiers": {
+    "balanced": { "criteria": "本项目是普通前端仓库，单文件改动居多" }
+  }
+}
+```
+
+### 环境变量
+
+| 变量 | 说明 |
+| --- | --- |
+| `QUEQIAO_URL` | 插件和 hook 访问网关的地址，默认 `http://127.0.0.1:3425`。Codex 的 hook 子进程不继承自定义环境变量，生产部署请让网关跑在默认端口 |
+
+Claude Code 插件的网关地址另有 `gateway_url` 设置（`claude plugin install queqiao-router@queqiao --config gateway_url=…`），与 `ANTHROPIC_BASE_URL` 是两条独立通道。
 
 ## 分支
 
@@ -39,11 +142,17 @@ queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magp
 
 ## 构建与测试
 
-和上游相同：
+Go 部分和上游相同：
 
 ```sh
-make cli                          # 纯终端版，不需要 cgo
+make cli                          # 纯终端版 ./queqiao，不需要 cgo
 go test -tags nogui ./...
+```
+
+客户端部分各自带测试：
+
+```sh
+cd clients/pi && npm test         # vitest（pi-queqiao）
 ```
 
 ## 参考
