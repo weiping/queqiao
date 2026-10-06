@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Settings → Menu bar queqiao icon (KevinXC on Discord: hide the icon in the
+// Settings → Menu bar magpie icon (KevinXC on Discord: hide the icon in the
 // menu bar, the allowances alone): on a Mac with a card in the menu bar, an
 // On/Off row under the logos row; Off posts trayNoBird and On takes it back;
 // a save of another setting keeps it; no row without a card, nor off a Mac;
@@ -74,7 +74,7 @@ async function open(browser, lang, posts, platform, over) {
 }
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
-  test(engine + ": the menu bar's queqiao icon on or off", async (t) => {
+  test(engine + ": the menu bar's magpie icon on or off", async (t) => {
     assert(["chromium", "webkit"].includes(engine), "BROWSER must be chromium or webkit");
     const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
     const pages = [];
@@ -87,8 +87,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     });
 
     for (const [lang, name, off, on] of [
-      ["en", "Menu bar queqiao icon", "Off", "On"],
-      ["zh", "菜单栏 queqiao 图标", "关闭", "开启"],
+      ["en", "Menu bar magpie icon", "Off", "On"],
+      ["zh", "菜单栏 magpie 图标", "关闭", "开启"],
     ]) {
       await t.test(lang, async () => {
         const errors = [], posts = [];

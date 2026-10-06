@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// The header's logo and name: in `queqiao web` they're shown whatever the
+// The header's logo and name: in `magpie web` they're shown whatever the
 // machine, since a browser tab has no title bar of the app's to show them
 // (they were hidden everywhere but a Mac or Linux window); in the Windows
 // window they stay hidden, its title bar already has them.

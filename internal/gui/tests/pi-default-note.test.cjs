@@ -5,7 +5,7 @@
 // a model Pi would keep. Pi's and OmO's Default says it clears the default
 // and Pi picks one itself; other agents' says what it said. Pi's
 // openai-codex models are rows of their own beside openai's of the same
-// name. Both connected to queqiao, so the pickers in their rows list every
+// name. Both connected to magpie, so the pickers in their rows list every
 // choice there is. In English and Chinese; no backend, the API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");

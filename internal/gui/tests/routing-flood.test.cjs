@@ -1,9 +1,9 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Coming back to the Routing page after queqiao ran out of sight doesn't let
-// loose a flock of magpies (#302, JoeyMa-zh: after queqiao had been in the
+// Coming back to the Routing page after magpie ran out of sight doesn't let
+// loose a flock of magpies (#302, JoeyMa-zh: after magpie had been in the
 // background a while, opening Routing again showed a flood of birds flying
 // at once). Out of sight — the window hidden, a covered window drawing no
-// frames without saying it is hidden, or another tab of queqiao's open —
+// frames without saying it is hidden, or another tab of magpie's open —
 // many requests come and are answered; then the page is seen again. What
 // was answered meanwhile is listed, not flown: at most the few requests
 // still under way fly, and the flights of the ones past never play.

@@ -25,7 +25,7 @@ const lib = (foundSkills) => ({
   instructions: { agents: [] }, servers: [], skills: [], foundServers: [], projects: [], foundSkills,
 });
 
-// fail, when given, is a skill the fake queqiao can't bring in
+// fail, when given, is a skill the fake magpie can't bring in
 function server(lang, posts, fail) {
   return async (route) => {
     const req = route.request(), url = new URL(req.url());

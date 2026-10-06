@@ -5,7 +5,7 @@
 // Claude Code asks for, a click opens the effort slider with Default as its
 // first stop, and a level picked is posted and named in its title. (The
 // tray panel keeps them as entries under the models in the tiers' square.) The subagents' effort is a square, as Codex's is, that says what
-// unset means for Claude Code. Before Claude Code goes through queqiao there
+// unset means for Claude Code. Before Claude Code goes through magpie there
 // are no levels: no effort entries and no square. No click scrolls the page.
 // In English and Chinese. No backend: the API is faked here.
 const assert = require("node:assert/strict");
@@ -98,7 +98,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       // no tier's effort is a field of the row's own; the subagents' is a square
       assert.deepEqual(await page.locator(`${cc} .field:not(.ag-eff)[data-key$="_effort"]`).evaluateAll((es) => es.map((e) => e.dataset.key)), ["subagent_effort"]);
       assert.equal(await page.locator(`${cc} .field.extra[data-key="subagent_effort"]`).getAttribute("aria-label"), w.sub);
-      // not through queqiao: no levels, no square, no effort entries
+      // not through magpie: no levels, no square, no effort entries
       assert.equal(await page.locator('.row.agent[data-id="cc-own"] .field[data-key$="_effort"]').count(), 0);
 
       // each tier's row in the opened row: its model, then its effort

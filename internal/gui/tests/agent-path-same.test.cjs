@@ -1,9 +1,9 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // One rule for the row's model and its picker (EZN7L2C3, #834): Claude Code
-// taken off queqiao by one of its own models (Opus, asked of Anthropic
+// taken off magpie by one of its own models (Opus, asked of Anthropic
 // directly) still says that model on its row, where it read Pick a model,
-// and its list has its own models with queqiao's, the one picked marked, as
-// when connected, where it had queqiao's alone. And every agent's picker
+// and its list has its own models with magpie's, the one picked marked, as
+// when connected, where it had magpie's alone. And every agent's picker
 // says "via magpie" the same way, as the tag Claude Code's has, not at the
 // end of a note an ellipsis cuts off. No click moves the page. In English
 // and Chinese.
@@ -46,7 +46,7 @@ function server(lang, sets) {
       cur = JSON.parse(JSON.stringify(cur));
       const a = cur.agents.find((x) => x.id === body.agent);
       a.fields.find((f) => f.key === body.field).value = body.value;
-      a.wired = body.value.startsWith("queqiao/") || a.id === "codex";
+      a.wired = body.value.startsWith("magpie/") || a.id === "codex";
       return json({ ...cur, settings: { lang, theme: "light" } });
     }
     if (url.pathname === "/api/plugins") return json({ plugins: [] });
@@ -89,7 +89,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await field.locator(".v.empty").count(), 0);
       assert.equal(await row.locator(".lib-switch.ag-conn").getAttribute("aria-checked"), "false");
 
-      // its list: its own models, the one picked marked, beside queqiao's
+      // its list: its own models, the one picked marked, beside magpie's
       await field.click();
       await page.locator("#pop:not([hidden]) #list li").first().waitFor();
       const cur = page.locator("#list li.cur");
@@ -98,13 +98,13 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await cur.locator(".badge.path.direct").textContent(), w.direct);
       const ds = page.locator("#list li", { hasText: "DeepSeek Pro" }).first();
       assert.equal(await ds.locator(".badge.path.via").textContent(), w.via);
-      // picking queqiao's from it connects it, as the row's list did
+      // picking magpie's from it connects it, as the row's list did
       await ds.click();
       await page.waitForFunction(() => /DeepSeek Pro/.test(document.querySelector("#status")?.textContent || ""));
       assert.deepEqual(sets, [{ agent: "claude", field: "model", value: "magpie/deepseek/pro" }]);
       assert.equal(await view.evaluate((v) => v.scrollTop), top, "the pick moved the page");
 
-      // Codex's picker, queqiao's models alone: the same tag, said once
+      // Codex's picker, magpie's models alone: the same tag, said once
       await page.locator('.row.agent[data-id="codex"] > .field.ag-start[data-key="model"]').click();
       await page.locator("#pop:not([hidden]) #list li").first().waitFor();
       const m1 = page.locator("#list li", { hasText: "someone.with" }).first();

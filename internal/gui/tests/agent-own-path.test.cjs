@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Every agent's picker says which way each of its models goes (EZN7L2C3,
 // #834: Codex 的下拉选项中没有 via magpie). Codex's own models, while
-// Codex is routed through queqiao by its base URL, are asked of queqiao's
+// Codex is routed through magpie by its base URL, are asked of magpie's
 // gateway: they say via magpie, as the catalog's do. Not routed, they and
 // Grok Build's own say direct, not via magpie. WebKit or Chromium, English
 // and Chinese; no backend, the API is faked here.
@@ -67,7 +67,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.keyboard.press("Escape");
         return tag;
       };
-      assert.equal(await tagOf("codex", "GPT-5.4"), w.via, "Codex's own, routed through queqiao");
+      assert.equal(await tagOf("codex", "GPT-5.4"), w.via, "Codex's own, routed through magpie");
       assert.equal(await tagOf("codex", "m1"), w.via, "a catalog model");
       // Grok Build, its own model set, is under the fold
       await page.locator(".agent-more").click();

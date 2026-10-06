@@ -2,7 +2,7 @@
 // Gateway middleware plugins on the Installed tab: a plugin that is only
 // middleware says what it runs (its hooks, calls, µs each, failures with
 // the last error in the tip) where a subscription plugin says what it
-// signs in to, and never "Signs in to nothing queqiao can use"; one that
+// signs in to, and never "Signs in to nothing magpie can use"; one that
 // didn't load says why in red; one switched off says Off alone; a plugin
 // that is both keeps its sign-in line and gains the middleware line.
 // English and Chinese; the API is faked here.
@@ -103,7 +103,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
     t.after(() => browser.close());
     const I = {
-      en: { h: "Subscriptions and gateway middleware", p: /middleware in queqiao's gateway/, a: "Write a middleware", url: "https://usemagpie.ai/docs/plugins#middleware", trust: /sign-in or your requests/ },
+      en: { h: "Subscriptions and gateway middleware", p: /middleware in magpie's gateway/, a: "Write a middleware", url: "https://usemagpie.ai/docs/plugins#middleware", trust: /sign-in or your requests/ },
       zh: { h: "订阅与网关中间件", p: /magpie 网关里的中间件/, a: "编写中间件", url: "https://usemagpie.ai/docs/zh/plugins#middleware", trust: /登录或看到你的请求/ },
     };
     for (const lang of ["en", "zh"]) {

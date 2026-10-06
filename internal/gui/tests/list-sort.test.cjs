@@ -93,7 +93,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         const names = (sel) => page.locator(sel).evaluateAll((ns) => ns.map((n) => n.textContent.trim()));
         const tips = (sort) => page.locator(`.segs.sortby[data-sort="${sort}"] .opt`).evaluateAll((os) => os.map((o) => o.title));
 
-        // the Library's MCP servers: A→Z first, whatever order queqiao gave them in
+        // the Library's MCP servers: A→Z first, whatever order magpie gave them in
         const serverNames = () => names("#view-library .lib-list .lib-row > .who > .name");
         const openLib = async () => {
           await page.goto("http://magpie.test/");

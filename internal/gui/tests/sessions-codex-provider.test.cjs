@@ -1,8 +1,8 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Codex sessions made with another provider (CC Switch's "custom") are
-// hidden from Codex's history once Codex uses queqiao (#887). The Sessions
+// hidden from Codex's history once Codex uses magpie (#887). The Sessions
 // page's Codex tab says how many and which provider, tags each one, and a
-// Move button opens queqiao's own dialog listing them, each ticked: Cancel
+// Move button opens magpie's own dialog listing them, each ticked: Cancel
 // sends nothing, an unticked one isn't moved, and Move posts
 // sessions/codex-provider with each id and Codex's provider. Undo then posts
 // each back to the provider it had. No click moves the page, nothing has a
@@ -60,20 +60,20 @@ function serve(lang, calls) {
 const words = {
   en: {
     nav: "Sessions", cancel: "Cancel", move: "Move", undo: "Undo",
-    note: "2 Codex sessions were made with another provider (custom): Codex lists only queqiao's sessions in its history now, so they don't show there.",
-    button: "Move to queqiao…", ask: "Move sessions to queqiao?", moved: "Moved 1 session to queqiao", back: "Moved 1 session back",
+    note: "2 Codex sessions were made with another provider (custom): Codex lists only magpie's sessions in its history now, so they don't show there.",
+    button: "Move to magpie…", ask: "Move sessions to magpie?", moved: "Moved 1 session to magpie", back: "Moved 1 session back",
   },
   zh: {
     nav: "会话", cancel: "取消", move: "迁移", undo: "撤销",
-    note: "有 2 个 Codex 会话是用其他供应商（custom）创建的。Codex 现在的历史列表只显示 queqiao 的会话，所以看不到它们。",
-    button: "迁移到 queqiao…", ask: "把会话迁移到 queqiao？", moved: "已把 1 个会话迁移到 queqiao", back: "已把 1 个会话迁移回去",
+    note: "有 2 个 Codex 会话是用其他供应商（custom）创建的。Codex 现在的历史列表只显示 magpie 的会话，所以看不到它们。",
+    button: "迁移到 magpie…", ask: "把会话迁移到 magpie？", moved: "已把 1 个会话迁移到 magpie", back: "已把 1 个会话迁移回去",
   },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: Codex sessions of another provider are moved to Codex's, after queqiao's own dialog, and back`, async (t) => {
+    test(`${engine} ${lang}: Codex sessions of another provider are moved to Codex's, after magpie's own dialog, and back`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       t.after(() => browser.close());
       const page = await (await browser.newContext({ viewport: { width: 900, height: 560 }, reducedMotion: "reduce" })).newPage();
@@ -134,7 +134,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         "{n} Codex sessions were made with another provider ({from}): Codex lists only {to}'s sessions in its history now, so they don't show there.",
         "Move to {to}…", "Moved 1 session to {to}", "Moved {n} sessions to {to}", "Moved 1 session back", "Moved {n} sessions back",
         "Move sessions to {to}?", "Made with {from}: Codex's history lists only {to}'s sessions now",
-        "Only the provider each one names is changed, in its files and in Codex's database: its messages, id, title and archive stay as they are. A copy of its files is kept in queqiao's trash folder first, and Undo moves them back. A session written to in the last minute is left alone.",
+        "Only the provider each one names is changed, in its files and in Codex's database: its messages, id, title and archive stay as they are. A copy of its files is kept in magpie's trash folder first, and Undo moves them back. A session written to in the last minute is left alone.",
       ].filter((k) => !I18N.zh[k] || !I18N.ja[k] || !I18N.de[k]));
       assert.deepEqual(missing, [], "every string has its translations");
       assert.deepEqual(errors, []);

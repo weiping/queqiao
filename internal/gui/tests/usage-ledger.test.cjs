@@ -20,7 +20,7 @@ const assets = path.resolve(__dirname, "../assets");
 const now = Date.now();
 
 // 130 requests, newest first: a swapped one, one under a dated name, a
-// failure (passed on by another computer's queqiao), one from before Requested was kept, then plain ones
+// failure (passed on by another computer's magpie), one from before Requested was kept, then plain ones
 const ROWS = [
   { route_id: 123, t: new Date(now - 60e3).toISOString(), agent: "codex", agentName: "Codex", icon: "codex-color", provider: "relay", providerName: "Relay", host: "team", req: "sol", model: "gpt-6-sol", served: "gpt-6-luna", swapped: true, effort: "high", in: 12840, out: 912, cache_read: 8192, reasoning: 300, ms: 4210, ttft_ms: 820, status: 200, session: "019a2b", cost: 0.0421, priced: true },
   { route_id: 999, t: new Date(now - 120e3).toISOString(), agent: "claude", agentName: "Claude Code", icon: "claudecode-color", provider: "anthropic", providerName: "Claude", host: "ann@example.com", req: "sonnet", model: "claude-sonnet-5", served: "claude-sonnet-5-20260801", effort: "", in: 3021, out: 440, cache_write: 2048, cache_read: 61000, ms: 2380, status: 200, cost: 0.0312, priced: true },
@@ -248,7 +248,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         const bad = page.locator(".led tr.bad td").last();
         assert.equal((await bad.textContent()).trim(), "429");
         assert.equal(await bad.getAttribute("title"), w.bad);
-        // its agent is on another computer, whose queqiao passed it on (Jorben on Discord)
+        // its agent is on another computer, whose magpie passed it on (Jorben on Discord)
         assert.equal(await page.locator(".led tr.bad td").nth(1).textContent(), w.via);
         const [dotBad, dotOk] = await page.evaluate(() => [
           getComputedStyle(document.querySelector(".led tr.bad .st .dot")).backgroundColor,

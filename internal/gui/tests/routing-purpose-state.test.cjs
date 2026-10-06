@@ -15,7 +15,7 @@ function req(id, kind, status = 200, error = "") {
     done: true, status, error, ms: 20, tokens: 12, cost: 0.01, priced: true };
 }
 function serve(lang, feed) {
-  const initial = [req(100, "review"), req(99, "title", 200, "Codex titles are off in queqiao's Settings, so queqiao answered it itself"),
+  const initial = [req(100, "review"), req(99, "title", 200, "Codex titles are off in magpie's Settings, so magpie answered it itself"),
     req(98, "thread_title", 200, "Title reply broke off"),
     req(97, "title_generation", 0, "Title connection closed"), req(96, "guardian", 503, "Guardian failed")];
   initial[2].tries[0].fail = "other";

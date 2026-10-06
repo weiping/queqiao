@@ -3,7 +3,7 @@
 // whether their issue was fixed). After an upgrade the window opens a dialog
 // with the notes of every release since, newest first, once: the app is told
 // they were seen, and a reload doesn't show them again. A fresh install shows
-// nothing, nor does the tray's panel; queqiao web's page shows it as the
+// nothing, nor does the tray's panel; magpie web's page shows it as the
 // window does, and opens its links in a tab. #464 links the issue and opens it in
 // the browser through the app, as markdown links do; a javascript: link is
 // text, and HTML in the notes is shown as text, never run. Settings' What's new
@@ -50,7 +50,7 @@ function settingsPayload(lang) {
   };
 }
 
-// ctl.upgraded: queqiao started on a newer version than it last ran
+// ctl.upgraded: magpie started on a newer version than it last ran
 function serve(lang, ctl) {
   return async (route) => {
     const req = route.request(), url = new URL(req.url());
@@ -121,7 +121,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.close();
       }
 
-      // queqiao web's page shows it too, and opens a link in a tab of its own
+      // magpie web's page shows it too, and opens a link in a tab of its own
       {
         const ctl = fresh({ upgraded: true, web: true });
         const { page, errors } = await open(ctl);

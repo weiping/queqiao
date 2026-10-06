@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Tystem on Discord: switching Codex on with no provider or subscription in
-// queqiao said only "Codex can't be connected to queqiao", in English whatever
+// magpie said only "Codex can't be connected to magpie", in English whatever
 // the language. The server answers that case with code no_models, and the
 // toast says what to do in the reader's language; the switch goes back off.
 // No click moves the page. No backend, the API is faked here.
@@ -23,7 +23,7 @@ function server(lang, posts) {
     if (url.pathname === "/api/state") return json({ ...state, settings: { lang, theme: "light" } });
     if (url.pathname === "/api/agents/connect/codex") {
       posts.push(url.pathname);
-      return json({ error: "Add a provider or subscription in queqiao first, then connect Codex", code: "no_models", agent: "Codex" }, 400);
+      return json({ error: "Add a provider or subscription in magpie first, then connect Codex", code: "no_models", agent: "Codex" }, 400);
     }
     if (url.pathname === "/api/usage/quotas") return json([]);
     if (url.pathname === "/api/groups") return json({ groups: [] });
@@ -38,10 +38,10 @@ function server(lang, posts) {
 }
 
 const said = {
-  en: "Add a provider or subscription in queqiao first, then connect Codex",
-  zh: "请先在 queqiao 中添加一个供应商或订阅，再接入 Codex",
-  ja: "先に queqiao でプロバイダかサブスクリプションを追加してから、Codex を接続してください",
-  de: "Fügen Sie zuerst in queqiao einen Anbieter oder ein Abo hinzu und verbinden Sie dann Codex",
+  en: "Add a provider or subscription in magpie first, then connect Codex",
+  zh: "请先在 magpie 中添加一个供应商或订阅，再接入 Codex",
+  ja: "先に magpie でプロバイダかサブスクリプションを追加してから、Codex を接続してください",
+  de: "Fügen Sie zuerst in magpie einen Anbieter oder ein Abo hinzu und verbinden Sie dann Codex",
 };
 const sw = '.row.agent[data-id="codex"] .ag-conn';
 

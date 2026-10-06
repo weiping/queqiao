@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Plugins kept on this computer: the market's field takes a folder, chosen
-// with the system's picker rather than typed — and `queqiao web`, which has
+// with the system's picker rather than typed — and `magpie web`, which has
 // no picker, offers no button for it. A folder plugin's page shows the
 // README that folder carries, where npm knows nothing of it: no npm link,
 // the version facts left out, and the folder's own name for the plugin.
@@ -22,7 +22,7 @@ const README = [
   "## Install",
   "",
   "```sh",
-  "queqiao plugin add " + FOLDER,
+  "magpie plugin add " + FOLDER,
   "```",
 ].join("\n");
 
@@ -136,8 +136,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       });
     }
 
-    // `queqiao web` has no picker: no button, and the field is typed into
-    await t.test("no picker where queqiao can't show one", async () => {
+    // `magpie web` has no picker: no button, and the field is typed into
+    await t.test("no picker where magpie can't show one", async () => {
       const asked = [];
       const page = await (await browser.newContext({ viewport: { width: 980, height: 820 } })).newPage();
       page.setDefaultTimeout(5000);

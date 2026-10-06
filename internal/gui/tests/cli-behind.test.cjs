@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// A machine whose `queqiao` command is a copied file (an older installer, a
+// A machine whose `magpie` command is a copied file (an older installer, a
 // hand cp) keeps running that build after a GUI update moves the app on —
 // the stale command that wedged a WebDAV sync before #531's check. The
 // window can't tell a stale copy from a current one without running the old
@@ -16,8 +16,8 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 
 const HEAD = {
-  en: "The `queqiao` command is a copy",
-  zh: "终端里的 `queqiao` 命令是一份拷贝",
+  en: "The `magpie` command is a copy",
+  zh: "终端里的 `magpie` 命令是一份拷贝",
 };
 
 function server(lang, behind, quiet) {
@@ -80,8 +80,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await ok.waitForTimeout(500);
       assert.ok(await ok.locator("#modal").evaluate((m) => m.hidden), "a following command is not mentioned");
       const keys = [
-        "The `queqiao` command is a copy",
-        "The `queqiao` command at {path} is a copied file, not the installer's link to the app: it won't follow the app's updates, and an old copy can break what a new one fixed. Re-run the installer, or link it by hand.",
+        "The `magpie` command is a copy",
+        "The `magpie` command at {path} is a copied file, not the installer's link to the app: it won't follow the app's updates, and an old copy can break what a new one fixed. Re-run the installer, or link it by hand.",
       ];
       const missing = await ok.evaluate((ks) => ks.filter((x) => !I18N.zh[x]), keys);
       assert.deepEqual(missing, [], "the advice has its Chinese");

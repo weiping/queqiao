@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Claude Code's model picker had every model twice (#496): its own, and
-// the same models through queqiao on the Claude subscription added there,
+// the same models through magpie on the Claude subscription added there,
 // which is the very account Claude Code is signed in to; and models.dev's
 // alias and dated id of one model each had a row (claude-opus-4-5,
 // claude-opus-4-5-20251101). The rows on its own account now fold into
@@ -70,7 +70,7 @@ function server(lang, value, sets) {
 const row = '.row.agent[data-id="claude"]';
 const words = {
   en: { two: "2 models via magpie", one: "1 model via magpie", whose: "me@example.com · the account Claude Code is signed in to" },
-  zh: { two: "2 个模型经 queqiao", one: "1 个模型经 queqiao", whose: "me@example.com · 即 Claude Code 自己登录的账号" },
+  zh: { two: "2 个模型经 magpie", one: "1 个模型经 magpie", whose: "me@example.com · 即 Claude Code 自己登录的账号" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
@@ -111,7 +111,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         // an alias and its dated id: the alias alone
         assert(names.includes("claude-opus-4-5") && !names.includes("claude-opus-4-5-20251101"), names.join(", "));
         assert(names.includes("claude-sonnet-4-5") && !names.includes("claude-sonnet-4-5-20250929"), names.join(", "));
-        // Claude Code's own account through queqiao: one folded row
+        // Claude Code's own account through magpie: one folded row
         assert(!names.some((n) => /^Claude Opus/.test(n || "")), names.join(", "));
         const fold = list.filter((r) => r.fold);
         assert.equal(fold.length, 1, names.join(", "));
@@ -131,13 +131,13 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.equal(await page.locator("#pop:not([hidden])").count(), 1, "the picker stays open");
         assert.equal(await foldRow.getAttribute("aria-expanded"), "true");
         list = await rows(page);
-        // opened: the two through queqiao, the dated one still one with its alias
+        // opened: the two through magpie, the dated one still one with its alias
         assert.deepEqual(list.filter((r) => /^Claude Opus/.test(r.v)).map((r) => r.v), ["Claude Opus 5.5", "Claude Opus 4.5 (latest)"]);
         assert.equal(await view.evaluate((v) => v.scrollTop), before.view, "the click moved the page");
         assert.equal(await page.evaluate(() => scrollY), before.win, "the click moved the page");
         assert(Math.abs((await foldRow.boundingBox()).y - before.box.y) <= 2, "the row stays under the pointer");
 
-        // closed again, then one picked through queqiao after opening it
+        // closed again, then one picked through magpie after opening it
         await foldRow.click();
         assert(!(await rows(page)).some((r) => /^Claude Opus/.test(r.v)));
         await foldRow.click();

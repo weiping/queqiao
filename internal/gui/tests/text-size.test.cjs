@@ -51,7 +51,7 @@ function settingsPayload(over) {
   };
 }
 
-// one fake queqiao per test: its settings live across reloads, as the real
+// one fake magpie per test: its settings live across reloads, as the real
 // one's do, and every text size posted is kept in posts
 function server(lang, theme, size, posts) {
   let cur = settingsPayload({ lang, theme, textSize: size });

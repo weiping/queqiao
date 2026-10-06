@@ -43,7 +43,7 @@ function server(lang, posts, refuse) {
     if (req.method() === "POST" && url.pathname.startsWith("/api/") && !url.pathname.startsWith("/api/window/")) {
       posts.push({ path: url.pathname, body: req.postDataJSON() });
       if (url.pathname === "/api/agent-fast") {
-        if (refuse()) return route.fulfill({ status: 500, contentType: "text/plain", body: "codex/gpt-5.5 has no fast mode queqiao can ask for" });
+        if (refuse()) return route.fulfill({ status: 500, contentType: "text/plain", body: "codex/gpt-5.5 has no fast mode magpie can ask for" });
         return json({ fast: req.postDataJSON().fast });
       }
       return json({});

@@ -1,9 +1,9 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Sessions in queqiao's trash can be erased for good (#487): each trashed row
+// Sessions in magpie's trash can be erased for good (#487): each trashed row
 // has a Delete forever, and the Trash an Empty trash; both ask first in
-// queqiao's own dialog (never confirm()), Cancel sends nothing, and the
+// magpie's own dialog (never confirm()), Cancel sends nothing, and the
 // confirm posts sessions/purge with the row's key, or all. The note under
-// the Trash no longer says queqiao never erases them; it says it never does
+// the Trash no longer says magpie never erases them; it says it never does
 // by itself. A click leaves the page where it is. In English and Chinese,
 // Chromium and WebKit; no backend, the API is faked.
 const assert = require("node:assert/strict");
@@ -52,12 +52,12 @@ function serve(lang, calls) {
 
 const words = {
   en: {
-    nav: "Sessions", cancel: "Cancel", forever: "Delete forever", empty: "Empty trash", askOne: "Delete this session forever?", askAll: "Empty queqiao's trash?",
+    nav: "Sessions", cancel: "Cancel", forever: "Delete forever", empty: "Empty trash", askOne: "Delete this session forever?", askAll: "Empty magpie's trash?",
     one: "Erased for good", all: "2 sessions erased for good", count: "3 sessions", trashEmpty: "Trash is empty",
     note: "Deleted sessions are kept in ~/Library/Application Support/magpie/trash/sessions until you erase them here; magpie never erases them by itself.",
   },
   zh: {
-    nav: "会话", cancel: "取消", forever: "彻底删除", empty: "清空回收站", askOne: "彻底删除这个会话？", askAll: "清空 queqiao 的回收站？",
+    nav: "会话", cancel: "取消", forever: "彻底删除", empty: "清空回收站", askOne: "彻底删除这个会话？", askAll: "清空 magpie 的回收站？",
     one: "已彻底删除", all: "已彻底删除 2 个会话", count: "3 个会话", trashEmpty: "回收站是空的",
     note: "已删除的会话保存在 ~/Library/Application Support/magpie/trash/sessions，在此彻底删除前不会自动清除。",
   },
@@ -66,7 +66,7 @@ const words = {
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: trashed sessions are erased for good only after queqiao's own dialog`, async (t) => {
+    test(`${engine} ${lang}: trashed sessions are erased for good only after magpie's own dialog`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       t.after(() => browser.close());
       const page = await (await browser.newContext({ viewport: { width: 900, height: 560 }, reducedMotion: "reduce" })).newPage();
@@ -135,10 +135,10 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await view.locator(".sm-empty").count(), 0, "nothing to empty");
 
       const missing = await page.evaluate(() => [
-        "Empty trash", "Delete forever", "Empty queqiao's trash?", "Delete this session forever?",
-        "Every session in queqiao's trash is erased for good: it can't be restored.", "Its files are erased for good: it can't be restored.",
+        "Empty trash", "Delete forever", "Empty magpie's trash?", "Delete this session forever?",
+        "Every session in magpie's trash is erased for good: it can't be restored.", "Its files are erased for good: it can't be restored.",
         "Erased for good", "{n} sessions erased for good",
-        "Deleted sessions are kept in {dir} until you erase them here; queqiao never erases them by itself.",
+        "Deleted sessions are kept in {dir} until you erase them here; magpie never erases them by itself.",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
       assert.deepEqual(errors, []);

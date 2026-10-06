@@ -2,7 +2,7 @@
 // An agent connected by its config to an address where nothing answers
 // (#1013: Codex pointed at Windows as WSL sees it, through a portproxy gone
 // after a reboot) is no longer shown connected. Its row says it can't
-// reach queqiao; its pill says how to fix it, in a dialog (the advice is too
+// reach magpie; its pill says how to fix it, in a dialog (the advice is too
 // long for the status line), and sets nothing. When WSL reaches Windows at
 // another address now, the pill is "Use <address>" and reconnects there.
 // The window at 560px and the tray panel at 440px; nothing runs off the
@@ -15,7 +15,7 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const kept = "http://172.28.96.1:3425";
-const detail = `Codex is pointed at queqiao at ${kept}, where nothing answers from this computer, though queqiao answers at http://127.0.0.1:3425. Under WSL's NAT networking, Windows as WSL sees it reaches queqiao only while something listens on 172.28.96.1:3425: queqiao itself with Settings › Share on local network on, or a forward of your own (netsh interface portproxy, which may need setting up again after Windows restarts).`;
+const detail = `Codex is pointed at magpie at ${kept}, where nothing answers from this computer, though magpie answers at http://127.0.0.1:3425. Under WSL's NAT networking, Windows as WSL sees it reaches magpie only while something listens on 172.28.96.1:3425: magpie itself with Settings › Share on local network on, or a forward of your own (netsh interface portproxy, which may need setting up again after Windows restarts).`;
 const codex = { id: "codex", name: "Codex", icon: "codex", path: "/c", wired: true,
   fields: [{ key: "model", label: "model", value: "fake/m1", options: [{ value: "fake/m1", label: "m1", ref: "fake/m1" }] }] };
 const filler = Array.from({ length: 4 }, (_, i) => ({ id: "pi" + i, name: "Pi " + i, path: "/p", fields: [{ key: "model", label: "model", value: "", options: [] }] }));
@@ -45,10 +45,10 @@ function serve(lang, move, calls) {
 }
 
 const words = {
-  en: { why: "Codex is set up, but nothing answers at the address it reaches queqiao by", fix: "How to fix", use: "Use 172.29.0.1:3425" },
-  zh: { why: "Codex 已设好，但它连 queqiao 用的地址没有回应", fix: "如何修复", use: "改用 172.29.0.1:3425" },
-  ja: { why: "Codex は設定済みですが、queqiao につなぐアドレスから応答がありません", fix: "直し方", use: "172.29.0.1:3425 を使う" },
-  de: { why: "Codex ist eingerichtet, aber unter der Adresse, über die es queqiao erreicht, antwortet nichts", fix: "So beheben", use: "172.29.0.1:3425 verwenden" },
+  en: { why: "Codex is set up, but nothing answers at the address it reaches magpie by", fix: "How to fix", use: "Use 172.29.0.1:3425" },
+  zh: { why: "Codex 已设好，但它连 magpie 用的地址没有回应", fix: "如何修复", use: "改用 172.29.0.1:3425" },
+  ja: { why: "Codex は設定済みですが、magpie につなぐアドレスから応答がありません", fix: "直し方", use: "172.29.0.1:3425 を使う" },
+  de: { why: "Codex ist eingerichtet, aber unter der Adresse, über die es magpie erreicht, antwortet nichts", fix: "So beheben", use: "172.29.0.1:3425 verwenden" },
 };
 const row = `.row.agent[data-id="codex"]`;
 const noSideScroll = (page) => page.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth);

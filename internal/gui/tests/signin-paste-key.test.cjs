@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Command Code signed in to from a browser that can't reach queqiao (xugui on
-// Discord: queqiao in Docker couldn't sign in to Command Code). Its Studio
-// page posts the key to queqiao's own 127.0.0.1 port, unseen, so there is no
+// Command Code signed in to from a browser that can't reach magpie (xugui on
+// Discord: magpie in Docker couldn't sign in to Command Code). Its Studio
+// page posts the key to magpie's own 127.0.0.1 port, unseen, so there is no
 // address to paste: while the sign-in waits, the box says to make an API key
 // on Command Code's keys page, links that page, and takes the key in a
 // hidden field that posts it once to the sign-in's callback route. A
@@ -59,13 +59,13 @@ function server(lang, asked) {
 const W = {
   en: {
     anyway: "Sign in anyway",
-    say: "If the page can't reach queqiao (it runs on a server or in Docker), make an API key on Command Code's keys page and paste it here.",
+    say: "If the page can't reach magpie (it runs on a server or in Docker), make an API key on Command Code's keys page and paste it here.",
     keys: "Open the keys page", field: "API key", finish: "Finish sign-in",
     instead: "Use an API key instead", pluginKey: "API key (cmdplug.test/keys)",
   },
   zh: {
     anyway: "仍然登录",
-    say: "若页面连不上 queqiao（运行在服务器或 Docker 中），请在 Command Code 的密钥页创建 API 密钥并粘贴到这里。",
+    say: "若页面连不上 magpie（运行在服务器或 Docker 中），请在 Command Code 的密钥页创建 API 密钥并粘贴到这里。",
     keys: "打开密钥页面", field: "API 密钥", finish: "完成登录",
     instead: "改用 API 密钥", pluginKey: "API key (cmdplug.test/keys)",
   },
@@ -89,7 +89,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       page.setDefaultTimeout(5000);
       const errors = [], asked = [];
       page.on("pageerror", (e) => errors.push(e.message));
-      // web: a page opens in the browser, not through queqiao
+      // web: a page opens in the browser, not through magpie
       await page.addInitScript(() => { window.opened = []; window.open = (u) => { window.opened.push(u); return null; }; });
       await page.route("**/*", server(lang, asked));
       await page.goto("http://magpie.test/?view=providers");

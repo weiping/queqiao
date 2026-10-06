@@ -2,7 +2,7 @@
 // Settings' "Codex auto-review model" (#938, guitaoliu: Codex's auto-review
 // runs on the conversation's model, with no way to pick a cheaper one): by
 // default Codex's own pick; the app's menu (no native select) offers
-// queqiao's models and groups; a pick posts settings/codex-auto-review on its
+// magpie's models and groups; a pick posts settings/codex-auto-review on its
 // own, the row says what now happens, a refusal is said and the row keeps
 // what it had, and no click scrolls the Settings page.
 // English and Chinese, Chromium and WebKit; no backend, the API is faked here.
@@ -107,7 +107,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const before = await view(page);
       assert(before > 0, "the settings list must scroll to the row");
 
-      // the app's menu: Codex's own pick and queqiao's models and groups
+      // the app's menu: Codex's own pick and magpie's models and groups
       const choose = async (text) => {
         await pick.click();
         await page.locator("#pop:not([hidden]) #list li").first().waitFor();

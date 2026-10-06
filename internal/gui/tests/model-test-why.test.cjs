@@ -67,11 +67,11 @@ function serve(lang, tests) {
 const words = {
   en: {
     item: "Test this model", all: "Test models", ok: "gpt-6-mini answered in 321 ms",
-    own: "Kiro is reached through its own API, which queqiao translates each agent request for, so a test request can't be sent to it on its own. Ask the model from an agent to try it.",
+    own: "Kiro is reached through its own API, which magpie translates each agent request for, so a test request can't be sent to it on its own. Ask the model from an agent to try it.",
   },
   zh: {
     item: "测试此模型", all: "测试模型", ok: "gpt-6-mini 在 321 毫秒内响应",
-    own: "Kiro 使用自有接口，由 queqiao 转换 Agent 的请求，无法单独发测试请求。请在 Agent 中使用该模型测试。",
+    own: "Kiro 使用自有接口，由 magpie 转换 Agent 的请求，无法单独发测试请求。请在 Agent 中使用该模型测试。",
   },
 };
 
@@ -168,7 +168,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.waitForTimeout(150);
       assert.equal(tests.length, 0, "nothing was sent");
       const missing = await page.evaluate(() => [
-        "{name} is reached through its own API, which queqiao translates each agent request for, so a test request can't be sent to it on its own. Ask the model from an agent to try it.",
+        "{name} is reached through its own API, which magpie translates each agent request for, so a test request can't be sent to it on its own. Ask the model from an agent to try it.",
         "A classifier's models aren't sent test requests: Test under Endpoints asks Jev's endpoint for them.",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");

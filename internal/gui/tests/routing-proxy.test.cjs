@@ -56,8 +56,8 @@ function serve(lang) {
 }
 
 const want = {
-  en: { story: "the proxy queqiao goes through didn't take the connection, so the request never reached the vendor and goes on to the next", rest: "so it doesn't rest", tag: "502 · proxy not reachable" },
-  zh: { story: "queqiao 使用的代理未接受连接，请求未到达厂商，已转给下一个", rest: "不休息", tag: "502 · 代理连不上" },
+  en: { story: "the proxy magpie goes through didn't take the connection, so the request never reached the vendor and goes on to the next", rest: "so it doesn't rest", tag: "502 · proxy not reachable" },
+  zh: { story: "magpie 使用的代理未接受连接，请求未到达厂商，已转给下一个", rest: "不休息", tag: "502 · 代理连不上" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {

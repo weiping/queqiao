@@ -36,7 +36,7 @@ function settingsPayload(over) {
   };
 }
 
-// server answers as queqiao does: trayUsage kept as the first of trayUsages
+// server answers as magpie does: trayUsage kept as the first of trayUsages
 function server(lang, posts) {
   let cur = settingsPayload({ lang });
   return async (route) => {

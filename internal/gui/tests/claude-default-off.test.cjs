@@ -1,9 +1,9 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Claude Code on a model of queqiao's, Default picked and Use default
+// Claude Code on a model of magpie's, Default picked and Use default
 // confirmed (EZN7L2C3, #834 on v0.1.920): the row said Not connected with
-// 「接入」 off, yet its model read Pick a model and its list had queqiao's
+// 「接入」 off, yet its model read Pick a model and its list had magpie's
 // models alone, Default and Claude Code's own gone. It now says Default,
-// and lists Default (the one it is on), its own models and queqiao's, as
+// and lists Default (the one it is on), its own models and magpie's, as
 // when connected; and it goes under Not set up as the ask said. No click
 // moves the page. In English and Chinese.
 const assert = require("node:assert/strict");
@@ -61,13 +61,13 @@ function server(lang, sets) {
 
 const words = {
   en: { def: "Default", shown: "default", use: "Use default", direct: "direct, not via magpie", via: "via magpie" },
-  zh: { def: "默认", shown: "默认", use: "使用默认", direct: "直连，不经 queqiao", via: "经 queqiao" },
+  zh: { def: "默认", shown: "默认", use: "使用默认", direct: "直连，不经 magpie", via: "经 magpie" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: Claude Code taken off queqiao by Default says Default, lists every choice, and goes under Not set up`, async (t) => {
+    test(`${engine} ${lang}: Claude Code taken off magpie by Default says Default, lists every choice, and goes under Not set up`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       const page = await (await browser.newContext({ viewport: { width: 980, height: 640 }, reducedMotion: "reduce" })).newPage();
       t.after(() => browser.close());
@@ -103,7 +103,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       // the row says Default, not Pick a model
       assert.equal(await field.locator(".v").textContent(), w.shown);
 
-      // and its list has Default, the one it is on, its own and queqiao's
+      // and its list has Default, the one it is on, its own and magpie's
       await open();
       const cur = page.locator("#pop #list li.cur");
       assert.equal(await cur.count(), 1);

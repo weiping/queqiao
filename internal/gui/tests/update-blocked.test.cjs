@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // #894: on Windows with Smart App Control on, the new unsigned version was
-// refused when queqiao restarted into it. queqiao now puts itself back and
+// refused when magpie restarted into it. magpie now puts itself back and
 // runs on, and Settings › About › Version says the version didn't start
 // here and why, offering Download and Check (which tries it once more).
 // No click moves the page, nothing is a native select, no left border.
@@ -14,8 +14,8 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 
 const words = {
-  en: { policy: "Smart App Control", stays: "queqiao stays on 0.1.900", download: "Download", check: "Check", other: "didn't start on this computer" },
-  zh: { policy: "智能应用控制", stays: "queqiao 仍是 0.1.900", download: "下载", check: "检查", other: "没能在这台电脑上启动" },
+  en: { policy: "Smart App Control", stays: "magpie stays on 0.1.900", download: "Download", check: "Check", other: "didn't start on this computer" },
+  zh: { policy: "智能应用控制", stays: "magpie 仍是 0.1.900", download: "下载", check: "检查", other: "没能在这台电脑上启动" },
 };
 
 const blocked = (policy) => ({ state: "blocked", current: "0.1.900", latest: "0.1.901", url: "https://github.com/yetone/magpie-releases/releases/tag/v0.1.901",

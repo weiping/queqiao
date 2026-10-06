@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Settings › About › Command line (PAMI on Discord): whether `queqiao` in a
+// Settings › About › Command line (PAMI on Discord): whether `magpie` in a
 // terminal opened now runs this app, said for each shell (a dot, no left
 // border), and Add to PATH, which posts /api/cli and shows the answer. On
 // Windows a program not named magpie.exe (the site's portable download,
@@ -18,10 +18,10 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 
 const words = {
-  en: { row: "Command line", add: "Add to PATH", none: "can't find the queqiao command", ours: "runs this app", fish: "Add to ~/.config/fish/config.fish",
+  en: { row: "Command line", add: "Add to PATH", none: "can't find the magpie command", ours: "runs this app", fish: "Add to ~/.config/fish/config.fish",
     added: "open a new terminal window", ps: "PowerShell and cmd take up a change in new windows", moved: "moved to Applications",
     shimTitle: "writes magpie.cmd there, which runs magpie-windows-amd64.exe", shimAdded: "magpie.cmd beside magpie-windows-amd64.exe runs it as magpie", shimRuns: "which runs magpie-windows-amd64.exe" },
-  zh: { row: "命令行", add: "添加到 PATH", none: "新终端里找不到 queqiao 命令", ours: "运行这个 app", fish: "添加到 ~/.config/fish/config.fish",
+  zh: { row: "命令行", add: "添加到 PATH", none: "新终端里找不到 magpie 命令", ours: "运行这个 app", fish: "添加到 ~/.config/fish/config.fish",
     added: "新开一个终端窗口", ps: "PowerShell 和 cmd 在新窗口里生效", moved: "移到「应用程序」",
     shimTitle: "写一个 magpie.cmd 来运行 magpie-windows-amd64.exe", shimAdded: "magpie-windows-amd64.exe 旁边的 magpie.cmd", shimRuns: "它运行 magpie-windows-amd64.exe" },
 };
@@ -30,9 +30,9 @@ const EXE = "/Applications/magpie.app/Contents/MacOS/magpie";
 
 function view(ctl) {
   if (ctl.windows) {
-    // the site's portable download (#942) runs as queqiao through the
+    // the site's portable download (#942) runs as magpie through the
     // magpie.cmd Add writes beside it
-    const dir = ctl.portable ? "D:\\portable_app" : "C:\\Users\\u\\AppData\\Local\\queqiao";
+    const dir = ctl.portable ? "D:\\portable_app" : "C:\\Users\\u\\AppData\\Local\\magpie";
     const exe = dir + (ctl.portable ? "\\magpie-windows-amd64.exe" : "\\magpie.exe"), shim = ctl.portable ? dir + "\\magpie.cmd" : "";
     const cmd = ctl.added ? shim || exe : "";
     return { exe, ours: ctl.added, command: cmd, dir, windows: true, shim,
@@ -101,7 +101,7 @@ async function open(browser, lang, ctl, errors) {
 }
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
-  test(engine + ": Command line says what `queqiao` runs, and adds it", async (t) => {
+  test(engine + ": Command line says what `magpie` runs, and adds it", async (t) => {
     const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
     t.after(() => browser.close());
     for (const lang of ["en", "zh"]) {

@@ -51,7 +51,7 @@ function serve(lang, posted) {
 }
 
 const want = {
-  en: { imp: "Import accounts from a file…", instead: "Import from a file instead…", title: "Import ChatGPT accounts", intro: /CLIProxyAPI's auth files \(JSON\) or Codex's auth\.json/, spent: /spends the file's sign-in/, checking: "Checking the accounts with ChatGPT…", done: ["Added", "Already in queqiao", "Not added"] },
+  en: { imp: "Import accounts from a file…", instead: "Import from a file instead…", title: "Import ChatGPT accounts", intro: /CLIProxyAPI's auth files \(JSON\) or Codex's auth\.json/, spent: /spends the file's sign-in/, checking: "Checking the accounts with ChatGPT…", done: ["Added", "Already in magpie", "Not added"] },
   zh: { imp: null, instead: null, title: null, intro: /CLIProxyAPI/, spent: /./, checking: null, done: null },
 };
 
@@ -120,7 +120,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.locator(".signing.import .results").waitFor();
       assert.deepEqual(posted, [{ agent: "codex", files: [cpa] }]);
       const done = await page.locator(".signing.import .res .st").allTextContents();
-      assert.deepEqual(done, w.done || [await T("Added"), await T("Already in queqiao"), await T("Not added")]);
+      assert.deepEqual(done, w.done || [await T("Added"), await T("Already in magpie"), await T("Not added")]);
       assert.match(await page.locator(".signing.import .res.failed .why").textContent(), /used since/);
       // the new account is listed
       await page.locator(".editor .accts .acc .n", { hasText: "cpa@example.com" }).waitFor();

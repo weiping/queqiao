@@ -19,7 +19,7 @@ const changes = (id) => [
   },
   {
     path: id === "omp" ? "~/.omp/agent/models.yml" : "~/.codex/models.json",
-    lines: [{ op: "~", text: "providers: {}", was: "providers: {queqiao: {baseUrl: 'http://127.0.0.1:3425/v1', models: [{id: group/auto-model, name: Auto model}]}}" }],
+    lines: [{ op: "~", text: "providers: {}", was: "providers: {magpie: {baseUrl: 'http://127.0.0.1:3425/v1', models: [{id: group/auto-model, name: Auto model}]}}" }],
   },
 ];
 

@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // What was left over time (#651): under an account's meters on the Usage
-// page, a line a window from queqiao's readings — broken where the 5-hour
+// page, a line a window from magpie's readings — broken where the 5-hour
 // window started again — a dashed even burn from each window's start to its
 // reset, and an upright line at now. One pick in the allowances' head, the
 // app's own menu, turns every card at once: "2 days" / "Cycle", or "Off"
@@ -189,7 +189,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       // turned off in the window, the tray's line goes too, and stays gone
       const win = await panel.context().newPage();
       await win.route("**/*", serve(lang, "dark", false, data));
-      // a page of queqiao's origin, only for its storage: served as a 404
+      // a page of magpie's origin, only for its storage: served as a 404
       // with no body, Chromium refused to open it (ERR_HTTP_RESPONSE_CODE_FAILURE)
       await win.route("http://magpie.test/blank", (r) => r.fulfill({ contentType: "text/html", body: "<!doctype html><title>blank</title>" }));
       await win.goto("http://magpie.test/blank");

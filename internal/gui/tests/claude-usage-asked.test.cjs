@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // A Claude account's usage is read only when the reader asks (the user:
-// 不要伪造任何的 Claude 请求，能否通过 claude cli 获取): queqiao runs Claude
+// 不要伪造任何的 Claude 请求，能否通过 claude cli 获取): magpie runs Claude
 // Code's own /usage, and only when the Usage page is opened or Refresh is
 // pressed. Opening the page and Refresh (the header's, which on the Overview
 // is the allowances' too, #486) load usage/quotas?asked=1; the

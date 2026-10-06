@@ -6,12 +6,12 @@
 // Sessions page starts with a box, as each session's does: ticked, it picks
 // every session of the folder shown, folded or not, the bar counting
 // sessions, not folders; a filter picks the ones it shows. Several folders
-// are picked together, and the bar's Delete asks in queqiao's own dialog
+// are picked together, and the bar's Delete asks in magpie's own dialog
 // (never confirm()), naming the folder and its path when the pick is one
 // whole folder, and how many folders when it is several, then posts
-// sessions/delete with their ids, so they go to queqiao's trash as one
+// sessions/delete with their ids, so they go to magpie's trash as one
 // deleted alone does. Cancel posts nothing; a session still being written
-// to is left and said so; other folders stay. An agent queqiao can't delete
+// to is left and said so; other folders stay. An agent magpie can't delete
 // from has no boxes. Clicks leave the page where it is. In English and
 // Chinese, Chromium and WebKit; no backend, the API is faked here.
 const assert = require("node:assert/strict");
@@ -86,13 +86,13 @@ const words = {
   en: {
     nav: "Sessions", del: "Delete", cancel: "Cancel", label: "Select every session in old-blog", picked: (n) => `${n} selected`,
     askApp: "Delete all 14 sessions in app?", askBlog: "Delete all 2 sessions in old-blog?", askTwo: "Delete all 3 sessions in 2 folders?", askSome: "Delete 2 sessions?",
-    moved3: "3 sessions moved to queqiao's trash",
+    moved3: "3 sessions moved to magpie's trash",
     active: "still running is still being written to; close it in Codex and try again in a minute",
   },
   zh: {
     nav: "会话", del: "删除", cancel: "取消", label: "选中 old-blog 下的全部会话", picked: (n) => `已选 ${n} 个`,
     askApp: "删除 app 下的全部 14 个会话？", askBlog: "删除 old-blog 下的全部 2 个会话？", askTwo: "删除 2 个文件夹下的全部 3 个会话？", askSome: "删除这 2 个会话？",
-    moved3: "3 个会话已移到 queqiao 的回收站",
+    moved3: "3 个会话已移到 magpie 的回收站",
     active: "「still running」仍在写入；请在 Codex 中关闭它，一分钟后再试",
   },
 };
@@ -100,7 +100,7 @@ const words = {
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: folders are picked with their box and deleted together, after queqiao's own dialog`, async (t) => {
+    test(`${engine} ${lang}: folders are picked with their box and deleted together, after magpie's own dialog`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       const page = await (await browser.newContext({ viewport: { width: 900, height: 560 }, reducedMotion: "reduce" })).newPage();
       t.after(async () => {
@@ -248,7 +248,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         .filter((e) => parseFloat(getComputedStyle(e).borderLeftWidth) > 1 && getComputedStyle(e).borderLeftColor !== getComputedStyle(e).borderRightColor).map((e) => e.className));
       assert.deepEqual(border, [], "no left-border accent");
 
-      // an agent queqiao can't delete from has none
+      // an agent magpie can't delete from has none
       await view.locator(".sm-agents .opt", { hasText: "OpenCode" }).click();
       await view.locator('.row.sm-sess[data-id="o-1"]').waitFor();
       assert.equal(await view.locator(".sm-folder-check").count(), 0);

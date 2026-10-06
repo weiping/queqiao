@@ -63,7 +63,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await sheet.locator('.tile[data-pick="ZCode"]').click();
         await box.locator('button[data-site="bigmodel"]').waitFor();
         // in a short window the step is under the tiles: the reader scrolls to it
-        // (with the wheel: queqiao puts back a scroll the reader didn't make)
+        // (with the wheel: magpie puts back a scroll the reader didn't make)
         await page.mouse.move(width / 2, height / 2);
         for (let i = 0; i < 20 && await box.evaluate((b) => b.getBoundingClientRect().bottom > innerHeight - 8); i++) {
           await page.mouse.wheel(0, 120);

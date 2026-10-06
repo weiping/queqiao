@@ -117,7 +117,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await form.locator(".editor-error").textContent(), zh ? "请填写存储桶名称" : "Name the bucket");
       assert.equal(posts.length, 0);
 
-      await box(L.bucket).fill("queqiao-sync");
+      await box(L.bucket).fill("magpie-sync");
       await box(L.prefix).fill("/team/");
       await box(L.region).fill("auto");
       await box(L.key).fill("AKIDEXAMPLE");
@@ -157,7 +157,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await edit.click();
       await form.waitFor({ state: "visible" });
       assert.equal(await form.locator(".segs .opt.on").textContent(), zh ? "S3 · 使用中" : "S3 · on");
-      assert.equal(await box(L.bucket).inputValue(), "queqiao-sync");
+      assert.equal(await box(L.bucket).inputValue(), "magpie-sync");
       assert.equal(await box(L.prefix).inputValue(), "team");
       assert.equal(await box(L.region).inputValue(), "auto");
       assert.equal(await box(L.key).inputValue(), "AKIDEXAMPLE");

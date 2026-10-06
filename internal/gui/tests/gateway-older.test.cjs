@@ -1,9 +1,9 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// An older queqiao keeping the gateway's port sends every agent's request its
+// An older magpie keeping the gateway's port sends every agent's request its
 // own way, without this version's fixes (#506: a Factory 403 worded as
 // v0.1.550 words it, to people on v0.1.630). The Gateway card says which
-// version serves and what to do, in English and Chinese; another queqiao of
-// the same version is just "served by another queqiao".
+// version serves and what to do, in English and Chinese; another magpie of
+// the same version is just "served by another magpie".
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -39,13 +39,13 @@ function fixture(lang, gateway) {
 }
 
 const cases = [
-  { lang: "en", state: "running · served by queqiao 0.1.550, older than this one", sub: /through queqiao 0\.1\.550.*Quit it here and this one serves the gateway at once/, same: "running · served by another queqiao" },
-  { lang: "zh", state: "运行中 · 由更旧的 queqiao 0.1.550 提供", sub: /经 queqiao 0\.1\.550.*在这里关闭它，当前版本会立即接管网关/, same: "运行中 · 由另一个 queqiao 提供" },
+  { lang: "en", state: "running · served by magpie 0.1.550, older than this one", sub: /through magpie 0\.1\.550.*Quit it here and this one serves the gateway at once/, same: "running · served by another magpie" },
+  { lang: "zh", state: "运行中 · 由更旧的 magpie 0.1.550 提供", sub: /经 magpie 0\.1\.550.*在这里关闭它，当前版本会立即接管网关/, same: "运行中 · 由另一个 magpie 提供" },
 ];
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const c of cases) {
-    test(`${engine} ${c.lang}: an older queqiao serving the gateway is named`, async (t) => {
+    test(`${engine} ${c.lang}: an older magpie serving the gateway is named`, async (t) => {
       assert(["chromium", "webkit"].includes(engine), "BROWSER must be chromium or webkit");
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch());
       t.after(() => browser.close());

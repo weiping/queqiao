@@ -4,7 +4,7 @@
 // beside it saves the number typed, a share outside 1-100 is put back
 // unsaved, and a choice saved later elsewhere on the page keeps the alerts
 // (the page sends all its settings each time, and the server keeps only
-// what it is sent). When the system has queqiao's notifications turned off
+// what it is sent). When the system has magpie's notifications turned off
 // the rows say so. No click moves the page, and the rows have no coloured
 // left border. English and Chinese; no backend, the API is faked here.
 const assert = require("node:assert/strict");
@@ -29,7 +29,7 @@ function settingsPayload(over) {
   };
 }
 
-// server answers as queqiao does: a POST to /api/settings replaces what is
+// server answers as magpie does: a POST to /api/settings replaces what is
 // kept with what the page sent, and the notifications' state (problem) is
 // said while an alert is on.
 function server(lang, posts, problem) {
@@ -80,14 +80,14 @@ const words = {
     usage: "Allowance alert", balance: "Low balance alert", off: "Off", on: "On",
     usageSub: "A notification when a 5-hour, weekly or monthly window reaches this share used, once each time it runs",
     balanceSub: "A notification when a balance falls to this amount, in its own currency or credits, once until it is topped up",
-    denied: "Notifications are turned off for queqiao in the system's settings",
+    denied: "Notifications are turned off for magpie in the system's settings",
     share: "Share used", amount: "Amount", cny: "¥ CNY",
   },
   zh: {
     usage: "额度提醒", balance: "余额提醒", off: "关闭", on: "开启",
     usageSub: "5 小时、每周或每月额度用到此比例时通知，每个周期一次",
     balanceSub: "余额降到此数（按其货币或积分计）时通知，充值前只提醒一次",
-    denied: "系统设置里关闭了 queqiao 的通知",
+    denied: "系统设置里关闭了 magpie 的通知",
     share: "已用比例", amount: "金额", cny: "¥ 人民币",
   },
 };

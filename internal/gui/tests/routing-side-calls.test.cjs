@@ -2,7 +2,7 @@
 // A DeepSeek chat in Codex showed Codex's GPT answering in the Requests
 // list (#314: 为啥 deepseek 对话会调用 gpt): the new chat's title, which
 // Codex asks of gpt-6-luna on a hidden thread of its own, and the web
-// searches queqiao runs for DeepSeek on the model it searches with. Each
+// searches magpie runs for DeepSeek on the model it searches with. Each
 // says what it was by its model, and the search's story whose it was.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -65,7 +65,7 @@ const want = {
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
-    test(`${engine} ${lang}: a title and queqiao's web search say what they were`, async (t) => {
+    test(`${engine} ${lang}: a title and magpie's web search say what they were`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       const context = await browser.newContext({ viewport: { width: 1100, height: 760 }, reducedMotion: "reduce" });
       const page = await context.newPage();

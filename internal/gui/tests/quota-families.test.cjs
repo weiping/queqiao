@@ -19,7 +19,7 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 const at = (h) => new Date(Date.now() + h * 36e5).toISOString();
 const win = (name, family, used, h) => ({ name, family, used, ...(h ? { resetsAt: at(h) } : {}) });
-// as queqiao reports an Antigravity account: a window a model, by id
+// as magpie reports an Antigravity account: a window a model, by id
 const ag = (user, [opus, sonnet, flash, proHigh, proLow, f37High, f37Low, f37Med, oss]) => ({
   provider: "antigravity", name: "Antigravity", icon: "antigravity-color", user, plan: "Google AI Pro",
   windows: [

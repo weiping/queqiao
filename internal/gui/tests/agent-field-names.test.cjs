@@ -17,7 +17,7 @@ const assets = path.resolve(__dirname, "../assets");
 const ref = (value) => ({ value, label: value, ref: value, note: "via magpie" });
 const options = [ref("magpie/minimax-cn/MiniMax-M3"), ref("magpie/relay/glm-4.6")];
 const roles = ["fast", "standard", "deep", "visual"];
-// as queqiao reads an Aside: the model it talks and its level beside it, the
+// as magpie reads an Aside: the model it talks and its level beside it, the
 // model it draws with, and the four tasks it picks a model by hand
 const state = {
   agents: [{

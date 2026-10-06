@@ -31,7 +31,7 @@ const quotas = [
     windows: [{ name: "5 hours", used: 10, resetsAt: later }, { name: "7 days", used: 20, resetsAt: later }] },
   { provider: "zhipu", name: "GLM Coding", icon: "zhipu-color", user: "team@example.com", plan: "Team",
     windows: [{ name: "5 hours", used: 30 }], resets: { count: 1, byWindow: true, fiveHour: 1 } },
-  // a plugin's, its resets told but not spent from queqiao: never sent to Codex's
+  // a plugin's, its resets told but not spent from magpie: never sent to Codex's
   { provider: "codex-plugin", name: "Codex (plugin)", user: "Me@example.com", plan: "Plus",
     windows: [{ name: "7 days", used: 100, resetsAt: later }], resets: { count: 3, until: later } },
 ];

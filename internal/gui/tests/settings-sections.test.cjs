@@ -10,7 +10,7 @@
 // order, the arrows, Home and End move along them); a click or a key on one
 // never scrolls the page; a part's controls still post what they did. The
 // tabs fit — on a line more when they must — in the smallest window (560 x
-// 420) at 100, 110 and 125% text size and in queqiao web on a phone, nothing
+// 420) at 100, 110 and 125% text size and in magpie web on a phone, nothing
 // running off to the side. English and Chinese; no backend, the API is
 // faked here. ARTIFACT_DIR gets a screenshot of each size.
 const assert = require("node:assert/strict");

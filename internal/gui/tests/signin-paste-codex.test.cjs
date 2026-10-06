@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// A ChatGPT sign-in finished from its address (Jorben on Discord: queqiao in
+// A ChatGPT sign-in finished from its address (Jorben on Discord: magpie in
 // Docker on a cloud server, its web UI in his browser; ChatGPT sent the
 // browser back to http://localhost:1455/auth/callback?code=…, his own
 // machine, and the sign-in never finished). While the sign-in waits, the box
@@ -44,11 +44,11 @@ function server(lang, posted) {
 
 const W = {
   en: {
-    say: "If the page the browser ends on won't load (queqiao runs on a server or in Docker), copy its whole address and paste it here.",
+    say: "If the page the browser ends on won't load (magpie runs on a server or in Docker), copy its whole address and paste it here.",
     field: "Callback URL", finish: "Finish sign-in",
   },
   zh: {
-    say: "若浏览器最终停在打不开的页面（queqiao 运行在服务器或 Docker 中），请复制其完整地址粘贴到这里。",
+    say: "若浏览器最终停在打不开的页面（magpie 运行在服务器或 Docker 中），请复制其完整地址粘贴到这里。",
     field: "回调 URL", finish: "完成登录",
   },
 };

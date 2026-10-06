@@ -11,7 +11,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const why = "2 accounts are saved in queqiao, but it isn't signed in here (nothing at /home/me/.claude/.credentials.json), and they are only offered beside the account it is signed in to. Sign in (claude, then /login) with this HOME.";
+const why = "2 accounts are saved in magpie, but it isn't signed in here (nothing at /home/me/.claude/.credentials.json), and they are only offered beside the account it is signed in to. Sign in (claude, then /login) with this HOME.";
 const USERS = ["banned@example.com", "other@example.com"];
 
 function serve(lang, posts) {
@@ -47,13 +47,13 @@ const words = {
   en: {
     line: "Claude Code's saved accounts aren't offered.", remove: "Remove", cancel: "Cancel",
     ask: "Remove Claude Code's 2 saved accounts?",
-    says: "queqiao forgets its copy of banned@example.com, other@example.com. Claude Code's own files and sign-in, and the account itself, are left as they are.",
+    says: "magpie forgets its copy of banned@example.com, other@example.com. Claude Code's own files and sign-in, and the account itself, are left as they are.",
     done: "banned@example.com, other@example.com removed",
   },
   zh: {
     line: "Claude Code 保存的账号没有提供出来。", remove: "移除", cancel: "取消",
     ask: "移除 Claude Code 保存的 2 个账号？",
-    says: "移除 queqiao 保存的 banned@example.com, other@example.com。Claude Code 自己的文件、登录和账号本身均不受影响。",
+    says: "移除 magpie 保存的 banned@example.com, other@example.com。Claude Code 自己的文件、登录和账号本身均不受影响。",
     done: "已移除 banned@example.com, other@example.com",
   },
 };
@@ -92,7 +92,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.keyboard.press("Escape");
       await page.locator("#modal").waitFor({ state: "hidden" });
       assert.deepEqual(posts, []);
-      // Remove forgets each, in queqiao's store only
+      // Remove forgets each, in magpie's store only
       await rm.click();
       await dialog.getByRole("button", { name: w.remove, exact: true }).click();
       await page.locator("#modal").waitFor({ state: "hidden" });

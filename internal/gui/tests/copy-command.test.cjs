@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Copying from a browser tab with no clipboard API (悠悠哥 on Discord: on
-// `queqiao web` on a NAS, opened from another computer over http, the
-// gateway's API key copy did nothing). queqiao can't copy for such a tab
+// `magpie web` on a NAS, opened from another computer over http, the
+// gateway's API key copy did nothing). magpie can't copy for such a tab
 // (/api/copy refuses) and the page, not a secure context, has no
 // navigator.clipboard; the copy command still copies there. English and
 // Chinese, Chromium and WebKit; no backend, the API is faked here.

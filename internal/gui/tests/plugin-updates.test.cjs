@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Plugin updates: a plugin whose update waits for the reader (someone
 // else's, or one pinned) puts a dot on Plugins, which goes once it's
-// updated; a plugin queqiao updated by itself says so on its row. English
+// updated; a plugin magpie updated by itself says so on its row. English
 // and Chinese; the API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");

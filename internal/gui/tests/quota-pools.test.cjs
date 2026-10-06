@@ -20,7 +20,7 @@ const assets = path.resolve(__dirname, "../assets");
 const at = (h) => new Date(Date.now() + h * 36e5).toISOString();
 const model = (name, family, pool, used, h) => ({ name, family, pool, used, resetsAt: at(h) });
 const pool = (pool, name, used, h) => ({ name, pool, used, resetsAt: at(h) });
-// as queqiao reports an Antigravity account with retrieveUserQuotaSummary
+// as magpie reports an Antigravity account with retrieveUserQuotaSummary
 // read: a window a model, then each pool's weekly and 5-hour windows
 const ag = (user, [g5, g7, c5, c7]) => ({
   provider: "antigravity", name: "Antigravity", icon: "antigravity-color", user, plan: "Google AI Pro",

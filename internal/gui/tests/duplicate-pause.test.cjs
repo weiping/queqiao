@@ -2,7 +2,7 @@
 // A provider's editor has Duplicate (#268): the Add form opens on a copy
 // named "{name} copy", and Add posts it as new, with copyOf, its models,
 // headers and balance URL, and no key (the key is the copied provider's,
-// taken by queqiao). A signed-in account has no Duplicate. The account Codex
+// taken by magpie). A signed-in account has no Duplicate. The account Codex
 // is signed in to can be paused while another is on (#263): its tick posts
 // login/off, and paused it is dimmed, says Paused, and its tick posts
 // login/on; with no other on, its tick is fixed. In English and Chinese.
@@ -90,7 +90,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(saved.body.new, true);
       assert.equal(saved.body.copyOf, "relay");
       assert.equal(saved.body.name, w.copy);
-      assert.equal(saved.body.key, "", "the key is left to queqiao to copy");
+      assert.equal(saved.body.key, "", "the key is left to magpie to copy");
       assert.equal(saved.body.chat, relay.chat);
       assert.deepEqual(saved.body.models, ["m1"]);
       assert.equal(saved.body.balanceURL, relay.balanceURL);

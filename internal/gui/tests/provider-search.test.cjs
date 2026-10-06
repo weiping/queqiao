@@ -1,10 +1,10 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // A custom provider's "Searches the web by itself" (#359): a relay in front
-// of Anthropic's or OpenAI's own API, whose web search queqiao can't tell
+// of Anthropic's or OpenAI's own API, whose web search magpie can't tell
 // from its host. The editor has a Web search row with it, opening as it was
 // saved; Save posts it, ticked or not. A relay with only a Chat address has
 // no API to search on: the row comes once an Anthropic one is typed. A
-// signed-in account (Codex here) has no such row: queqiao knows how it
+// signed-in account (Codex here) has no such row: magpie knows how it
 // searches. In English and Chinese.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -96,7 +96,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(saved.body.searches, true);
       const missing = await page.evaluate(() => [
         "Web search", "Searches the web by itself",
-        "For a relay in front of Anthropic's or OpenAI's own API: Claude Code's WebSearch and Codex's web_search go to it as they were sent, not through queqiao's search. queqiao doesn't automatically search with it for other models, but you can name it as the searcher.",
+        "For a relay in front of Anthropic's or OpenAI's own API: Claude Code's WebSearch and Codex's web_search go to it as they were sent, not through magpie's search. magpie doesn't automatically search with it for other models, but you can name it as the searcher.",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
       assert.deepEqual(errors, []);

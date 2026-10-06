@@ -1,8 +1,8 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Share on local network in a container (莫 on Discord: queqiao in Docker on
-// a NAS showed the container's own 172.17.x address): the addresses queqiao
+// Share on local network in a container (莫 on Discord: magpie in Docker on
+// a NAS showed the container's own 172.17.x address): the addresses magpie
 // finds for itself there are the container's, which other devices can't
-// reach. Served over the network (queqiao web), the page offers the host it
+// reach. Served over the network (magpie web), the page offers the host it
 // was opened at, on the gateway's port, and says so; opened at localhost it
 // keeps the container's addresses but says they are the container's own
 // and to set MAGPIE_PUBLIC_URL. Outside a container nothing changes. The
@@ -93,7 +93,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     for (const lang of ["en", "zh"]) {
       const w = words[lang];
       await t.test(lang, async () => {
-        // queqiao web, opened at the NAS's address: the gateway there
+        // magpie web, opened at the NAS's address: the gateway there
         {
           const { page, errors } = await open(lang, "http://192.168.1.20:3430", true, { lanContainer: true });
           assert.equal(await address(page), "http://192.168.1.20:3425/v1");

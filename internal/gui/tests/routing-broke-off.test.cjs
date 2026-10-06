@@ -30,7 +30,7 @@ const answered = (id, i) => ({
   done: true, status: 200, ms: 3000, ttft: 300, tokens: 3000, out: 100,
 });
 const noted = {
-  id: 101, seq: 101, time: at(0), agent: "codex", model: "openai/gpt-6-luna", provider: "openai", error: "Codex titles are off in queqiao's Settings, so queqiao answered it itself",
+  id: 101, seq: 101, time: at(0), agent: "codex", model: "openai/gpt-6-luna", provider: "openai", error: "Codex titles are off in magpie's Settings, so magpie answered it itself",
   order: [key], tries: [{ id: key.id, model: key.model, start: at(0), done: true, status: 200, ms: 5, ttft: 5 }],
   done: true, status: 200, ms: 5, ttft: 5, tokens: 30, out: 20,
 };
@@ -99,7 +99,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
   }
 }
 
-// A 200 whose error is queqiao's own note — Codex's titles turned off in
+// A 200 whose error is magpie's own note — Codex's titles turned off in
 // Settings, a title reply with no title in it — answered: its try has no
 // fail. The rule reads the tries, not the route's error, so the row stays
 // a green dot rather than turning every titled thread's first request red

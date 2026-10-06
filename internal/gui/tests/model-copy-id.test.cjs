@@ -3,7 +3,7 @@
 // 除了测试模型外，还能添加拷贝模型id的功能): in a provider's editor a model
 // chip's right-click menu has "Copy model ID" under "Test this model", which
 // puts that model's id — a prefixed one and one picked by hand alike — on the
-// clipboard through queqiao (/api/copy), says so in the footer, tests nothing,
+// clipboard through magpie (/api/copy), says so in the footer, tests nothing,
 // neither picks nor unpicks the chip and leaves the page where it is. It is
 // there where the model can't be tested too. In English and Chinese,
 // Chromium and WebKit.
@@ -14,7 +14,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-// by-hand/model-x is a pick the vendor's list doesn't have, which queqiao
+// by-hand/model-x is a pick the vendor's list doesn't have, which magpie
 // lists first, as picked
 const IDS = ["by-hand/model-x", "gpt-5.1", "zai/glm-5.3-flash", "cline-free/mimo-v2.6-flash"];
 const relay = {

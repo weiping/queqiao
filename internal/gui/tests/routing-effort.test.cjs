@@ -2,7 +2,7 @@
 // A request's row in the Routing page shows the reasoning its model was
 // sent at, after the level the agent asked for when that was another
 // (xhigh → max), so a level the agent didn't pick reads as the agent's or
-// as queqiao's at a glance (呆滞 on X: Pi 里面选择是 xhigh 但是 queqiao 里面显示的是 max).
+// as magpie's at a glance (呆滞 on X: Pi 里面选择是 xhigh 但是 magpie 里面显示的是 max).
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");

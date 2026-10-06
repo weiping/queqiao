@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// The Plugins tab: Discover lists the plugins queqiao suggests in two
+// The Plugins tab: Discover lists the plugins magpie suggests in two
 // sections; a card installs its plugin, then offers its sign-in, which
 // opens in the Providers add sheet. A search filters at once and adds what
 // npm has. A card opens the plugin's page with its README — no pictures,
@@ -138,7 +138,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.equal(await page.locator('#nav button[data-view="plugins"]').getAttribute("class"), "on");
         assert.match(page.url(), /view=plugins/);
 
-        // Discover: queqiao's community's plugins alone, others' only found by a search
+        // Discover: magpie's community's plugins alone, others' only found by a search
         await view.locator(".pm-sechead h3", { hasText: w.ours }).waitFor();
         assert.equal(await view.locator(".pm-sec").count(), 1);
         assert.equal(await view.locator('.pm-card[data-pkg="opencode-copilot-auth"]').count(), 0);

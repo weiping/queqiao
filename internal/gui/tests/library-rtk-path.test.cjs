@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// #601: an rtk queqiao found off the PATH the agents get (in ~/.local/bin,
+// #601: an rtk magpie found off the PATH the agents get (in ~/.local/bin,
 // which the user's shell doesn't have) was shown as working, while Pi's
 // extension said "RTK disabled: rtk binary not found in PATH". The RTK card
 // now says rtk isn't on PATH and what Put RTK on PATH will do, an agent that

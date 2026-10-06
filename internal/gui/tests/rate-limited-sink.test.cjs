@@ -77,7 +77,7 @@ const words = {
 const KEYS = [
   "Rate limited", "Keeps its place", "Goes to the back", "Rate limited to the back", "rate limited at {time} · at the back",
   "One rate limited while it still has quota rests as long as the vendor asks, then takes its place in the order again.",
-  "One rate limited (429) while it still has quota goes to the back of the order, behind every one not rate limited since, and comes round again once those ahead of it are rate limited in turn — so the load goes round rather than back to the first each time. Out of quota, it rests as usual. Kept until queqiao restarts.",
+  "One rate limited (429) while it still has quota goes to the back of the order, behind every one not rate limited since, and comes round again once those ahead of it are rate limited in turn — so the load goes round rather than back to the first each time. Out of quota, it rests as usual. Kept until magpie restarts.",
   "{who} was rate limited at {time} while it had quota left, so it went to the back: it comes round again once those ahead of it are rate limited in turn.",
 ];
 

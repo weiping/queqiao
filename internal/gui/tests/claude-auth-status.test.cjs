@@ -5,7 +5,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const lapse = "Claude Code could not authenticate this account; sign in again in queqiao";
+const lapse = "Claude Code could not authenticate this account; sign in again in magpie";
 const error = "Failed to authenticate: OAuth session expired and could not be refreshed";
 const at = new Date().toISOString();
 const expired = { id: "claude@expired", provider: "claude", name: "Claude Code", kind: "account", who: "expired@example.com", model: "claude-opus-5-5" };

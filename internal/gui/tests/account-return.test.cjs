@@ -1,10 +1,10 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// #408: queqiao signs Codex in to the next ticked account when the first is
+// #408: magpie signs Codex in to the next ticked account when the first is
 // all but used up, and back to the first once it has room. While it stands
 // in, the account Codex is on says "First for now", and the one it goes back
 // to "First again once it has room", each with a title saying why; with
 // nothing to go back to, the account Codex is on is just "First". The
-// Routing note says queqiao moves back. The page doesn't move. In English and
+// Routing note says magpie moves back. The page doesn't move. In English and
 // Chinese, Chromium and WebKit.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -66,7 +66,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       return { page, errors };
     };
 
-    test(`${engine} ${lang}: the account queqiao moved Codex off says it is first again once it has room`, async (t) => {
+    test(`${engine} ${lang}: the account magpie moved Codex off says it is first again once it has room`, async (t) => {
       const { page, errors } = await open(t, true);
       const top = await page.evaluate(() => document.scrollingElement.scrollTop);
       const spare = page.locator(".editor .acc", { hasText: "spare@example.com" });
@@ -78,9 +78,9 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.match(await page.locator(".editor").textContent(), w.note);
       const missing = await page.evaluate(() => [
         "First for now", "First again once it has room",
-        "{user} was nearly used up, so queqiao signed {agent} in to this one; it goes back to {user} once that has room again",
-        "queqiao signs {agent} back in to this account once it has room again",
-        "Routing picks the account for each request through queqiao; {agent} on its own uses the one it is signed in to, which queqiao moves to the next ticked account with room once it is 98% used, and back to the first once that has room again.",
+        "{user} was nearly used up, so magpie signed {agent} in to this one; it goes back to {user} once that has room again",
+        "magpie signs {agent} back in to this account once it has room again",
+        "Routing picks the account for each request through magpie; {agent} on its own uses the one it is signed in to, which magpie moves to the next ticked account with room once it is 98% used, and back to the first once that has room again.",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
       await work.locator(".using").click();

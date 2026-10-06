@@ -192,7 +192,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
           assert.equal((await p.locator("#ledKpi .blk .k").nth(1).textContent()).trim(), "请求", "the page stays Chinese");
           await rest(p, false, "zh 万/亿");
 
-          // and after a reload, from the settings queqiao keeps
+          // and after a reload, from the settings magpie keeps
           await p.reload();
           await requests();
           await check(p, ".led-trend", false, "zh 万/亿, reloaded");

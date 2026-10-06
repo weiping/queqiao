@@ -2,7 +2,7 @@
 // A move held back by a model the plugin doesn't offer says for which
 // account (and its plan) the built-in serves it, so a reader can tell a
 // model really lost from one their plan never had; a why with no account
-// (an older queqiao's) still reads as before. In English and Chinese; the
+// (an older magpie's) still reads as before. In English and Chinese; the
 // API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");

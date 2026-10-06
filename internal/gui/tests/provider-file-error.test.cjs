@@ -2,7 +2,7 @@
 // A providers.json that is there but can't be read (#415's review) is not
 // an empty list: the Providers page says over the list that the file can't
 // be read, was left unchanged, and is to be fixed or moved aside, with the
-// reason queqiao gives; the Add sheet doesn't open as for a first use, and
+// reason magpie gives; the Add sheet doesn't open as for a first use, and
 // the signed-in accounts still listed stay. A file that reads shows none of
 // it. In English and Chinese, Chromium and WebKit.
 const assert = require("node:assert/strict");

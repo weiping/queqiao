@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// The Gateway page's Connect speaks queqiao's own System One API too (ARNO on
+// The Gateway page's Connect speaks magpie's own System One API too (ARNO on
 // Discord: gateway添加system one api 有想法吗): a System One tab whose
 // snippets POST …/v1/systemone with a decision model, picked from the
 // decision models alone; a click on one in the list switches to it, a click
@@ -93,7 +93,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.match(s, /curl http:\/\/127\.0\.0\.1:3999\/v1\/systemone/);
         assert.match(s, /"model": "cf\/@cf\/typesafe\/jev"/);
         assert.match(s, /"questions"/);
-        assert.match(s, /Authorization: Bearer queqiao/);
+        assert.match(s, /Authorization: Bearer magpie/);
         await connect.locator(".segs").nth(1).locator(".opt", { hasText: "Python" }).click();
         assert.match(await snippet(), /requests\.post\("http:\/\/127\.0\.0\.1:3999\/v1\/systemone"/);
         await connect.locator(".segs").nth(1).locator(".opt", { hasText: "Node" }).click();

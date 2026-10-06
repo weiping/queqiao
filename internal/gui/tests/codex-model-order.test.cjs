@@ -2,7 +2,7 @@
 // Codex's /model in the user's order (M3chD09, #855): its model list's
 // "Order" lists the models shown as Codex does, the account's own first,
 // and a drag or Alt+↑/↓ puts one elsewhere, saved at once; "Default order"
-// puts queqiao's back. The hidden stay out, and nothing scrolls the page.
+// puts magpie's back. The hidden stay out, and nothing scrolls the page.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -10,7 +10,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-// queqiao's first, as the catalog has them; Codex's own after
+// magpie's first, as the catalog has them; Codex's own after
 const models = () => [
   { id: "relay/claude-opus-5.5", name: "claude-opus-5.5", group: "Relay", icon: "anthropic" },
   { id: "relay/claude-sonnet-4-5", name: "claude-sonnet-4-5", group: "Relay", icon: "anthropic" },
@@ -138,7 +138,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await seg.click();
       assert.deepEqual(await names(), ["claude-sonnet-4-5", "gpt-5-codex", "gpt-5.5", "claude-opus-5.5"]);
 
-      // Default order puts queqiao's back
+      // Default order puts magpie's back
       await unorder.click();
       await page.waitForTimeout(150);
       assert.deepEqual(fx.posts.at(-1), []);

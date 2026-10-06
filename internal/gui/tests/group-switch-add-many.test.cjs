@@ -5,7 +5,7 @@
 // - A group of the user's has a switch on its card: off, it posts
 //   groups/switch with on false, the card is dimmed but for the switch and
 //   says "switched off", and the keyboard stays on the switch; on again
-//   posts on true. A group queqiao found has no switch (it is removed).
+//   posts on true. A group magpie found has no switch (it is removed).
 // - The editor's Add a model picker stays open: each model clicked is added
 //   and ticked, clicked again it is taken out; each says the other groups
 //   it is in. Saved, the members are the ones picked, in the order picked.

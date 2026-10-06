@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Settings › About › Download source (#893): updates come from GitHub, or
 // through a mirror typed in (a full https:// address, the same setting as
-// `queqiao update mirror`), and GitHub is one click back. A download that
+// `magpie update mirror`), and GitHub is one click back. A download that
 // failed through the mirror says it's the mirror's and offers GitHub, which
 // takes the mirror away and downloads again. No click moves the page,
 // nothing is a native select, no left border. English and Chinese; no

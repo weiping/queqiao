@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Cursor Private Inference's own model picker lists queqiao's /v1/models as
+// Cursor Private Inference's own model picker lists magpie's /v1/models as
 // its key is shown them (mamba on Discord: connected through its
-// environment variables, its models couldn't be picked in queqiao): its
+// environment variables, its models couldn't be picked in magpie): its
 // connected row picks which models that picker lists, several at once, as
 // Claude Desktop's does, beside the square copying its launch command. In
 // the window the button beside its switch names them and opens the model
@@ -15,7 +15,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const LAUNCH = "CURSOR_LOCAL_AGENT_BASE_URL=http://127.0.0.1:3425/v1 CURSOR_LOCAL_AGENT_API_KEY=queqiao-cursor-local '/Applications/Cursor.app/Contents/MacOS/Cursor'";
+const LAUNCH = "CURSOR_LOCAL_AGENT_BASE_URL=http://127.0.0.1:3425/v1 CURSOR_LOCAL_AGENT_API_KEY=magpie-cursor-local '/Applications/Cursor.app/Contents/MacOS/Cursor'";
 
 function fixture(lang) {
   const list = [

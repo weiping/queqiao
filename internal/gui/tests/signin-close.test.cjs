@@ -4,7 +4,7 @@
 // 无论我点击底部的移除、取消、保存都没办法 — 希望在"重新打开"按钮旁边再添加一个"关闭"按钮).
 // In Qoder's editor, Add another account → Sign in anyway waits on the
 // browser with Qoder's long device link. The box's Cancel stays inside the
-// account list, the link never pushing it out of sight: it tells queqiao to
+// account list, the link never pushing it out of sight: it tells magpie to
 // drop the sign-in (signin/<id>/cancel), stops asking after it, and the Add
 // another row is back. It is the one button that does so: a Close beside
 // Open again did the same (mintonight, on #526: 取消和关闭功能不是重复了吗，
@@ -129,7 +129,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.locator(".editor .accts .acc.add", { hasText: w.add }).waitFor();
       assert.equal(await page.locator(".editor .accts .signing").count(), 0, "the box is gone");
       for (let i = 0; i < 40 && !ctl.canceled.length; i++) await page.waitForTimeout(25);
-      assert.deepEqual(ctl.canceled, ["q1"], "queqiao is told to drop it");
+      assert.deepEqual(ctl.canceled, ["q1"], "magpie is told to drop it");
       assert.deepEqual(await scrolls(), before, "the click moved the page");
       // no more asking after it
       const polled = ctl.polled.length;

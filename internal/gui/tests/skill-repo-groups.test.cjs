@@ -2,7 +2,7 @@
 // A repository's skills are one group however each came in (White Immortal
 // on Discord: the skills of github.com/mattpocock/skills together). One
 // installed from GitHub, one the skills CLI installed and one linked from a
-// clone, each with the repository queqiao traced (repo), are one group, its
+// clone, each with the repository magpie traced (repo), are one group, its
 // name's case aside; one from a git host other than GitHub is a group
 // opened at that host; the rest are On this computer. English and Chinese;
 // the API is faked here.

@@ -1,13 +1,13 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Settings' Web search section: which provider searches for a model that
-// can't (01huadalang on Discord). The row shows queqiao's own pick while none
+// can't (01huadalang on Discord). The row shows magpie's own pick while none
 // is named; the picker offers Automatic, each provider that can search by
 // its small model, and each of its models, including a relay said to search;
 // a pick is saved as searcher ("<provider>" or "<provider>/<model>") and shown;
 // a provider's small model is offered once, not again among its models, and
 // one saved by name is ticked as it (Player on Discord); no "via magpie" tag,
 // as no agent asks for these;
-// one named that queqiao can't use (turned off) is said in the row, queqiao's pick shown instead;
+// one named that magpie can't use (turned off) is said in the row, magpie's pick shown instead;
 // relays said to search are manual-only, including during fallback; a Kimi Code plan, which
 // searches by its web search with no model, is offered by itself and said to search for its
 // own models first. Another setting saved
@@ -48,7 +48,7 @@ const words = {
 };
 const helpWords = {
   en: {
-    help: "When a model can't search the web directly, the selected provider searches for it and returns the results. Searches may use the service's quota or incur charges; if a search fails, queqiao tries other available sources.",
+    help: "When a model can't search the web directly, the selected provider searches for it and returns the results. Searches may use the service's quota or incur charges; if a search fails, magpie tries other available sources.",
     relays: "These relays must be selected manually and are not used for automatic selection or fallback: MyRelay.",
     left: "These providers can't be selected to search for other models with the current configuration: MiniMax, Kimi For Coding. Their models can still get search results through other available search providers or configured search APIs.",
   },
@@ -58,12 +58,12 @@ const helpWords = {
     left: "以下供应商在当前配置下不可选为代搜供应商：MiniMax, Kimi For Coding。它们的模型仍可通过其他可用的代搜供应商或已配置的搜索 API 获取搜索结果。",
   },
   ja: {
-    help: "モデルが直接ウェブ検索できない場合、選択したプロバイダが代わりに検索し、結果を返します。検索にはサービスの利用枠を消費したり、料金が発生したりする場合があります。検索に失敗すると、queqiao は他の利用可能な検索元を試します。",
+    help: "モデルが直接ウェブ検索できない場合、選択したプロバイダが代わりに検索し、結果を返します。検索にはサービスの利用枠を消費したり、料金が発生したりする場合があります。検索に失敗すると、magpie は他の利用可能な検索元を試します。",
     relays: "次の中継サービスは手動で選択する必要があり、自動選択や自動フォールバックの対象にはなりません：MyRelay。",
     left: "次のプロバイダは現在の設定では他のモデルの検索用に選択できません：MiniMax, Kimi For Coding。これらのモデルも、他の利用可能な検索用プロバイダや設定済みの検索 API を通じて検索結果を取得できます。",
   },
   de: {
-    help: "Wenn ein Modell nicht direkt im Web suchen kann, übernimmt der ausgewählte Anbieter die Suche und liefert die Ergebnisse. Suchen können das Kontingent des Dienstes verbrauchen oder Kosten verursachen. Schlägt eine Suche fehl, versucht queqiao andere verfügbare Quellen.",
+    help: "Wenn ein Modell nicht direkt im Web suchen kann, übernimmt der ausgewählte Anbieter die Suche und liefert die Ergebnisse. Suchen können das Kontingent des Dienstes verbrauchen oder Kosten verursachen. Schlägt eine Suche fehl, versucht magpie andere verfügbare Quellen.",
     relays: "Diese Relays müssen manuell ausgewählt werden und werden weder automatisch noch als Fallback gewählt: MyRelay.",
     left: "Diese Anbieter können mit der aktuellen Konfiguration nicht für die Suche anderer Modelle ausgewählt werden: MiniMax, Kimi For Coding. Ihre Modelle können weiterhin über andere verfügbare Suchanbieter oder konfigurierte Such-APIs Suchergebnisse erhalten.",
   },
@@ -213,7 +213,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(posted.length, n + 1);
       assert.equal(posted.at(-1).searcher, "openai", "another setting saved sends the pick as it was");
 
-      // the one named turned off: said, and queqiao's pick shown
+      // the one named turned off: said, and magpie's pick shown
       st.unused = "off";
       await page.evaluate(() => renderSettings && fetch("/api/settings").then((r) => r.json()).then((s) => { prefs = s; state.settings = s; renderSettings(); }));
       await page.waitForFunction(() => document.querySelector("#searchList .searcher-unused"));

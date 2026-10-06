@@ -90,7 +90,7 @@ function serve(lang, posts, use = usage, alone = false) {
 
 const words = {
   en: { direct: "At its cap · Codex still uses it", directWhy: /refused with a usage-cap error until it renews.*\nCodex is signed in to this account and asks its vendor itself, not through magpie/s, opus: "Opus week at its cap · back in 3h", opusWhy: /^Opus week is at 90%, past this account's 70% cap, so magpie sends the requests it counts to the other accounts until it renews; other models still use this account/, none: "No cap", cap: (n) => `Cap ${n}%`, held: "At its cap · back in 3h", other: "Other…", menu: "Usage cap" },
-  zh: { direct: "已达上限 · Codex 仍在使用", directWhy: /经 queqiao 的请求会返回.*\nCodex 登录此账号并直接向厂商发请求/s, opus: "Opus week已达上限 · 3 小时后恢复", opusWhy: /^Opus week已用 90%，超过该账号的 70% 上限.*其他模型仍用此账号/, none: "不设上限", cap: (n) => `上限 ${n}%`, held: "已达上限 · 3 小时后恢复", other: "其他…", menu: "用量上限" },
+  zh: { direct: "已达上限 · Codex 仍在使用", directWhy: /经 magpie 的请求会返回.*\nCodex 登录此账号并直接向厂商发请求/s, opus: "Opus week已达上限 · 3 小时后恢复", opusWhy: /^Opus week已用 90%，超过该账号的 70% 上限.*其他模型仍用此账号/, none: "不设上限", cap: (n) => `上限 ${n}%`, held: "已达上限 · 3 小时后恢复", other: "其他…", menu: "用量上限" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
@@ -186,10 +186,10 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const missing = await page.evaluate(() => [
         "No cap", "Cap {n}%", "Usage cap", "Usage cap {n}%", "Usage cap, in percent", "Use each window to 100%", "Other…",
         "A share of your own, 1–99%", "A cap is a share from 1% to 99%", "At its cap", "At its cap · back {in}",
-        "A usage window is at {n}%, past this account's {cap}% cap, so queqiao counts it as used up and sends requests to the other accounts until that window renews",
+        "A usage window is at {n}%, past this account's {cap}% cap, so magpie counts it as used up and sends requests to the other accounts until that window renews",
         "With no other account on, requests are refused with a usage-cap error until then",
-        "Used to {n}% of each usage window at most; past it, queqiao counts this account as used up until the window renews. Click to change",
-        "Used to 100% of its usage windows. Click to cap it at a share of each, so queqiao goes on to the other accounts past it",
+        "Used to {n}% of each usage window at most; past it, magpie counts this account as used up until the window renews. Click to change",
+        "Used to 100% of its usage windows. Click to cap it at a share of each, so magpie goes on to the other accounts past it",
         "{who} is used to {n}% of each window at most", "{who} has no usage cap",
         "held at its {cap}% usage cap",
         "{who} is left out: a usage window is at {n}, past the {cap}% cap set on the account, so it counts as used up until that window renews.",
@@ -201,7 +201,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     // 𝕏 on Discord: a Claude account capped at 90% ran its five hours to
     // 100%, while its row said it was at its cap. Claude Code or Codex
     // signed in to it asks the vendor itself; with no other account on to
-    // move it to, the cap stops only what goes through queqiao, and the row
+    // move it to, the cap stops only what goes through magpie, and the row
     // says so, as the pill does before the cap is reached
     test(`${engine} ${lang}: the only account on, at its cap, says the agent signed in to it still uses it`, async (t) => {
       const { page, errors } = await open(t, "alone", usage, true);
@@ -214,7 +214,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await row(page, "Spare@Example.com").locator(".acap-held").count(), 0);
       const missing = await page.evaluate(() => [
         "At its cap · {agent} still uses it",
-        "A usage window is at {n}%, past this account's {cap}% cap: requests through queqiao are refused with a usage-cap error until it renews",
+        "A usage window is at {n}%, past this account's {cap}% cap: requests through magpie are refused with a usage-cap error until it renews",
         "{agent} is signed in to this account and asks its vendor itself, not through magpie, so with no other account on to move it to, {agent} goes on using it past the cap. Add another account, or pick {agent}'s models via magpie, for the cap to hold it",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
@@ -234,7 +234,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.match(await note.getAttribute("title"), w.opusWhy);
       const missing = await page.evaluate(() => [
         "{names} at its cap", "{names} at its cap · back {in}",
-        "{names} is at {n}%, past this account's {cap}% cap, so queqiao sends the requests it counts to the other accounts until it renews; other models still use this account",
+        "{names} is at {n}%, past this account's {cap}% cap, so magpie sends the requests it counts to the other accounts until it renews; other models still use this account",
         "With no other account on, those requests are refused with a usage-cap error until then",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");

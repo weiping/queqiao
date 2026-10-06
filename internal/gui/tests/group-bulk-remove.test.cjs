@@ -143,7 +143,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await at(), before, "no click moved the page");
 
       const missing = await page.evaluate(() => [
-        "1 found group removed", "{n} found groups removed", "queqiao doesn't make them again. Click to bring one back.",
+        "1 found group removed", "{n} found groups removed", "magpie doesn't make them again. Click to bring one back.",
         "Pick several groups to remove together", "Select every group", "Pick the groups to remove", "These routing groups will no longer be available to agents.", "{n} groups removed",
         "Select", "Done", "{n} selected", "Bring it back",
       ].filter((k) => !I18N.zh[k] || !I18N.ja[k] || !I18N.de[k]));

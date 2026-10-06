@@ -1,11 +1,11 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// The owner: an agent is connected to queqiao with a switch, and its models
-// are picked in the agent itself. An agent queqiao has models for gets a
-// switch, off while queqiao isn't in its config, saying so under its name;
+// The owner: an agent is connected to magpie with a switch, and its models
+// are picked in the agent itself. An agent magpie has models for gets a
+// switch, off while magpie isn't in its config, saying so under its name;
 // switching it on posts agents/connect and the row says where in the agent
-// queqiao's models are picked (Codex's /model). Switching it off asks first
+// magpie's models are picked (Codex's /model). Switching it off asks first
 // in the app's own dialog and posts agents/disconnect. An agent with none of
-// queqiao's models (Cursor) has no switch. No click moves the page. In
+// magpie's models (Cursor) has no switch. No click moves the page. In
 // English and Chinese; no backend, the API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -54,15 +54,15 @@ function server(lang, posts) {
 }
 
 const words = {
-  en: { off: "Not connected · Codex uses its own settings", on: "Connected · pick queqiao's models with /model in Codex", go: "Disconnect", done: /Codex is connected to queqiao/ },
-  zh: { off: "未接入 · 用 Codex 自己的设置", on: "已接入 · 在 Codex 里用 /model 选 queqiao 的模型", go: "断开", done: /Codex 已接入 queqiao/ },
+  en: { off: "Not connected · Codex uses its own settings", on: "Connected · pick magpie's models with /model in Codex", go: "Disconnect", done: /Codex is connected to magpie/ },
+  zh: { off: "未接入 · 用 Codex 自己的设置", on: "已接入 · 在 Codex 里用 /model 选 magpie 的模型", go: "断开", done: /Codex 已接入 magpie/ },
 };
 const row = (id) => `.row.agent[data-id="${id}"]`;
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   for (const lang of ["en", "zh"]) {
     const w = words[lang];
-    test(`${engine} ${lang}: an agent's switch connects it to queqiao and back`, async (t) => {
+    test(`${engine} ${lang}: an agent's switch connects it to magpie and back`, async (t) => {
       const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
       t.after(() => browser.close());
       const page = await (await browser.newContext({ viewport: { width: 980, height: 520 }, reducedMotion: "reduce" })).newPage();
@@ -75,12 +75,12 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.locator(`${row("codex")} .ag-conn`).waitFor();
       const missing = await page.evaluate(() => [
         "Not connected · {agent} uses its own settings",
-        "Connected · pick queqiao's models with {cmd} in {agent}",
-        "Connected · queqiao's models are in {agent}'s model list",
-        "Connect {agent} to queqiao",
-        "Connected · switch off to put back what {agent} had before queqiao",
-        "Switch on and {agent}'s model list gets queqiao's models",
-        "{agent} is connected to queqiao",
+        "Connected · pick magpie's models with {cmd} in {agent}",
+        "Connected · magpie's models are in {agent}'s model list",
+        "Connect {agent} to magpie",
+        "Connected · switch off to put back what {agent} had before magpie",
+        "Switch on and {agent}'s model list gets magpie's models",
+        "{agent} is connected to magpie",
       ].filter((k) => !I18N.zh[k]));
       assert.deepEqual(missing, [], "every string has its Chinese");
       const tops = () => page.evaluate(() => [document.scrollingElement.scrollTop, document.querySelector("#view-agents")?.scrollTop]);
@@ -88,7 +88,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const sw = () => page.locator(`${row("codex")} .ag-conn`);
       const said = () => page.locator(`${row("codex")} .ag-st`).textContent();
 
-      assert.equal(await page.locator(`${row("cursor")} .ag-conn`).count(), 0, "nothing of queqiao's to connect it to");
+      assert.equal(await page.locator(`${row("cursor")} .ag-conn`).count(), 0, "nothing of magpie's to connect it to");
       assert.equal(await sw().getAttribute("role"), "switch");
       assert.equal(await sw().getAttribute("aria-checked"), "false");
       assert.equal(await said(), w.off);

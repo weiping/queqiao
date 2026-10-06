@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // The Currency setting (#212): the Usage page's cost shows in dollars by
-// default and in yuan, at queqiao's cached exchange rate, once cny is
+// default and in yuan, at magpie's cached exchange rate, once cny is
 // chosen on the Settings page — a click on the segmented control never
 // scrolls the page, and the rate used sits in the row's tooltip. English
 // and Chinese; no backend, the API is faked here.

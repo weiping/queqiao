@@ -28,7 +28,7 @@ for (const engine of ['chromium', 'webkit']) {
         if (p === '/boot.js') return route.fulfill({ contentType: 'text/javascript', body: `window.bootPrefs=${JSON.stringify({ lang, theme: 'light', web: true })}` });
         if (p === '/api/state') return route.fulfill({ json: state() });
         if (p === '/api/agents/connect/aside') { a.wired = true; a.native.provider = 'connected'; return route.fulfill({ json: { ...state(), connected: { how: 'joined' } } }); }
-        if (p === '/api/agents/preview/aside') return route.fulfill({ json: { revision: "provider-plan", changes: [{ path: '~/.aside/u/0/models.json', lines: [{ op: '-', text: 'providers.queqiao' }] }] } });
+        if (p === '/api/agents/preview/aside') return route.fulfill({ json: { revision: "provider-plan", changes: [{ path: '~/.aside/u/0/models.json', lines: [{ op: '-', text: 'providers.magpie' }] }] } });
         if (p === '/api/agents/disconnect/aside') { a.wired = false; a.native.provider = 'disconnected'; return route.fulfill({ json: state() }); }
         if (p === '/api/providers') return route.fulfill({ json: { providers: [], presets: [], gateway: { running: true } } });
         if (p === '/api/groups') return route.fulfill({ json: { groups: [] } });

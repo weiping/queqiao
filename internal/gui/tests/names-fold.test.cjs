@@ -2,7 +2,7 @@
 // Hu9956, #868: once Names & levels was open (to set Provider in model
 // names), it couldn't be closed — the only way was the button under the
 // list, out of sight — and it stayed open in every editor after, until
-// queqiao was restarted. Now the open list has its own quiet title and a
+// magpie was restarted. Now the open list has its own quiet title and a
 // Fold at its top, held there while the rows scroll; a click there folds it
 // and the button under the list reads as off again; and an editor opened
 // afresh has it folded. No click moves the page, nothing native, no

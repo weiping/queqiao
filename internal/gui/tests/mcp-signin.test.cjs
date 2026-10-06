@@ -1,5 +1,5 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// #615: a remote MCP server is signed in to once, in queqiao. Its editor has
+// #615: a remote MCP server is signed in to once, in magpie. Its editor has
 // a Sign in that follows the sign-in to the end, the row then says Signed
 // in, and Sign out puts it back; a server run as a command has none. In
 // English and Chinese, and no click moves the page. No backend: the API is
@@ -77,8 +77,8 @@ function server(lang, calls) {
 }
 
 const words = {
-  en: { signIn: "Sign in", signOut: "Sign out", signed: "Signed in", label: "Sign-in", done: "Signed in to neon — the agents given it use queqiao's sign-in", out: "Signed out of neon — the agents are given the server's own address again", exaDone: "Signed in to exa — the agents given it use queqiao's sign-in", noSignIn: "already works without signing in" },
-  zh: { signIn: "登录", signOut: "退出登录", signed: "已登录", label: "登录", done: "已登录 neon，分配到它的 agent 共用 queqiao 的登录", out: "已退出 neon，agent 改回使用服务器自身的地址", exaDone: "已登录 exa，分配到它的 agent 共用 queqiao 的登录", noSignIn: "无需登录即可使用" },
+  en: { signIn: "Sign in", signOut: "Sign out", signed: "Signed in", label: "Sign-in", done: "Signed in to neon — the agents given it use magpie's sign-in", out: "Signed out of neon — the agents are given the server's own address again", exaDone: "Signed in to exa — the agents given it use magpie's sign-in", noSignIn: "already works without signing in" },
+  zh: { signIn: "登录", signOut: "退出登录", signed: "已登录", label: "登录", done: "已登录 neon，分配到它的 agent 共用 magpie 的登录", out: "已退出 neon，agent 改回使用服务器自身的地址", exaDone: "已登录 exa，分配到它的 agent 共用 magpie 的登录", noSignIn: "无需登录即可使用" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {

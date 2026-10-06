@@ -57,13 +57,13 @@ function serve(lang, posts) {
 
 const words = {
   en: {
-    auto: "Sync by itself", every3: "Every 3 minutes while queqiao runs", off: "Off", offSub: "Off: only Sync now syncs",
+    auto: "Sync by itself", every3: "Every 3 minutes while magpie runs", off: "Off", offSub: "Off: only Sync now syncs",
     asked: " · only when asked", restoreRow: "Restore from the server", restore: "Restore…", ask: "Restore from the server?",
     kept: "What is here now is sealed into the sync folder first, and Undo puts it back.", go: "Restore setup", cancel: "Cancel",
     restored: "Restored from the server: providers, settings", undo: "Undo",
   },
   zh: {
-    auto: "自动同步", every3: "queqiao 运行时每 3 分钟同步一次", off: "关闭", offSub: "已关闭，仅在点「立即同步」时同步",
+    auto: "自动同步", every3: "magpie 运行时每 3 分钟同步一次", off: "关闭", offSub: "已关闭，仅在点「立即同步」时同步",
     asked: " · 仅手动", restoreRow: "从服务器恢复", restore: "恢复…", ask: "从服务器恢复？",
     kept: "当前配置会先加密备份到 sync 文件夹，可点「撤销」换回。", go: "恢复配置", cancel: "取消",
     restored: "已从服务器恢复：", undo: "撤销",

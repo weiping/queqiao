@@ -32,7 +32,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         const roleText = { executor: "执行模型", planner: "规划模型" };
         const labelText = (l) => (lang === "zh" ? roleText[l] : l);
         const posts = [];
-        const state = () => ({ agents: [{ id: "reasonix", name: "Reasonix Studio", icon: "reasonix-color", path: "/fixture/config.toml", wired: fields.some((f) => f.value.startsWith("queqiao/")), fields }], profiles: [], settings: { lang, theme: "light" } });
+        const state = () => ({ agents: [{ id: "reasonix", name: "Reasonix Studio", icon: "reasonix-color", path: "/fixture/config.toml", wired: fields.some((f) => f.value.startsWith("magpie/")), fields }], profiles: [], settings: { lang, theme: "light" } });
         await page.addInitScript(() => localStorage.setItem("magpie.modelFavorites", '["a/pro"]'));
         await page.route("**/*", async (route) => {
           const url = new URL(route.request().url());
@@ -75,7 +75,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await open();
         if (mode === "window") {
           // Not connected, the row says what the agent is on, its Default or
-          // its own model, and lists its own models with queqiao's as when
+          // its own model, and lists its own models with magpie's as when
           // connected; it does not read "Pick a model" (EZN7L2C3, #834).
           // The Executor is the model field here and is named "executor".
           const def = lang === "zh" ? "默认" : "default";
@@ -136,7 +136,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await defaults(first.key);
         await page.waitForFunction((key) => document.querySelector(`.agent[data-id="reasonix"] .field[data-key="${key}"]`)?.textContent.includes("Native Old"), first.key);
         assert.deepEqual(posts, [{ agent: "reasonix", field: first.key, value: "" }]);
-        assert.equal(await page.locator(".leave-ask").count(), 0, "the other role still uses queqiao");
+        assert.equal(await page.locator(".leave-ask").count(), 0, "the other role still uses magpie");
         assert.equal(last.value, remaining);
         await defaults(last.key);
         const ask = page.locator(".leave-ask");

@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// Another computer's queqiao is added from the Relays with its address and
-// key alone: the Remote queqiao editor asks for the address above the key,
-// with a hint on where the other queqiao shows it and that each request
+// Another computer's magpie is added from the Relays with its address and
+// key alone: the Remote magpie editor asks for the address above the key,
+// with a hint on where the other magpie shows it and that each request
 // goes on in the API the agent spoke. Adding without one says so in its
 // own words and sends nothing; with one, the address goes as the preset's
 // endpoint, however it was typed (the backend puts every API on it).
@@ -18,9 +18,9 @@ const assets = path.resolve(__dirname, "../assets");
 const presets = [
   { id: "openai", name: "OpenAI", icon: "openai", kind: "vendor", chat: "https://api.openai.com/v1", added: false },
   { id: "remote-magpie", name: "Remote magpie", icon: "magpie", kind: "relay", added: false,
-    note: "another computer's queqiao, shared on its network", endpoint: "http://192.168.1.20:3425",
-    endpointHint: "The address and API key the other computer's queqiao shows in Settings, under Share on local network. Its models and routing groups are listed here; each request goes on in the API the agent spoke.",
-    endpointNeeded: "The other queqiao's address is needed" },
+    note: "another computer's magpie, shared on its network", endpoint: "http://192.168.1.20:3425",
+    endpointHint: "The address and API key the other computer's magpie shows in Settings, under Share on local network. Its models and routing groups are listed here; each request goes on in the API the agent spoke.",
+    endpointNeeded: "The other magpie's address is needed" },
 ];
 const providers = [{ id: "openrouter", name: "OpenRouter", icon: "openai", preset: "openrouter", models: [], agents: [], key: { set: true, masked: "sk-…ab12" } }];
 
@@ -47,12 +47,12 @@ function server(lang, saves) {
 }
 
 const L = {
-  en: { field: "Endpoint", hint: /Share on local network.*the API the agent spoke/, needed: "The other queqiao's address is needed", note: "another computer's queqiao, shared on its network", add: "Add" },
-  zh: { field: "终结点", hint: /设置 → 局域网共享.*原样转发/, needed: "需要填写另一台 queqiao 的地址", note: "另一台电脑上的 queqiao，局域网共享", add: "添加" },
+  en: { field: "Endpoint", hint: /Share on local network.*the API the agent spoke/, needed: "The other magpie's address is needed", note: "another computer's magpie, shared on its network", add: "Add" },
+  zh: { field: "终结点", hint: /设置 → 局域网共享.*原样转发/, needed: "需要填写另一台 magpie 的地址", note: "另一台电脑上的 magpie，局域网共享", add: "添加" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
-  test(engine + ": Remote queqiao asks for the other queqiao's address", async (t) => {
+  test(engine + ": Remote magpie asks for the other magpie's address", async (t) => {
     assert(["chromium", "webkit"].includes(engine), "BROWSER must be chromium or webkit");
     const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
     t.after(() => browser.close());
@@ -67,11 +67,11 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.goto("http://magpie.test/?view=providers");
         await page.locator("#addProvider").click();
         const sheet = page.locator("#addSheet");
-        const tile = sheet.locator(".tile", { has: page.locator(".n", { hasText: /^Remote queqiao$/ }) });
+        const tile = sheet.locator(".tile", { has: page.locator(".n", { hasText: /^Remote magpie$/ }) });
         assert.equal(await tile.getAttribute("title"), w.note);
         await tile.click();
         const ed = page.locator(".editor.new");
-        await ed.locator(".ehead b", { hasText: "Remote queqiao" }).waitFor();
+        await ed.locator(".ehead b", { hasText: "Remote magpie" }).waitFor();
 
         // the field, above the key, focused first; the OpenAI preset has none
         const label = ed.locator("label", { hasText: new RegExp("^" + w.field + "$") });

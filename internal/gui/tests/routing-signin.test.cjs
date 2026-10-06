@@ -1,7 +1,7 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Smart routing and the account Claude Code (or Codex) is signed in to are
 // two things (#209): the Routing field of a Claude subscription with two
-// accounts on says the routing picks for what comes through queqiao, and
+// accounts on says the routing picks for what comes through magpie, and
 // that the sign-in moves on to the next ticked account once it is 98%
 // used; in English and Chinese.
 const assert = require("node:assert/strict");
@@ -39,7 +39,7 @@ function serve(lang) {
 }
 
 const want = {
-  en: /Claude Code on its own uses the one it is signed in to, which queqiao moves to the next ticked account with room once it is 98% used/,
+  en: /Claude Code on its own uses the one it is signed in to, which magpie moves to the next ticked account with room once it is 98% used/,
   zh: /Claude Code 直连时用它登录的账号，该账号用到 98% 时/,
 };
 

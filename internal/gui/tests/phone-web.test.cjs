@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
-// queqiao web on a phone (jiakun_zhao on X: 移动端的显示效果非常不友好，甚至滚动
-//会抽搐). The header is two rows, the queqiao and the icons over the tabs at
+// magpie web on a phone (jiakun_zhao on X: 移动端的显示效果非常不友好，甚至滚动
+//会抽搐). The header is two rows, the magpie and the icons over the tabs at
 // their size, sliding sideways, the one open in sight; a setting's control
 // too wide beside its name goes under it rather than cut the name; iOS isn't
 // let zoom into a field it focuses. And a flick's scroll, which goes on
@@ -84,14 +84,14 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     }
   });
 
-  test(`${engine}: queqiao web on a phone`, async (t) => {
+  test(`${engine}: magpie web on a phone`, async (t) => {
     const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
     t.after(() => browser.close());
 
     // the header: two rows, the tabs at their size, the one open in sight
     let page = await open(browser, phone, true, "plugins");
     const [top, nav, actions, brand] = [await box(page, ".top"), await box(page, "#nav"), await box(page, ".top .actions"), await box(page, ".top .brand")];
-    assert.ok(nav.y >= actions.y + actions.height - 1 && nav.y >= brand.y + brand.height - 1, "the tabs are under the queqiao and the icons");
+    assert.ok(nav.y >= actions.y + actions.height - 1 && nav.y >= brand.y + brand.height - 1, "the tabs are under the magpie and the icons");
     assert.ok(nav.width >= top.width - 30, `the tabs take the row: ${nav.width} of ${top.width}`);
     const tab = await page.locator("#nav button").first().evaluate((b) => [parseFloat(getComputedStyle(b).fontSize), b.getBoundingClientRect().height]);
     assert.ok(tab[0] >= 13 && tab[1] >= 30, `a tab is readable and tappable: ${tab}`);
@@ -116,7 +116,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const v = document.querySelector("#view-settings");
       v.append(Object.assign(document.createElement("div"), { style: "height:3000px;flex:none" }));
       const frame = () => new Promise((r) => requestAnimationFrame(r));
-      // queqiao reads only that a touch happened (WebKit makes no Touch here)
+      // magpie reads only that a touch happened (WebKit makes no Touch here)
       const touch = (type) => v.dispatchEvent(new Event(type, { bubbles: true }));
       touch("touchstart");
       for (let i = 1; i <= 5; i++) { touch("touchmove"); v.scrollTop += 20; await frame(); }

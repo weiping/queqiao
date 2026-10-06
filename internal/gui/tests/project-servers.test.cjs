@@ -121,14 +121,14 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.waitForFunction((s) => document.querySelector("#status").textContent.trim() === s, w.on);
         assert.deepEqual(posts, [{ dir: DIR, name: "fs", agents: ["claude"] }, { dir: DIR, name: "fs", agents: ["claude", "codex"] }]);
 
-        // two clicks before queqiao answers the first: the second counts
+        // two clicks before magpie answers the first: the second counts
         // from the first, and the last wins
         const at = async (id) => { const b = await card.locator('.lib-projserver').first().locator(`.lib-ag[data-agent="${id}"]`).boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
         // the chips fan out under the pointer: they're measured fanned
         await page.mouse.move(...(await at("claude")));
         await page.waitForTimeout(350);
         const [cl, cx] = [await at("claude"), await at("codex")];
-        // queqiao holds its answer to the first till the second is in
+        // magpie holds its answer to the first till the second is in
         let answer;
         posts.hold = new Promise((r) => { answer = r; });
         const n = posts.length;

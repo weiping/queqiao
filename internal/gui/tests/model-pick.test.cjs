@@ -16,7 +16,7 @@ const assets = path.resolve(__dirname, "../assets");
 const SLOW = 2500;
 const models = ["claude-sonnet-5-5", "claude-opus-5-5", "magpie/deepseek/pro", "magpie/kimi/k3"].map((m) => ({ value: m, ref: m.replace(/^magpie\//, ""), label: "Label " + m }));
 const agent = (id, name) => ({
-  id, name, path: "/test/" + id, wired: true, // on queqiao models (#726: a connected one is in view)
+  id, name, path: "/test/" + id, wired: true, // on magpie models (#726: a connected one is in view)
   fields: [{ key: "model", label: "model", value: "claude-sonnet-5-5", options: models }],
 });
 const fresh = () => ({
@@ -110,7 +110,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         // the answer, drawn, keeps it
         await page.waitForTimeout(SLOW + 300);
         assert.equal(await field.locator(".v").textContent(), "Label magpie/deepseek/pro");
-        assert.match(await page.locator("#status").textContent(), /Claude Code .*Label queqiao\/deepseek\/pro/);
+        assert.match(await page.locator("#status").textContent(), /Claude Code .*Label magpie\/deepseek\/pro/);
         assert.equal(await view.evaluate((v) => v.scrollTop), top, "the answer moved the page");
       });
     }
