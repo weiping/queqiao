@@ -327,6 +327,9 @@ var (
 	// thinks are the models, by bare id, most of the providers serving
 	// them say reason, levels or not
 	thinks map[string]bool
+	// names are the models' names, by bare id, as most of the providers
+	// serving them give it
+	names map[string]string
 
 	syncMu sync.Mutex
 )
@@ -364,6 +367,7 @@ func load() map[string]mdProvider {
 				if json.Unmarshal(b, &m) == nil && len(m) > 0 {
 					mdev = m
 					votes, reasons := map[string]int{}, map[string]int{}
+					named := map[string]map[string]int{}
 					sizes, outs := map[string]map[int]int{}, map[string]map[int]int{}
 					levels := map[string]map[string]int{}
 					// one vote a provider for each list it gives a model: a
@@ -374,6 +378,12 @@ func load() map[string]mdProvider {
 					for pid, p := range m {
 						for id, x := range p.Models {
 							OneHourFor(id, x.Cost)
+							if x.Name != "" && x.Name != id && x.Name != bareID(id) {
+								if named[bareID(id)] == nil {
+									named[bareID(id)] = map[string]int{}
+								}
+								named[bareID(id)][x.Name]++
+							}
 							if e := x.efforts(); len(e) > 0 {
 								l := strings.Join(e, ",")
 								if levels[bareID(id)] == nil {
@@ -420,6 +430,10 @@ func load() map[string]mdProvider {
 					for id, by := range levels {
 						efforts[id] = strings.Split(mostListed(by), ",")
 					}
+					names = map[string]string{}
+					for id, by := range named {
+						names[id] = mostNamed(by)
+					}
 					thinks = map[string]bool{}
 					for id, v := range reasons {
 						if v > 0 {
@@ -445,7 +459,7 @@ func Reset() {
 	loadMu.Lock()
 	defer loadMu.Unlock()
 	loaded = false
-	mdev, images, windows, outputs, efforts, thinks = nil, nil, nil, nil, nil, nil
+	mdev, images, windows, outputs, efforts, thinks, names = nil, nil, nil, nil, nil, nil, nil
 }
 
 // Sync downloads the models.dev catalog into CachePath. It serializes with
@@ -622,6 +636,32 @@ func Thinks(id string) bool {
 	return thinks[bareID(id)]
 }
 
+// NameOf is the name models.dev gives a model of this id, as most of the
+// providers it lists serving it do, matched as SeesImages matches it:
+// without a vendor's prefix, in any case. "" when no provider names it
+// other than by its id.
+func NameOf(id string) string {
+	load()
+	return names[bareID(id)]
+}
+
+// Named gives a model the list names by its id alone the name models.dev
+// knows it by (NameOf), so one model reads the same under every provider:
+// a GLM Coding Plan's glm-5-turbo, which Zhipu's catalog doesn't list, is
+// GLM-5-Turbo as ZCode's is. Its id, and where requests go, stay as they
+// are.
+func Named(ms []Model) []Model {
+	out := slices.Clone(ms)
+	for i, m := range out {
+		if m.Name == "" || m.Name == m.ID {
+			if n := NameOf(m.ID); n != "" {
+				out[i].Name = n
+			}
+		}
+	}
+	return out
+}
+
 // Knows reports whether models.dev lists a model of this id at all, under
 // any provider, as ContextOf and EffortsOf match it.
 func Knows(id string) bool {
@@ -764,6 +804,18 @@ func mostListed(by map[string]int) string {
 	for l, c := range by {
 		if c > n || c == n && (strings.Count(l, ",") < strings.Count(best, ",") || strings.Count(l, ",") == strings.Count(best, ",") && l < best) {
 			best, n = l, c
+		}
+	}
+	return best
+}
+
+// mostNamed is the name most providers give; a tie goes to the shorter,
+// then the first in order, so the answer doesn't change from run to run.
+func mostNamed(by map[string]int) string {
+	best, n := "", 0
+	for s, c := range by {
+		if c > n || c == n && (len(s) < len(best) || len(s) == len(best) && s < best) {
+			best, n = s, c
 		}
 	}
 	return best

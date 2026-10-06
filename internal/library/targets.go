@@ -304,12 +304,13 @@ func targetOf(a *agent.Agent) *Target {
 // wslTargetOf is where an agent in a WSL distro keeps them: its files at
 // their defaults under the distro's $HOME (the distro's variables that
 // move them aren't read), opened through \\wsl.localhost; nil while the
-// distro is stopped, which opening them would start. What is written is
+// distro is stopped, which opening them would start (asked again here: the
+// agent may have been made before the user stopped it). What is written is
 // the same as for this machine's agent: nothing in it names a place on
 // Windows, and each skill is a copy.
 func wslTargetOf(a *agent.Agent) *Target {
 	h := a.Home
-	if h == "" {
+	if h == "" || !agent.WSLRunning(a.WSL) {
 		return nil
 	}
 	t := &Target{Agent: a, Copy: true}
@@ -466,7 +467,7 @@ func Takes(q, kind string) (string, error) {
 	t := targetOf(a)
 	var has bool
 	what := map[string]string{"instructions": "instructions", "mcp": "MCP servers", "skills": "skills"}[kind]
-	if t == nil && a.WSL != "" && a.Home == "" {
+	if t == nil && a.WSL != "" && (a.Home == "" || !agent.WSLRunning(a.WSL)) {
 		return "", fmt.Errorf("WSL %s isn't running: start it, and %s can be given %s", a.WSL, a.Name, what)
 	}
 	if t != nil {

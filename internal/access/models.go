@@ -32,13 +32,14 @@ func CleanModels(in []string) ([]string, error) {
 	return out, nil
 }
 
-// Restricted says the key may use only the models it lists.
-func (who Identity) Restricted() bool { return len(who.Models) > 0 }
+// Restricted says the key may use only the models or accounts it lists.
+func (who Identity) Restricted() bool { return len(who.Models) > 0 || len(who.Accounts) > 0 }
 
 // Allows says one of ids is among the key's models; any, for a key that
-// lists none.
+// lists none. The accounts a key may be held to say nothing of its
+// models: they hold the candidates of a plan, not its models.
 func (who Identity) Allows(ids ...string) bool {
-	if !who.Restricted() {
+	if len(who.Models) == 0 {
 		return true
 	}
 	for _, id := range ids {

@@ -119,13 +119,16 @@ func (p place) key(k string) string {
 
 // distro is one WSL distro, as probed.
 type distro struct {
-	Name    string            `json:"name"`
-	Home    string            `json:"home"`              // $HOME inside it, e.g. /home/me
-	Root    string            `json:"root"`              // where magpie opens its / from, e.g. \\wsl.localhost\Ubuntu
-	Has     map[string]bool   `json:"has"`               // "dir:.codex", "bin:pi": what the probe found
-	Probe   int               `json:"probe,omitempty"`   // the wslProbeVersion that found it
-	Gateway string            `json:"gateway,omitempty"` // the Windows host as the distro reaches it, when not mirrored
-	Values  map[string]string `json:"values,omitempty"`  // its agents' fields as last read (wslKind.memo), shown while it is stopped
+	Name    string          `json:"name"`
+	Home    string          `json:"home"`              // $HOME inside it, e.g. /home/me
+	Root    string          `json:"root"`              // where magpie opens its / from, e.g. \\wsl.localhost\Ubuntu
+	Has     map[string]bool `json:"has"`               // "dir:.codex", "bin:pi": what the probe found
+	Probe   int             `json:"probe,omitempty"`   // the wslProbeVersion that found it
+	Gateway string          `json:"gateway,omitempty"` // the Windows host as the distro reaches it, when not mirrored
+	// Was are the addresses it reached Windows at before, newest last: an
+	// agent's config still on one is offered the one now (#1013)
+	Was    []string          `json:"was,omitempty"`
+	Values map[string]string `json:"values,omitempty"` // its agents' fields as last read (wslKind.memo), shown while it is stopped
 	// Net is WSL's networking mode as the distro's wslinfo said at the
 	// last probe ("mirrored", "nat", "virtioproxy", "none"); "" when it
 	// couldn't say (a WSL without wslinfo), and .wslconfig is read instead
@@ -135,6 +138,18 @@ type distro struct {
 	Versions map[string]string `json:"versions,omitempty"`
 	Mirrored bool              `json:"-"`
 	Running  bool              `json:"-"`
+	// up asks whether it runs now (wslUp), for one wslDistros listed
+	up func() bool
+}
+
+// live is whether the distro runs now: asked of wsl.exe again, at most
+// wslRunningAge after the last answer, for one wslDistros listed (an
+// agent of it may be read after the user stopped it); Running otherwise.
+func (d distro) live() bool {
+	if d.up == nil {
+		return d.Running
+	}
+	return d.up()
 }
 
 // local is a path inside the distro as magpie opens it.
@@ -451,6 +466,9 @@ func wslAgent(k wslKind, d distro) *Agent {
 	}
 	if reached := a.Reached; reached != nil {
 		a.Reached = func(since time.Time) (time.Time, string, bool) {
+			if !d.live() {
+				return time.Time{}, "", false
+			}
 			at, to, refused := reached(since)
 			if sameHost(to, d.base()) {
 				to = gateway.URL() // the gateway, however WSL reaches it
@@ -458,10 +476,41 @@ func wslAgent(k wslKind, d distro) *Agent {
 			return at, to, refused
 		}
 	}
+	// the agent may be read after the distro stopped (it is made at most
+	// wslRunningAge before): what reads its files in the background asks
+	// again first, and a stopped one reads as last seen
 	for i := range a.Fields {
 		f := &a.Fields[i]
 		get, key := f.Get, k.memo(f.Key)
-		f.Get = func() string { v := get(); wslRemember(d.Name, key, v); return v }
+		f.Get = func() string {
+			if !d.live() {
+				return wslLastSeen(d.Name, key)
+			}
+			v := get()
+			wslRemember(d.Name, key, v)
+			return v
+		}
+	}
+	if sync := a.Sync; sync != nil {
+		a.Sync = func() error {
+			if !d.live() {
+				return nil // its files get the catalog once it runs
+			}
+			return sync()
+		}
+	}
+	if check := a.Check; check != nil {
+		a.Check = func() string {
+			if !d.live() {
+				return ""
+			}
+			return check()
+		}
+	}
+	for _, p := range []*func() bool{&a.Routed, &a.Joined, &a.Beside, &a.Added} {
+		if f := *p; f != nil {
+			*p = func() bool { return d.live() && f() }
+		}
 	}
 	// what a set leaves is kept at once, in case the distro stops before
 	// the next look
@@ -581,6 +630,7 @@ var wsl struct {
 	at      time.Time
 	names   []string        // every distro installed
 	running map[string]bool // those running
+	runAt   time.Time       // when running was listed
 	listed  bool            // names is a real answer, and may forget distros
 	seen    map[string]*distro
 	probed  map[string]bool
@@ -591,6 +641,11 @@ var wsl struct {
 const (
 	wslListAge  = time.Minute
 	wslRetryAge = 10 * time.Minute
+	// wslRunningAge is how long which distros run is taken as wsl.exe
+	// said: one the user stops (wsl --shutdown or --terminate, to repair
+	// WSL) is seen stopped within it, before anything opens its files,
+	// which would start it again (TJHHHH on Discord)
+	wslRunningAge = 3 * time.Second
 )
 
 // wslOn is whether there is WSL to look in: on Windows, or in tests.
@@ -628,13 +683,9 @@ func wslDistros() []distro {
 	}
 	if time.Since(wsl.at) > wslListAge {
 		wsl.names, wsl.listed = wslList("-l", "-q")
-		run, _ := wslList("-l", "--running", "-q")
-		wsl.running = map[string]bool{}
-		for _, n := range run {
-			wsl.running[n] = true
-		}
 		wsl.at = time.Now()
 	}
+	wslRunningLocked()
 	installed := map[string]bool{}
 	mirrored := wslMirrored(wslConfig())
 	var out []distro
@@ -654,6 +705,7 @@ func wslDistros() []distro {
 					if wslFound(*d) {
 						if old := wsl.seen[n]; old != nil {
 							d.Values = old.Values
+							d.Was = wslWas(old.Was, old.Gateway, d.Gateway)
 						}
 						wsl.seen[n] = d
 					} else {
@@ -669,6 +721,7 @@ func wslDistros() []distro {
 		}
 		c := *d
 		c.Running = wsl.running[n]
+		c.up = func() bool { return wslUp(n) }
 		c.mirror(mirrored)
 		out = append(out, c)
 	}
@@ -680,6 +733,23 @@ func wslDistros() []distro {
 		}
 	}
 	wslSaveLocked()
+	return out
+}
+
+// wslWas is the addresses a distro reached Windows at before, with the
+// last one (was) added when it reaches Windows elsewhere now: the newest
+// few, now's left out.
+func wslWas(before []string, was, now string) []string {
+	out := slices.DeleteFunc(slices.Clone(before), func(h string) bool { return h == was || h == now })
+	if was != "" && was != now {
+		out = append(out, was)
+	}
+	if len(out) > 4 {
+		out = out[len(out)-4:]
+	}
+	if len(out) == 0 {
+		return nil
+	}
 	return out
 }
 
@@ -704,6 +774,38 @@ func wslForgetOldBins() {
 		}
 	}
 }
+
+// wslRunningLocked lists the running distros again (wsl.exe -l --running,
+// which starts none) when the last list is older than wslRunningAge. When
+// wsl.exe can't say, none is taken to run: a distro is never opened on a
+// guess.
+func wslRunningLocked() {
+	if !wsl.runAt.IsZero() && time.Since(wsl.runAt) <= wslRunningAge {
+		return
+	}
+	run, _ := wslList("-l", "--running", "-q")
+	wsl.running = map[string]bool{}
+	for _, n := range run {
+		wsl.running[n] = true
+	}
+	wsl.runAt = time.Now()
+}
+
+// wslUp is whether distro runs, as wsl.exe said at most wslRunningAge ago:
+// what reads a distro's files in the background (a field shown, the
+// catalog synced, requests counted, sessions listed) asks it first, so a
+// distro stopped since its agent was made isn't started again.
+func wslUp(distro string) bool {
+	wsl.Lock()
+	defer wsl.Unlock()
+	wslRunningLocked()
+	return wsl.running[distro]
+}
+
+// WSLRunning is whether the WSL distro runs now (wslUp); false off
+// Windows. What another package does in a distro on its own, rather than
+// at the user's asking, asks it first.
+func WSLRunning(distro string) bool { return wslOn && wslUp(distro) }
 
 // wslSave writes wsl.json if anything in it changed.
 func wslSave() {
@@ -745,11 +847,13 @@ func wslLastSeen(name, key string) string {
 }
 
 // wslClaudeStandIn is StandIn for a Claude Code in a WSL distro routed
-// through magpie: the first, of the distros running at the last look, whose
-// settings.json has a stand-in. Only magpie's memory of them is asked —
-// nothing is listed nor probed, and a stopped distro is never opened.
+// through magpie: the first, of the distros running now, whose
+// settings.json has a stand-in. Only magpie's memory of them and which run
+// (wslRunningLocked) are asked — nothing is probed, and a stopped distro
+// is never opened.
 func wslClaudeStandIn(model string) string {
 	wsl.Lock()
+	wslRunningLocked()
 	var ds []distro
 	for _, n := range wsl.names {
 		if d := wsl.seen[n]; d != nil && wsl.running[n] && wslKindOf("claude").found(*d) {

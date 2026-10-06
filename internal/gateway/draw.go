@@ -300,7 +300,7 @@ func (s *Server) images(edit bool) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), drawTimeout)
 		defer cancel()
 		// the account that drew, or refused last, is the one recorded
-		drew, out, code, capBack, err := s.drawOnAccounts(ctx, p, model, d)
+		drew, out, code, capBack, err := s.drawOnAccounts(ctx, r, p, model, d)
 		p = drew
 		call.Millis = time.Since(start).Milliseconds()
 		call.Status, call.Usage.Input, call.Usage.Output = code, out.Input, out.Output
@@ -554,8 +554,18 @@ func viaFor(p provider.Provider, model string) drawVia {
 // what the pinned one may not (#545). The refusal is of images alone, so
 // no account rests for text over it. It answers with the account that
 // drew, or the last one's error when every one refused.
-func (s *Server) drawOnAccounts(ctx context.Context, p provider.Provider, model string, d drawing) (provider.Provider, drawn, int, time.Time, error) {
+func (s *Server) drawOnAccounts(ctx context.Context, r *http.Request, p provider.Provider, model string, d drawing) (provider.Provider, drawn, int, time.Time, error) {
 	if p.Account == nil {
+		// a key of its own: the calling key's accounts hold it as one,
+		// drawn with a key it may use — of those in use, not the
+		// provider's first alone, which a key held to a later one was
+		// refused by — or none, refused
+		if keyWho, held := accountHolds(r); held {
+			var ok bool
+			if p, ok = allowedKey(keyWho, p, model); !ok {
+				return p, drawn{}, http.StatusForbidden, time.Time{}, errors.New(keyAccountsError(keyWho, d.Model))
+			}
+		}
 		out, code, err := s.draw(ctx, p, model, d)
 		return p, out, code, time.Time{}, err
 	}
@@ -568,6 +578,15 @@ func (s *Server) drawOnAccounts(ctx context.Context, p provider.Provider, model 
 	for _, c := range left {
 		if !slices.ContainsFunc(cs, func(o candidate) bool { return accountOf(o.p) == accountOf(c.p) }) {
 			cs = append(cs, c)
+		}
+	}
+	// the accounts the calling key may not use are left out of the whole
+	// fan-out (#905): the next one a refusal hands the request to no less
+	// than the first, so none it may not use draws
+	if keyWho, held := accountHolds(r); held {
+		cs = slices.DeleteFunc(cs, func(c candidate) bool { return !accountAllowed(keyWho, c) })
+		if len(cs) == 0 {
+			return p, drawn{}, http.StatusForbidden, time.Time{}, errors.New(keyAccountsError(keyWho, d.Model))
 		}
 	}
 	if len(cs) == 0 && slices.ContainsFunc(barred, func(c candidate) bool { return c.capped != nil }) {

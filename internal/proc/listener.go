@@ -43,12 +43,18 @@ func Kill(pid int) error { return kill(pid) }
 
 // IsMagpie says whether the program at path is a magpie: magpie, its
 // magpie-* builds or dial, its name before; with .exe, and Windows' .old
-// for one replaced by an update while it ran.
+// for one replaced by an update while it ran, or .old-2 when that one was
+// still held.
 func IsMagpie(path string) bool {
 	if path == "" {
 		return false
 	}
 	n := strings.ToLower(filepath.Base(filepath.Clean(strings.ReplaceAll(path, `\`, "/"))))
+	// an update moves a running exe aside to exe.old, and to exe.old-2, -3
+	// when that one is held too, so the tail is a number as often as not
+	if i := strings.LastIndex(n, ".old"); i > 0 && isOldCount(n[i+len(".old"):]) {
+		n = n[:i]
+	}
 	n = strings.TrimSuffix(n, ".old")
 	n = strings.TrimSuffix(n, ".new")
 	n = strings.TrimSuffix(n, ".exe")
@@ -58,6 +64,21 @@ func IsMagpie(path string) bool {
 		}
 	}
 	return false
+}
+
+// isOldCount is the -2, -3 an update appends when exe.old is taken too: a
+// number alone is magpie's own naming, so another program's is left alone.
+func isOldCount(s string) bool {
+	s = strings.TrimPrefix(s, "-")
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // IsForwarder says whether the program at path holds a port for a container

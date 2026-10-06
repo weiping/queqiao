@@ -42,14 +42,19 @@ type Key struct {
 	// Models are the models the key may use (#882): "<provider>/<model>",
 	// "<provider>/*" or a group's "group/<name>"; none for every model.
 	Models []string `json:"models,omitempty"`
+	// Accounts are the accounts and keys the key may use (#905), as
+	// "<provider>/<account>": a signed-in account by its stable id, a
+	// key by its fingerprint; none for every account, as keys always did.
+	Accounts []string `json:"accounts,omitempty"`
 }
 
-// Identity is the gateway key a request came with, its budget and the
-// models it may use.
+// Identity is the gateway key a request came with, its budget, the
+// models and the accounts it may use.
 type Identity struct {
 	KeyID, KeyName string
 	Limit          *Limit
 	Models         []string
+	Accounts       []string
 }
 type contextKey struct{}
 
@@ -154,6 +159,9 @@ type Change struct {
 	Limit *Limit `json:"limit,omitempty"`
 	// Models is what "models-key" sets; none lets the key use every model.
 	Models []string `json:"models,omitempty"`
+	// Accounts is what "accounts-key" sets (#905); none lets the key use
+	// every account and key.
+	Accounts []string `json:"accounts,omitempty"`
 }
 
 // Update writes the named key store atomically.
@@ -214,6 +222,12 @@ func Update(action string, in Change) (string, error) {
 				return "", err
 			}
 			keys[i].Models = ms
+		case "accounts-key":
+			as, err := CleanAccounts(in.Accounts)
+			if err != nil {
+				return "", err
+			}
+			keys[i].Accounts = as
 		case "on-key", "off-key":
 			keys[i].Off = action == "off-key"
 		case "remove-key":
@@ -228,7 +242,7 @@ func Update(action string, in Change) (string, error) {
 		default:
 			return "", fmt.Errorf("unknown key action %q", action)
 		}
-		if defaultKey && action != "remove-key" && action != "rename-key" && action != "limit-key" && action != "models-key" {
+		if defaultKey && action != "remove-key" && action != "rename-key" && action != "limit-key" && action != "models-key" && action != "accounts-key" {
 			mirror = &keys[i]
 		}
 	}
@@ -275,7 +289,7 @@ func Authenticate(secret string) (Identity, bool) {
 			if k.Off {
 				return Identity{}, false
 			}
-			return Identity{KeyID: k.ID, KeyName: k.Name, Limit: k.Limit, Models: k.Models}, true
+			return Identity{KeyID: k.ID, KeyName: k.Name, Limit: k.Limit, Models: k.Models, Accounts: k.Accounts}, true
 		}
 	}
 	s := settings.Load()

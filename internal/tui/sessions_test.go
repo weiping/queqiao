@@ -231,3 +231,45 @@ func TestSessChart(t *testing.T) {
 		t.Error("a chart of one day")
 	}
 }
+
+// The page's list is the whole set, not sessions.Limit: the head says how
+// many sessions there are, and the list has to be as long as that. It read
+// List(sessions.Limit+1) — 201 — which kept the bug the GUI had, only past a
+// different number (yetone, #1019).
+func TestSessionsListIsNotCutAtTheLimit(t *testing.T) {
+	sessionsHome(t)
+	claude := os.Getenv("CLAUDE_CONFIG_DIR")
+	proj := filepath.Join(claude, "projects", "-work-many")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// past sessions.Limit and past a page of the GUI's list, as Claude Code
+	// keeps them: one <id>.jsonl per session in its project's folder
+	const n = sessions.Limit + 10
+	for i := range n {
+		id := fmt.Sprintf("%08d-1111-2222-3333-444444444444", i)
+		line := fmt.Sprintf(`{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"hi %d"},"uuid":"u","timestamp":"2026-09-20T10:00:00.000Z","cwd":"/work/many","sessionId":"%s"}`+"\n"+
+			`{"parentUuid":"u","isSidechain":false,"message":{"model":"claude-opus-5-5","id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":10,"output_tokens":2}},"requestId":"req_1","type":"assistant","uuid":"a","timestamp":"2026-09-20T10:00:05.000Z","cwd":"/work/many","sessionId":"%s"}`+"\n", i, id, id)
+		if err := os.WriteFile(filepath.Join(proj, id+".jsonl"), []byte(line), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sessions.Reset()
+	m := model{w: 160, h: 40, srange: len(sessRanges) - 1} // every range
+	m.reloadSessions()
+	// the fixtures' own sessions are here too: what matters is that the ten
+	// past sessions.Limit are, which a list cut at the limit would drop
+	seen := map[string]bool{}
+	for _, s := range m.slist {
+		seen[s.ID] = true
+	}
+	for i := range n {
+		id := fmt.Sprintf("%08d-1111-2222-3333-444444444444", i)
+		if !seen[id] {
+			t.Fatalf("the list of %d is missing %s: it was cut at the limit", len(m.slist), id)
+		}
+	}
+	if got := len(m.sessShown()); got < n {
+		t.Fatalf("the page shows %d sessions, want at least %d", got, n)
+	}
+}

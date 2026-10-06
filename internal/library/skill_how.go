@@ -89,7 +89,7 @@ func SetSkillHow(agent, how string) (*Result, error) {
 func relink(agent, p, name string) (bool, error) {
 	next := filepath.Join(filepath.Dir(p), "."+name+".magpie-link")
 	os.Remove(next)
-	if err := os.Symlink(skillDir(name), next); err != nil {
+	if err := dirLink(skillDir(name), next); err != nil {
 		return false, nil
 	}
 	var err error
@@ -117,7 +117,6 @@ func relink(agent, p, name string) (bool, error) {
 // choosing, on this machine) whose copy differs from the library's skill.
 func (l *Library) behind(targets []*Target) map[string][]string {
 	out := map[string][]string{}
-	libHash := map[string]string{}
 	for _, t := range targets {
 		if t.Skills == "" || t.Desktop != nil || t.Agent.WSL != "" || l.howOf(t.Agent.ID) != HowCopy {
 			continue
@@ -130,12 +129,7 @@ func (l *Library) behind(targets []*Target) map[string][]string {
 			if !ours(p, s.Name) || linked(p) {
 				continue
 			}
-			h, ok := libHash[s.Name]
-			if !ok {
-				h = hashDir(realDir(skillDir(s.Name)))
-				libHash[s.Name] = h
-			}
-			if h != "" && hashDir(p) != h && !slices.Contains(out[s.Name], t.Agent.ID) {
+			if h := l.libHash(s.Name); h != "" && !copyIsFresh(p, h) && !slices.Contains(out[s.Name], t.Agent.ID) {
 				out[s.Name] = append(out[s.Name], t.Agent.ID)
 			}
 		}

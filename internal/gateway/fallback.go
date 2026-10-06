@@ -52,11 +52,13 @@ type candidate struct {
 
 // capHold is how an account is held at its usage cap: the cap, the share
 // of the fullest window at or past it, and when the last such window
-// renews (zero when one doesn't say).
+// renews (zero when one doesn't say). noCredits: it is a Codex account
+// held at 100% as it is set not to spend its credits (cap is 100 then).
 type capHold struct {
-	cap  int
-	used float64
-	back time.Time
+	cap       int
+	used      float64
+	back      time.Time
+	noCredits bool
 }
 
 // label names a candidate in a call's record: the provider, and the key
@@ -188,7 +190,9 @@ func perKeyBarred(p provider.Provider, model string, from provider.Protocol) (ou
 		})
 		// an account at its usage cap is used up for routing until the
 		// window it filled renews: never tried, so groups, fallbacks and
-		// the other accounts take the request (provider/account_caps.go)
+		// the other accounts take the request (provider/account_caps.go);
+		// so is a Codex account at 100% set not to spend its credits
+		// (provider/codex_credits.go)
 		all = slices.DeleteFunc(all, func(c candidate) bool {
 			h := capHeld(p, c.p, model, time.Now())
 			if h == nil {
@@ -310,6 +314,7 @@ func (s *Server) plan(p provider.Provider, model string, from provider.Protocol)
 	add := func(q provider.Provider, m string, fallback bool) []candidate {
 		cs, aside, left, barred := perKeyBarred(q, m, from)
 		pl.left = append(pl.left, barredOf(barred, q, fallback, from, nil)...)
+		pl.held = append(pl.held, creditsHeld(barred)...)
 		cs, wg := weigh(q, cs, m, from)
 		for i, c := range cs {
 			w := weighed(c, q, wg, fallback, from)
@@ -369,6 +374,7 @@ func planLevel(g provider.Group, ms []provider.Member, depth int, from provider.
 	keys := func(m provider.Member) []candidate {
 		cs, aside, left, barred := perKeyBarred(m.Provider, m.Model, from)
 		pl.left = append(pl.left, barredOf(barred, m.Provider, false, from, m.Groups())...)
+		pl.held = append(pl.held, creditsHeld(barred)...)
 		// the effort the member is fixed at goes with each of its keys:
 		// the same model at another effort is another member's
 		for _, l := range [][]candidate{cs, aside, left} {
@@ -486,21 +492,23 @@ func planLevel(g provider.Group, ms []provider.Member, depth int, from provider.
 }
 
 // capHeld is how the account acct of p is held at its usage cap for
-// model at now, nil when it has no cap or is below it. Its windows are
-// those last read (allowances), as smart routing weighs them.
+// model at now, or at 100% as a Codex account set not to spend its
+// credits; nil when nothing holds it or it is below the share. Its windows
+// are those last read (allowances), as smart routing weighs them.
 func capHeld(p, acct provider.Provider, model string, now time.Time) *capHold {
 	if acct.Account == nil {
 		return nil
 	}
-	cap := p.AccountCap(acct.Account.User)
-	if cap <= 0 {
+	a := acct.Account
+	share, noCredits := provider.HoldShare(p, a.Agent, a.User)
+	if share <= 0 {
 		return nil
 	}
-	held, used, back := allowances(acct.Account.UsageAgent())[acct.Account.User].CapHeld(model, cap, now)
+	held, used, back := allowances(a.UsageAgent())[a.User].CapHeld(model, share, now)
 	if !held {
 		return nil
 	}
-	return &capHold{cap: cap, used: used, back: back}
+	return &capHold{cap: share, used: used, back: back, noCredits: noCredits}
 }
 
 // cappedError says why a request for model went nowhere when every account
@@ -509,11 +517,15 @@ func capHeld(p, acct provider.Provider, model string, now time.Time) *capHold {
 func cappedError(model string, ws []Weighed, now time.Time) (string, time.Time) {
 	var held []string
 	var soonest time.Time
+	capped, noCredits := heldBy(ws)
 	for _, w := range ws {
 		if w.Capped == 0 {
 			continue
 		}
 		s := fmt.Sprintf("%s (%s) is at %.0f%% of a usage window, past its %d%% cap", w.Name, w.Who, w.Used, w.Capped)
+		if w.NoCredits {
+			s = fmt.Sprintf("%s (%s) has used up a usage window and is set not to spend its credits", w.Name, w.Who)
+		}
 		if w.CapBack != nil {
 			s += ", until " + w.CapBack.Local().Format("Jan 2 15:04")
 			if soonest.IsZero() || w.CapBack.Before(soonest) {
@@ -522,7 +534,50 @@ func cappedError(model string, ws []Weighed, now time.Time) (string, time.Time) 
 		}
 		held = append(held, s)
 	}
-	return fmt.Sprintf("usage cap reached: every account that serves %q is held at the usage cap set on it in magpie — %s. magpie uses it again once that window renews; raise or lift the cap in magpie (Providers → the account's cap, or magpie provider account-cap)", model, strings.Join(held, "; ")), soonest
+	switch {
+	case !noCredits:
+		return fmt.Sprintf("usage cap reached: every account that serves %q is held at the usage cap set on it in magpie — %s. magpie uses it again once that window renews; raise or lift the cap in magpie (Providers → the account's cap, or magpie provider account-cap)", model, strings.Join(held, "; ")), soonest
+	case !capped:
+		return fmt.Sprintf("usage limit reached: every account that serves %q has used up its allowance and is set in magpie not to spend its credits — %s. magpie uses it again once that window renews; to go on now, if an account holds credits, let it spend them (Usage → the account's Use credits, or magpie quota credits <account> on)", model, strings.Join(held, "; ")), soonest
+	}
+	return fmt.Sprintf("usage limit reached: every account that serves %q is held by magpie — %s. magpie uses it again once that window renews; to go on now, raise or lift a cap (Providers → the account's cap, or magpie provider account-cap) or, if an account holds credits, let it spend them (Usage → the account's Use credits, or magpie quota credits <account> on)", model, strings.Join(held, "; ")), soonest
+}
+
+// heldBy says what holds the accounts of ws held at a share: a usage cap
+// set on one, credits it is set not to spend, or both.
+func heldBy(ws []Weighed) (capped, noCredits bool) {
+	for _, w := range ws {
+		if w.Capped > 0 {
+			capped, noCredits = capped || !w.NoCredits, noCredits || w.NoCredits
+		}
+	}
+	return capped, noCredits
+}
+
+// cappedRecord is the call's record of the same refusal as cappedError,
+// told apart the same way.
+func cappedRecord(ws []Weighed) string {
+	switch capped, noCredits := heldBy(ws); {
+	case !noCredits:
+		return "every account at its usage cap"
+	case !capped:
+		return "every account held: set not to spend its credits"
+	}
+	return "every account held: at its usage cap or set not to spend its credits"
+}
+
+// creditsHeld are those of cs held only as they won't spend their
+// credits: out of their allowance at the vendor's own 100%, where one
+// that spends its resets by itself spends one (codex_autoreset.go). One
+// held at the user's cap never does.
+func creditsHeld(cs []candidate) []candidate {
+	var out []candidate
+	for _, c := range cs {
+		if c.capped != nil && c.capped.noCredits {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // barredOf is how the trace tells the accounts or keys the user set not
@@ -533,7 +588,7 @@ func barredOf(cs []candidate, q provider.Provider, fallback bool, from provider.
 		w := weighed(c, q, weighing{}, fallback, from)
 		w.Unlisted, w.Via = true, via
 		if h := c.capped; h != nil {
-			w.Capped, w.Used = h.cap, h.used
+			w.Capped, w.Used, w.NoCredits = h.cap, h.used, h.noCredits
 			if !h.back.IsZero() {
 				w.CapBack = &h.back
 			}
@@ -572,9 +627,7 @@ func asideOf(cs []candidate, q provider.Provider, fallback bool, from provider.P
 // restLast moves those resting after a recent failure behind the rest.
 func restLast(out []candidate, pl planned) ([]candidate, planned) {
 	if len(out) == 1 {
-		if r, ok := restOf(out[0].restKey()); ok {
-			pl.order[0].Rest = &r // tried all the same: there is no other
-		} else if r, ok := restOf(out[0].restID()); ok {
+		if r, ok := restingOf(out[0]); ok {
 			pl.order[0].Rest = &r // tried all the same: there is no other
 		}
 		return out, pl
@@ -582,11 +635,7 @@ func restLast(out []candidate, pl planned) ([]candidate, planned) {
 	var ready, resting []candidate
 	var wReady, wResting []Weighed
 	for i, c := range out {
-		r, ok := restOf(c.restKey())
-		if !ok && c.restID() != c.restKey() {
-			r, ok = restOf(c.restID())
-		}
-		if ok {
+		if r, ok := restingOf(c); ok {
 			pl.order[i].Rest = &r
 			resting, wResting = append(resting, c), append(wResting, pl.order[i])
 		} else {
@@ -595,6 +644,22 @@ func restLast(out []candidate, pl planned) ([]candidate, planned) {
 	}
 	pl.order = append(wReady, wResting...)
 	return append(ready, resting...), pl
+}
+
+// restingOf is why c rests, by its own key or else its provider's, while
+// it does. A key resting out of its own windows has them read again as it
+// is planned, behind the request and once a minute at most: an ordered
+// group weighs nothing by them, and a reading that finds them full no
+// more is what brings it back (renewed).
+func restingOf(c candidate) (Rest, bool) {
+	r, ok := restOf(c.restKey())
+	if !ok && c.restID() != c.restKey() {
+		r, ok = restOf(c.restID())
+	}
+	if ok && r.agent == "" && r.user != "" {
+		keyAllowance(c.p)
+	}
+	return r, ok
 }
 
 // spentAfter says whether every candidate in cs rests with its allowance
@@ -892,7 +957,15 @@ type holdWriter struct {
 	// was said — Anthropic's stop_reason "refusal", OpenAI's content_filter
 	// — which another account or model may answer (#248)
 	refused bool
-	whole   bool // a reply that isn't streamed, held whole until release
+	// refusedAfter: the same filter ended a reply that had already begun,
+	// which the scan of a held stream never sees, as the reply goes
+	// through as it comes. A refusal isn't a failure of the account, so
+	// nobody rests for it, whatever its timing (#248)
+	refusedAfter bool
+	// after is what came of the reply once it began, for a refusal in it
+	// to be read event by event
+	after []byte
+	whole bool // a reply that isn't streamed, held whole until release
 
 	// buffered: the vendor said it holds the reply back for safety checks,
 	// which may end in a refusal: held longer (holdBuffered)
@@ -1007,6 +1080,9 @@ func (h *holdWriter) Write(b []byte) (int, error) {
 	h.see(b)
 	h.first.see(b)
 	h.heard = time.Now()
+	if h.first.first != 0 || h.passing {
+		h.refusalAfter(b)
+	}
 	if h.passing {
 		h.sent(b)
 		return h.w.Write(b)
@@ -1192,6 +1268,56 @@ func (h *holdWriter) sent(b []byte) {
 	if len(b) > 0 {
 		h.wrote, h.atLine = time.Now(), b[len(b)-1] == '\n'
 	}
+}
+
+// refusalAfter reads the events of a reply that has begun, for the safety
+// filter's refusal in one of them. The reply goes through as it comes, so
+// the scan that reads a stream held for its first content never sees an
+// event that comes after it, and the filter refusing a turn it had begun
+// is no failure of the account, as one it refuses before any of it is said
+// is not (#248). What is read is kept only as far as the event it is in is
+// whole, as a write may end in the middle of one.
+func (h *holdWriter) refusalAfter(b []byte) {
+	if len(h.after) == 0 && !mayRefuse(b) {
+		return // most of a reply's events are content
+	}
+	h.after = append(h.after, b...)
+	for {
+		end := eventEnd(h.after)
+		if end < 0 {
+			break
+		}
+		ev, rest := h.after[:end], h.after[end:]
+		h.after = rest
+		if mayRefuse(ev) {
+			if kind, _, _ := streamEvent(ev); kind == eventRefusal {
+				h.refusedAfter = true
+			}
+		}
+	}
+	if len(h.after) == 0 || len(h.after) > holdMost {
+		h.after = nil
+	}
+}
+
+// mayRefuse is whether an event may be the safety filter's refusal, by the
+// words its shapes carry, before it is read as JSON at all: every event of
+// a reply that has begun goes through this.
+func mayRefuse(ev []byte) bool {
+	for _, w := range refusalSays {
+		if bytes.Contains(ev, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// refusalSays are the words the events a vendor's filter refuses a reply
+// with carry: an error's code, a stop reason's, a finish reason's, a
+// Gemini block reason's.
+var refusalSays = [][]byte{
+	[]byte(`"error"`), []byte(`failed`), []byte(`refusal`), []byte(`filter`),
+	[]byte(`incomplete`), []byte(`finishReason`), []byte(`blockReason`),
 }
 
 // flow lets a held stream through, and what follows it.
@@ -1968,6 +2094,9 @@ func pinTo(want string, cands []candidate, pl planned) ([]candidate, planned, in
 		return nil, pl, http.StatusTooManyRequests, AccountHeader + ": " + strings.Join(rests, "; ") + "; no other account is tried in its place"
 	}
 	for _, w := range pl.left {
+		if match(w) && w.Held {
+			return nil, pl, http.StatusForbidden, fmt.Sprintf("%s: the gateway key may not use %s's account", AccountHeader, w.Who)
+		}
 		if match(w) && w.Capped > 0 {
 			msg, _ := cappedError(w.Model, []Weighed{w}, time.Now())
 			return nil, pl, http.StatusTooManyRequests, AccountHeader + ": " + msg + "; no other account is tried in its place"

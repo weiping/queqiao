@@ -18,6 +18,7 @@ import (
 	"github.com/yetone/magpie/internal/provider"
 	"github.com/yetone/magpie/internal/settings"
 	"github.com/yetone/magpie/internal/update"
+	"github.com/yetone/magpie/internal/upstream"
 )
 
 // The providers page: the vendors the user added, the presets they can add
@@ -704,6 +705,23 @@ func providerRoutes(mux *http.ServeMux, w Windows) {
 			lanes = gw.Lanes()
 		}
 		writeJSON(rw, lanes)
+	})
+	// what the vendors' own status pages say of the APIs the providers
+	// call (#971), so a vendor's outage isn't taken for a sign-in or quota
+	// problem. Asked by the Providers and Usage pages; a page is read at
+	// most once in upstream.Fresh, and the first look waits a little for it.
+	mux.HandleFunc("GET /api/upstream", func(rw http.ResponseWriter, r *http.Request) {
+		of := map[string]string{}
+		var ids []string
+		for _, p := range provider.All() {
+			if v := upstream.VendorOf(p.Chat, p.Responses, p.Anthropic); v != "" {
+				of[p.ID] = v
+				if !slices.Contains(ids, v) {
+					ids = append(ids, v)
+				}
+			}
+		}
+		writeJSON(rw, map[string]any{"vendors": upstream.Wait(4*time.Second, ids...), "providers": of})
 	})
 	mux.HandleFunc("GET /api/providers", func(rw http.ResponseWriter, r *http.Request) {
 		// ?wait: an account just signed in opens in the editor with its

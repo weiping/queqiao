@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/yetone/magpie/internal/access"
@@ -39,6 +40,16 @@ func keyHolds(r *http.Request) (access.Identity, bool) {
 		return who, false
 	}
 	return who, true
+}
+
+// accountHolds is the calling key's accounts, when they hold this
+// request: magpie's own calls for the key — a web search, a picture
+// described, a Codex title — are of the models the user picked, so the
+// models don't hold them, but their spend lands on an account or key all
+// the same, and the accounts hold them too.
+func accountHolds(r *http.Request) (access.Identity, bool) {
+	who := access.Caller(r.Context())
+	return who, len(who.Accounts) > 0
 }
 
 // modelAllowed says the key may use provider p's model.
@@ -90,16 +101,60 @@ func membersAllowed(who access.Identity, ms []provider.Member) bool {
 	return true
 }
 
-// entryAllowed says the key is shown a model of the catalog.
+// entryAllowed says the key is shown a model of the catalog — and some
+// account or key it may use serves it (#905): one the provider's
+// accounts are set not to serve (#474) is none of the key's.
 func entryAllowed(who access.Identity, e provider.Entry) bool {
 	if !who.Restricted() {
 		return true
 	}
 	if e.Group != "" {
 		g, ms, ok := provider.FindGroup(e.ID)
-		return ok && groupAllowed(who, g, ms)
+		if !ok || !groupAllowed(who, g, ms) {
+			return false
+		}
+		for _, m := range ms {
+			if accountServes(who, m.Provider, m.Model) {
+				return true
+			}
+		}
+		return false
 	}
-	return modelAllowed(who, e.Provider, e.Model)
+	if !modelAllowed(who, e.Provider, e.Model) {
+		return false
+	}
+	return accountServes(who, e.Provider, e.Model)
+}
+
+// accountServes says some account or key the key may use serves the provider's
+// model: an account of several set to serve other models only (#474) is
+// one the key may use, and none of the key's.
+func accountServes(who access.Identity, p provider.Provider, model string) bool {
+	if len(who.Accounts) == 0 {
+		return true
+	}
+	refs := p.AccountIDs()
+	if len(refs) == 0 {
+		// a provider with no account and no key (a local ollama): the
+		// list holds a key to some accounts of the providers it names
+		// (AllowsAccount's rule), so one it names none of serves as it
+		// always did; one it names — an entry kept after its last account
+		// or key went — serves none, holding the key closer
+		return who.AllowsAccount(p.ID, "")
+	}
+	for _, r := range refs {
+		if !who.AllowsAccount(p.ID, r.ID) {
+			continue
+		}
+		ref := r.User
+		if r.Key {
+			ref = r.ID // a key's own list is keyed by its fingerprint
+		}
+		if p.AccountServes(ref, model) {
+			return true
+		}
+	}
+	return false
 }
 
 // keyAllowed filters the catalog to what the calling key may use.
@@ -118,22 +173,103 @@ func keyAllowed(r *http.Request, es []provider.Entry) []provider.Entry {
 }
 
 // allowedCandidates leaves out of a plan the providers' models the key
-// may not use: a model's fallbacks are other models. members are the
-// group's the key may go to through it (groupKeeps), nil for a model.
-func allowedCandidates(who access.Identity, cs []candidate, members map[string]bool) []candidate {
+// may not use — a model's fallbacks are other models — and the accounts
+// and keys it may not either, through a named group too: naming a group
+// is not naming its accounts. The plan's order keeps step with what is
+// left, and an account the key may not use is said on the plan's left,
+// held. members are the group's the key may go to through it
+// (groupKeeps), nil for a model. held says every candidate was an
+// account or key the key may not use.
+func allowedCandidates(who access.Identity, cs []candidate, pl planned, members map[string]bool) ([]candidate, planned, bool) {
 	out := cs[:0:0]
-	for _, c := range cs {
-		if members[c.p.ID+"/"+c.model] || modelAllowed(who, c.p, c.model) {
-			out = append(out, c)
+	order := pl.order[:0:0]
+	held := false
+	for i, c := range cs {
+		if !members[c.p.ID+"/"+c.model] && !modelAllowed(who, c.p, c.model) {
+			continue // a model the key may not use: skipped, as before
+		}
+		if !accountAllowed(who, c) {
+			held = true
+			if i < len(pl.order) {
+				w := pl.order[i]
+				w.Held = true
+				pl.left = append(pl.left, w)
+			}
+			continue
+		}
+		out = append(out, c)
+		if i < len(pl.order) {
+			order = append(order, pl.order[i])
 		}
 	}
-	return out
+	pl.order = order
+	// nor is one held for its credits there for a reset to bring back
+	pl.held = slices.DeleteFunc(slices.Clone(pl.held), func(c candidate) bool {
+		return !members[c.p.ID+"/"+c.model] && !modelAllowed(who, c.p, c.model) || !accountAllowed(who, c)
+	})
+	return out, pl, held && len(out) == 0
+}
+
+// accountAllowed says the key may use a candidate's account or key: a
+// signed-in account by its stable id, kept through renames, a key by its
+// fingerprint — "<provider>/<ref>", told apart in lower case, as
+// accounts are. A key that lists none uses every account, as keys
+// always did.
+func accountAllowed(who access.Identity, c candidate) bool {
+	if len(who.Accounts) == 0 {
+		return true
+	}
+	return who.AllowsAccount(c.p.ID, c.p.AccountID())
+}
+
+// allowedKey is p sent on the first of its keys in use the calling key
+// may use (#905), for the paths that send on one key of the provider
+// rather than over its candidates — a video, a drawing — in place of the
+// first, which may be one the key may not: a key held to a later one is
+// sent on it, and refused only when it may use none. A provider of an
+// account keeps its one account, checked as it is; one with no account
+// and no key (a local ollama) has nothing to hold. A key's own list of
+// models (#474) is not weighed here; the decision path, which gates on
+// one, picks its key itself.
+func allowedKey(who access.Identity, p provider.Provider, model string) (provider.Provider, bool) {
+	if p.Key == "" {
+		return p, p.Account == nil || accountAllowed(who, candidate{p: p, model: model})
+	}
+	for _, k := range p.KeysOn() {
+		if q := p.WithKey(k); accountAllowed(who, candidate{p: q, model: model}) {
+			return q, true
+		}
+	}
+	return p, false
 }
 
 // keyModelError is what a request for a model its key may not use is told.
 func keyModelError(who access.Identity, model string) string {
 	return fmt.Sprintf("The gateway key %q may not use %s; it may use %s. Change the key's models in magpie's Gateway page, or use a model it has.",
 		who.KeyName, model, strings.Join(who.Models, ", "))
+}
+
+// keyAccountsError is what a request every candidate of which was an
+// account or key its key may not use is told.
+func keyAccountsError(who access.Identity, model string) string {
+	return fmt.Sprintf("The gateway key %q is not allowed to use the accounts behind %s: no account or key behind it is one the key may use; it may use %s. Change the key's accounts in magpie's Gateway page, or use an account it has.",
+		who.KeyName, model, keyAccountNames(who))
+}
+
+// keyAccountNames is the key's accounts as an error message shows them:
+// named as the accounts list names them, "<provider>/<user>" where a
+// provider has the account now, the id alone otherwise.
+func keyAccountNames(who access.Identity) string {
+	names := provider.AccountNames()
+	shown := make([]string, len(who.Accounts))
+	for i, a := range who.Accounts {
+		if n, ok := names[a]; ok {
+			shown[i] = n
+		} else {
+			shown[i] = a
+		}
+	}
+	return strings.Join(shown, ", ")
 }
 
 // countHeld answers the 403 a gateway key held to some models (#882) gets

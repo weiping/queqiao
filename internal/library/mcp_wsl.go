@@ -70,10 +70,13 @@ func (f *mcpFile) side(s *Server) (*Server, error) {
 var errNoInterop = errors.New("WSL's interop is off in this distro, so an agent there can't start magpie (a Windows program): turn it on in /etc/wsl.conf ([interop] enabled=true) and restart WSL")
 
 // wslProbe runs script in the distro and gives what it printed; a var for
-// tests.
+// tests. A distro that isn't running isn't asked, which would start it.
 var wslProbe = func(distro, script string) (string, error) {
 	if !wslrun.On {
 		return "", errors.New("no WSL")
+	}
+	if !wslrun.Up(distro) {
+		return "", errors.New("WSL " + distro + " isn't running")
 	}
 	b, err := wslrun.Run(10*time.Second, "-d", distro, "--exec", "/bin/sh", "-c", script)
 	return string(b), err

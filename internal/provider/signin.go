@@ -81,6 +81,9 @@ type signInFlow struct {
 	site     string           // where to sign in, for an agent with more than one (ZCode: "zai" or "bigmodel")
 	plugin   string           // a plugin's sign-in session, finished with the code pasted back
 	claude   *claudeCLISignIn // Claude Code's own sign-in, run by magpie
+	// pluginPorts are where a plugin's browser sign-in comes back to on
+	// this machine, for its address pasted (pluginsignin_paste.go)
+	pluginPorts []string
 
 	// nonce and hostID are a ChatGPT API sign-in's: what its ID token must
 	// carry, and this machine's id it registers magpie for (chatgpt_api.go)
@@ -390,6 +393,9 @@ func SubmitSignInCallback(id, raw string) error {
 	}
 	if s.plugin != "" {
 		return s.pluginCode(raw)
+	}
+	if s.pluginPorts != nil {
+		return s.pluginCallback(raw)
 	}
 	if s.claude != nil {
 		return s.claudePaste(raw)

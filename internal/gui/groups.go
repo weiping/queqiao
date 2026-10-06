@@ -303,8 +303,8 @@ func groupRoutes(mux *http.ServeMux) {
 				err = provider.SaveGroup(in)
 				break
 			}
-			if to == "" || to != provider.Slug(to) {
-				err = fmt.Errorf("a group's id must be lowercase letters, digits and dashes, not %q", in.ID)
+			if to == "" || to != provider.GroupSlug(to) {
+				err = fmt.Errorf("a group's id must be lowercase letters, digits, dots and dashes, not %q", in.ID)
 				break
 			}
 			in.ID = body.From

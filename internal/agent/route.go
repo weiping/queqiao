@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/yetone/magpie/internal/catalog"
@@ -46,6 +47,7 @@ func viaMagpie(agent, prefix string) []Option {
 			own[e.Provider.ID] = a.User == provider.AgentUser(agent)
 		}
 	}
+	fast := provider.FastPicks(agent)
 	for _, e := range shown {
 		if e.Group != "" {
 			groups = append(groups, Option{Value: prefix + e.ID, Label: e.Name, Note: "routing group · via magpie",
@@ -56,9 +58,14 @@ func viaMagpie(agent, prefix string) []Option {
 		if a := e.Provider.Account; a != nil {
 			note = a.User + " · via magpie"
 		}
-		out = append(out, Option{Value: prefix + e.ID, Label: e.Name, Note: note,
+		o := Option{Value: prefix + e.ID, Label: e.Name, Note: note,
 			Icon: e.Provider.Icon, Group: e.Provider.Name, Ref: e.ID, Free: e.Free, Rate: e.Rate, RateWas: e.RateWas, Context: e.Context, own: own[e.Provider.ID],
-			sub: e.Provider.Account != nil && (e.Provider.Account.Agent != "claude" || agent == "claude")})
+			sub: e.Provider.Account != nil && (e.Provider.Account.Agent != "claude" || agent == "claude")}
+		// a model with a fast mode is switched fast in the picker (#954)
+		if provider.CanFast(e.Provider, e.Model) {
+			o.FastFor, o.Fast = agent, slices.Contains(fast, e.ID)
+		}
+		out = append(out, o)
 	}
 	return append(groups, out...)
 }

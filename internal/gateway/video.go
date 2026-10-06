@@ -524,6 +524,16 @@ func (s *Server) videosCreate(w http.ResponseWriter, r *http.Request) {
 		fail(403, keyModelError(keyWho, f.Model))
 		return
 	}
+	// held to some accounts (#905): sent on a key the calling key may use,
+	// of those in use — not the provider's first alone, which a key held
+	// to a later one was refused by — or none, refused
+	if keyWho, held := accountHolds(r); held {
+		var ok bool
+		if p, ok = allowedKey(keyWho, p, model); !ok {
+			fail(403, keyAccountsError(keyWho, f.Model))
+			return
+		}
+	}
 	call.Provider, call.To = p.ID, provider.Chat
 	remote := p.IsRemoteMagpie()
 	// any grok-imagine-video*, not only those listed: the vendor's newer ones work before magpie names them

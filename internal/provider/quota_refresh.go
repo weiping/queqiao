@@ -91,6 +91,11 @@ func forgetLoginReading(l Login) {
 // balance, and keeps it with the others, which aren't asked. The next
 // Quotas has it.
 func RefreshUsage(ctx context.Context, provider, user string) {
+	// a remote magpie's card is read again there (remote_quotas.go)
+	if p, card, ok := remoteOf(provider); ok {
+		refreshRemote(ctx, p, card, user)
+		return
+	}
 	r := cardRefresh{provider, user}
 	ctx = context.WithValue(ctx, cardRefreshKey{}, r)
 	ctx, seq := quotaReading(ctx)

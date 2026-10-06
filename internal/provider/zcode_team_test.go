@@ -234,6 +234,11 @@ func TestZCodeTeamSignIn(t *testing.T) {
 	if r == nil || !r.ByWindow || r.FiveHour != 2 || r.Weekly != 1 || r.Count != 3 || r.Until == nil || r.Until.Format("2006-01-02") != "2026-10-05" {
 		t.Fatalf("resets: %+v", r)
 	}
+	if len(r.Each) != 3 || r.Each[0].Window != "fiveHour" || r.Each[0].Until.Format("2006-01-02") != "2026-10-05" ||
+		r.Each[1].Window != "weekly" || r.Each[1].Until.Format("2006-01-02") != "2026-10-10" ||
+		r.Each[2].Window != "fiveHour" || r.Each[2].Until.Format("2006-01-02") != "2026-10-20" {
+		t.Fatalf("each reset: %+v", r.Each)
+	}
 	if got := r.Words(); got != "2 five-hour resets · 1 weekly reset" {
 		t.Fatalf("resets in words: %q", got)
 	}

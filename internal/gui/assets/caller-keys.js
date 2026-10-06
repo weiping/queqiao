@@ -1,5 +1,8 @@
 // Caller keys use the same account list and edit controls as provider keys.
 let gatewayKeys = null, gatewayKeyDraft = null, gatewayKeysBusy = false;
+// gatewayAccountNames maps a key's stored account entry ("<provider>/<id>",
+// #905) to how it is shown; what no provider has now is shown as it is kept
+let gatewayAccountNames = {};
 let gatewayKeysRead = 0;
 // gatewayLimit is the key whose limit editor is open, and its draft
 // (#585): what is picked in it is sent only by its Save.
@@ -58,6 +61,7 @@ async function gatewayKeyAction(action, body) {
     gatewayKeysRead++;
     connectSecret = null;
     gatewayKeys = out.keys || [];
+    gatewayAccountNames = out.accountNames || gatewayAccountNames;
     gatewayKeyDraft = null;
     if (action === "limit-key" || !gatewayKeys.some((k) => k.id === gatewayLimit?.id)) gatewayLimit = null;
     renderGatewayKeys();
@@ -192,17 +196,25 @@ function askGatewayKey(k, rotate) {
   cancel.focus({ preventScroll: true });
 }
 
-// ---- the models a gateway key may use (#882) ----
+// ---- the models a gateway key may use (#882), and the accounts (#905) ----
 
-// gatewayModelsBadge picks the models a key may use, in the app's menu:
-// "All models" on hover when it may use any, else which it may, always
-// shown. A pick is sent when the menu closes.
+// accountShown is a stored account entry ("<provider>/<id>", #905) as the
+// badge says it: by who is signed in, the id itself when no provider has it.
+const accountShown = (a) => gatewayAccountNames[a] || a;
+
+// gatewayModelsBadge picks the models and the accounts a key may use, in
+// the app's menu: "All models" on hover when it may use any, else which
+// it may, always shown. A pick is sent when the menu closes.
 function gatewayModelsBadge(k) {
   const ms = k.models || [];
-  const b = el("button", "amodels key-models" + (ms.length ? " set" : ""));
+  const as = k.accounts || [];
+  const b = el("button", "amodels key-models" + (ms.length || as.length ? " set" : ""));
   b.type = "button";
-  b.textContent = !ms.length ? t("All models") : ms.length === 1 ? ms[0] : t("{n} models", { n: ms.length });
-  b.title = ms.length ? t("Only these models: {list}", { list: ms.join(", ") }) : t("Pick the models this key may use");
+  b.textContent = !ms.length && !as.length ? t("All models")
+    : ms.length ? (ms.length === 1 && !as.length ? ms[0] : t("{n} models", { n: ms.length }))
+      : (as.length === 1 ? accountShown(as[0]) : t("{n} accounts", { n: as.length }));
+  b.title = (ms.length ? t("Only these models: {list}", { list: ms.join(", ") }) : t("Pick the models this key may use"))
+    + (as.length ? "\n" + t("Only these accounts: {list}", { list: as.map(accountShown).join(", ") }) : "");
   b.setAttribute("aria-label", t("Models this key may use"));
   b.setAttribute("aria-haspopup", "menu");
   b.setAttribute("aria-expanded", "false");
@@ -210,15 +222,32 @@ function gatewayModelsBadge(k) {
     e.preventDefault();
     e.stopPropagation();
     if (b.classList.contains("open")) return closeProtoMenu();
-    let models = [];
-    try { ({ models } = await api("caller-keys/models")); } catch (err) { status(t(err.message), "err"); return; }
+    let models = [], accounts = [];
+    try { ({ models, accounts } = await api("caller-keys/models")); } catch (err) { status(t(err.message), "err"); return; }
     if (!b.isConnected) return;
-    const opts = [{ v: "", name: "All models", note: "Any model, now and later" }];
+    const opts = [{ v: "", name: "All models", note: "Any model and any account, now and later" }];
     const seen = new Set();
+    // the accounts and keys the key may be held to (#905), each right
+    // after its provider's models, not one block at the end: an account
+    // by who is signed in, a key by its fingerprint
+    const accountsSet = new Set();
+    const ofProvider = new Map();
+    for (const a of accounts || []) {
+      accountsSet.add(a.id);
+      const o = { v: a.id, name: a.name, note: a.plan ? a.providerName + " · " + a.plan : a.providerName, literalName: true };
+      ofProvider.set(a.provider, [...(ofProvider.get(a.provider) || []), o]);
+    }
+    let listed = "";  // the provider whose models the list is in
+    const endBlock = () => {
+      for (const o of ofProvider.get(listed) || []) opts.push(o);
+      ofProvider.delete(listed);
+      listed = "";
+    };
     for (const m of models || []) {
       // a routing group the key names is its with every member in it
       // (Magic_zero on Discord); the groups come first
       if (m.group) {
+        endBlock();
         if (!seen.has("group")) {
           seen.add("group");
           opts.push({ v: "group/*", name: "Every routing group", note: "group/*" });
@@ -226,18 +255,38 @@ function gatewayModelsBadge(k) {
         opts.push({ v: m.id, name: m.name, note: m.id, literalName: true });
         continue;
       }
+      if (m.provider !== listed) {
+        endBlock();
+        listed = m.provider;
+      }
       if (!seen.has(m.provider)) {
         seen.add(m.provider);
         opts.push({ v: m.provider + "/*", name: t("Every {provider} model", { provider: m.providerName }), note: m.provider + "/*", literalName: true });
       }
       opts.push({ v: m.id, name: m.name, note: m.id, literalName: true });
     }
-    // what the CLI kept that the list hasn't, a pattern or a model gone
+    endBlock();
+    // a provider with accounts and no model in the list (one kept
+    // unlisted, or serving none now) keeps its accounts after the models
+    for (const os of ofProvider.values()) opts.push(...os);
+    // what the CLI kept that the list hasn't, a pattern, a model gone or
+    // an account signed out: behind every live entry, a model gone
+    // before an account signed out
     for (const v of ms) if (!opts.some((o) => o.v === v)) opts.push({ v, name: v, note: "Not served now", literalName: true });
-    openProtoMenu(b, opts, ms, (picked) => {
-      gatewayKeyAction("models-key", { key: k.id, models: picked }).then((out) => {
-        if (out) status(t(picked.length ? "{name} may use only the models picked" : "{name} may use every model", { name: k.name }), "ok");
-      });
+    for (const v of as) if (!accountsSet.has(v)) { accountsSet.add(v); opts.push({ v, name: v, note: "Not signed in now", literalName: true }); }
+    openProtoMenu(b, opts, [...ms, ...as], (picked) => {
+      // one action at a time: gatewayKeyAction is busy while one is sent.
+      // The accounts are sent only when they changed: a model picked says
+      // nothing of the key's accounts.
+      (async () => {
+        const pickedModels = picked.filter((v) => !accountsSet.has(v));
+        const pickedAccounts = picked.filter((v) => accountsSet.has(v));
+        const out = await gatewayKeyAction("models-key", { key: k.id, models: pickedModels });
+        if (out) status(t(pickedModels.length ? "{name} may use only the models picked" : "{name} may use every model", { name: k.name }), "ok");
+        if (pickedAccounts.length !== as.length || pickedAccounts.some((v) => !as.includes(v))) {
+          await gatewayKeyAction("accounts-key", { key: k.id, accounts: pickedAccounts });
+        }
+      })();
     }, "Models this key may use", "sess-menu", "right");
   };
   return b;

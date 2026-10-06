@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"mime"
 	"net/http"
 	"os"
@@ -31,6 +32,7 @@ import (
 	"github.com/yetone/magpie/internal/autostart"
 	"github.com/yetone/magpie/internal/catalog"
 	"github.com/yetone/magpie/internal/filememo"
+	"github.com/yetone/magpie/internal/fonts"
 	"github.com/yetone/magpie/internal/fx"
 	"github.com/yetone/magpie/internal/gateway"
 	"github.com/yetone/magpie/internal/library"
@@ -367,6 +369,9 @@ type settingsJSON struct {
 	CodexWarmed *time.Time `json:"codexWarmed,omitempty"`
 	// and the Claude warm-up
 	ClaudeWarmed *time.Time `json:"claudeWarmed,omitempty"`
+	// the ChatGPT accounts signed in, each of which can have a daily
+	// warm-up time of its own (#957)
+	CodexUsers []string `json:"codexUsers,omitempty"`
 	// whether a WorkBuddy (China) account is signed in, and each one's
 	// last daily check-in
 	WorkBuddy         bool                        `json:"workbuddy"`
@@ -377,6 +382,12 @@ type settingsJSON struct {
 	// and a MiniMax Code (China) account (its plugin's), and theirs (#811)
 	MiniMax         bool                        `json:"minimax"`
 	MiniMaxCheckins []provider.WorkBuddyCheckin `json:"minimaxCheckins,omitempty"`
+	// and a Qoder or Qoder CN account (its plugin's), and theirs
+	Qoder         bool                        `json:"qoder"`
+	QoderCheckins []provider.WorkBuddyCheckin `json:"qoderCheckins,omitempty"`
+	// and the plugins' providers that check in themselves (auth.checkin),
+	// each with its switch and its accounts' last check-ins
+	CheckinPlugins []provider.PluginCheckin `json:"checkinPlugins,omitempty"`
 	// FX is the dollar-to-yuan rate the cny currency choice shows costs at
 	FX fxJSON `json:"fx"`
 	// NotifyProblem is why a usage alert set wouldn't be seen: "denied"
@@ -487,9 +498,12 @@ func settingsState() settingsJSON {
 		s.LANURLs, s.LANContainer = gateway.LANURLs(), gateway.ContainerAddrs()
 	}
 	s.CodexWarmed, s.ClaudeWarmed = latest(provider.CodexWarmed()), latest(provider.ClaudeWarmed())
+	s.CodexUsers = codexUsers()
 	s.WorkBuddy, s.WorkBuddyCheckins = provider.HasWorkBuddy(), provider.WorkBuddyCheckins()
 	s.Trae, s.TraeCheckins = provider.HasTrae(), provider.TraeCheckins()
 	s.MiniMax, s.MiniMaxCheckins = provider.HasMiniMax(), provider.MiniMaxCheckins()
+	s.Qoder, s.QoderCheckins = provider.HasQoder(), provider.QoderCheckins()
+	s.CheckinPlugins = provider.PluginCheckins()
 	s.VisionAuto, s.VisionModels = gateway.AutoVision(), []modelRef{}
 	for _, e := range provider.Served() {
 		if e.Images && (e.ImageInput == nil || *e.ImageInput) && (e.Group != "" || e.Provider.Ready()) {
@@ -633,6 +647,9 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		// and the text size, which the Mac's header measures against the
 		// traffic lights
 		boot := map[string]any{"lang": s.Lang, "theme": s.Theme, "textSize": s.TextSize, "web": isWeb(w)}
+		if !isWeb(w) {
+			boot["uiFont"], boot["codeFont"] = s.UIFont, s.CodeFont
+		}
 		// and whether it is a gateway's page alone (gatewaymode.go), so the
 		// pages left out never show
 		if on, _ := gatewayMode(isWeb(w)); on {
@@ -657,6 +674,7 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		writeJSON(rw, nil)
 	})
 	omarchyRoutes(mux, w)
+	fontRoutes(mux, isWeb(w) || !fonts.Available, fonts.List)
 	mux.HandleFunc("GET /api/state", func(rw http.ResponseWriter, r *http.Request) {
 		// the panel and its model picker load from here: an account still
 		// without its vendor's list (one whose try at start-up failed) is
@@ -935,16 +953,31 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		writeJSON(rw, settingsState())
 	})
 	mux.HandleFunc("POST /api/settings", func(rw http.ResponseWriter, r *http.Request) {
+		var body json.RawMessage
 		var in settings.Settings
-		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			fail(rw, err)
+			return
+		}
+		if err := json.Unmarshal(body, &in); err != nil {
 			fail(rw, err)
 			return
 		}
 		// the Settings page sends its own choices; how the agents are
 		// arranged is the Agents page's, and the window's size its own; both stay as they are
 		cur := settings.Load()
+		var fields map[string]json.RawMessage
+		_ = json.Unmarshal(body, &fields)
+		// Older pages do not send fonts. An explicit null restores the
+		// default, while an omitted field (or a browser save) preserves it.
+		if _, sent := fields["uiFont"]; !sent || isWeb(w) {
+			in.UIFont = cur.UIFont
+		}
+		if _, sent := fields["codeFont"]; !sent || isWeb(w) {
+			in.CodeFont = cur.CodeFont
+		}
 		in.AgentOrder, in.AgentsHidden, in.AgentsShown = cur.AgentOrder, cur.AgentsHidden, cur.AgentsShown
-		in.Window = cur.Window // the window's own, as it was last resized
+		in.Window, in.WindowMaximised = cur.Window, cur.WindowMaximised // the window's own, as it was last resized
 		// and what other pages keep here: which models an agent is shown, and
 		// everything the user said of a model anywhere else in the app, set on
 		// its own. The per-model maps are carried whole rather than named one
@@ -954,6 +987,9 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		// agent, not by "<provider>/<model>" — so they are not among them,
 		// and belong to the Agents page.
 		in.Visible, in.HiddenModels, in.OrderedModels = cur.Visible, cur.HiddenModels, cur.OrderedModels
+		in.FastPicks = cur.FastPicks           // switched in the agents' pickers (#954)
+		in.AgentEfforts = cur.AgentEfforts     // picked in an agent's row (#1003)
+		in.PluginCheckins = cur.PluginCheckins // set on its own (plugin-checkin below)
 		settings.CarryPerModel(&in, &cur)
 		in.LAN, in.LANKey = cur.LAN, cur.LANKey
 		in.LANKeyID = cur.LANKeyID
@@ -965,6 +1001,8 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		// used or left is the Usage page's toggle as much as Settings', set on its own
 		in.QuotaLeft = cur.QuotaLeft
 		in.UsageOrder = cur.UsageOrder // the Usage page's, dragged there
+		// and what the tray panel's Allowances tab leaves out, set there
+		in.PanelUsageHidden = cur.PanelUsageHidden
 		// how agents' lists name models, set on its own for the agents to be told
 		in.PlainNames, in.PlainOwnNames = cur.PlainNames, cur.PlainOwnNames
 		in.CodexAgentsV1 = cur.CodexAgentsV1
@@ -977,6 +1015,10 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		in.ChinaMirror = cur.ChinaMirror // the Plugins page's, set on its own
 		// which Codex accounts spend a reset by themselves, set on the Usage card
 		in.CodexAutoReset = cur.CodexAutoReset
+		// and which of them spend their credits, set there too
+		in.CodexNoCredits = cur.CodexNoCredits
+		// and each Codex account's own daily warm-up (codex-warm-at below)
+		in.CodexWarmAtOf = cur.CodexWarmAtOf
 		// and the text size, which the keyboard changes too (text-size below)
 		in.TextSize = cur.TextSize
 		// the version the Update pill was hidden for, set from the pill
@@ -1007,6 +1049,9 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		if err := settings.Save(in); err != nil {
 			fail(rw, err)
 			return
+		}
+		if onFonts != nil && (!sameFont(in.UIFont, cur.UIFont) || !sameFont(in.CodeFont, cur.CodeFont)) {
+			onFonts()
 		}
 		// whether agents are told every model takes images follows Vision
 		// (provider.Described)
@@ -1171,7 +1216,10 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		}
 		v := strings.TrimSpace(in.Model)
 		if v != "" {
-			if _, _, ok := provider.Resolve(v); !ok {
+			// Resolve intentionally accepts arbitrary names under a known
+			// provider. An approval reviewer must be a model or group magpie
+			// actually lists, including providers kept unlisted for routing.
+			if !slices.ContainsFunc(provider.Served(), func(e provider.Entry) bool { return e.ID == v }) {
 				fail(rw, fmt.Errorf("no model %s for Codex's auto-review", v))
 				return
 			}
@@ -1184,6 +1232,20 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 	})
 	// whether a Codex account spends one of its resets by itself once its
 	// week is used up, the Usage card's toggle, set on its own
+	// a Codex account's own daily warm-up time: "06:00", "off", or "" to
+	// follow the one for all (#957)
+	mux.HandleFunc("POST /api/settings/codex-warm-at", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct{ User, At string }
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			fail(rw, err)
+			return
+		}
+		if err := provider.SetCodexWarmAt(in.User, in.At); err != nil {
+			fail(rw, err)
+			return
+		}
+		writeJSON(rw, settingsState())
+	})
 	mux.HandleFunc("POST /api/settings/codex-auto-reset", func(rw http.ResponseWriter, r *http.Request) {
 		var in struct {
 			User string
@@ -1198,6 +1260,27 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 			return
 		}
 		if err := provider.SetCodexAutoReset(in.User, in.On); err != nil {
+			fail(rw, err)
+			return
+		}
+		writeJSON(rw, settingsState())
+	})
+	// whether a Codex account spends its credits once its allowance is
+	// used up, the Usage card's toggle, set on its own
+	mux.HandleFunc("POST /api/settings/codex-credits", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct {
+			User string
+			On   bool
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			fail(rw, err)
+			return
+		}
+		if strings.TrimSpace(in.User) == "" {
+			fail(rw, fmt.Errorf("which Codex account?"))
+			return
+		}
+		if err := provider.SetCodexCredits(in.User, in.On); err != nil {
 			fail(rw, err)
 			return
 		}
@@ -1249,6 +1332,47 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		}
 		writeJSON(rw, settingsState())
 	})
+	// and Qoder's daily credits
+	mux.HandleFunc("POST /api/settings/qoder-checkin", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct{ On bool }
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			fail(rw, err)
+			return
+		}
+		s := settings.Load()
+		s.QoderCheckin = in.On
+		if err := settings.Save(s); err != nil {
+			fail(rw, err)
+			return
+		}
+		writeJSON(rw, settingsState())
+	})
+	// and a plugin's own daily check-in, by its provider
+	mux.HandleFunc("POST /api/settings/plugin-checkin", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Provider string
+			On       bool
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			fail(rw, err)
+			return
+		}
+		if in.Provider == "" {
+			fail(rw, errors.New("no provider"))
+			return
+		}
+		s := settings.Load()
+		s.PluginCheckins = maps.Clone(s.PluginCheckins)
+		if s.PluginCheckins == nil {
+			s.PluginCheckins = map[string]bool{}
+		}
+		s.PluginCheckins[in.Provider] = in.On
+		if err := settings.Save(s); err != nil {
+			fail(rw, err)
+			return
+		}
+		writeJSON(rw, settingsState())
+	})
 	// how large the window and the panel are drawn: Settings' choice and
 	// Ctrl/Cmd +, − and 0 in either, set on its own so a key pressed while
 	// the Settings page saves something else is never undone by it
@@ -1284,15 +1408,25 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		}
 		writeJSON(rw, settingsState())
 	})
-	// the Usage page's order of its cards, in magpie's settings
+	// the Usage page's order of its cards, which the tray panel's Allowances
+	// tab follows, and what that tab leaves out, in magpie's settings; one
+	// not sent stays as it is
 	mux.HandleFunc("POST /api/usage/arrange", func(rw http.ResponseWriter, r *http.Request) {
-		var in struct{ Order []string }
+		var in struct {
+			Order       *[]string
+			PanelHidden *[]string
+		}
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 			fail(rw, err)
 			return
 		}
 		s := settings.Load()
-		s.UsageOrder = in.Order
+		if in.Order != nil {
+			s.UsageOrder = *in.Order
+		}
+		if in.PanelHidden != nil {
+			s.PanelUsageHidden = *in.PanelHidden
+		}
 		if err := settings.Save(s); err != nil {
 			fail(rw, err)
 			return
@@ -1596,4 +1730,15 @@ func tilde(p string) string {
 		return "~" + p[len(home):]
 	}
 	return p
+}
+
+// codexUsers is the ChatGPT accounts signed in, by name, each once.
+func codexUsers() []string {
+	var out []string
+	for _, l := range provider.Logins("codex") {
+		if l.User != "" && !slices.ContainsFunc(out, func(u string) bool { return strings.EqualFold(u, l.User) }) {
+			out = append(out, l.User)
+		}
+	}
+	return out
 }

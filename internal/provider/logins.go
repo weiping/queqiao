@@ -10,6 +10,8 @@ package provider
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -57,6 +59,12 @@ type Login struct {
 }
 
 type savedLogin struct {
+	// ID is the account's stable id (#905): set once it is written, and
+	// kept as it is when the account is renamed or its plan changes — a
+	// gateway key held to accounts names it by this, not by a name that
+	// moves. Until the logins are next written, one made of the name
+	// stands in, so an entry made before stands.
+	ID string `json:"id,omitempty"`
 	// Order is the user-arranged routing order within this agent. Zero keeps
 	// the original alphabetical order for accounts not arranged yet.
 	Order     int       `json:"order,omitempty"`
@@ -112,6 +120,30 @@ var (
 // switchable agents: those whose sign-in magpie can save and put back.
 var loginAgents = []string{"claude", "codex"}
 
+// loginID is the account's stable id (#905): the one saved with it, or a
+// stand-in made of its name until the logins are next written — set then,
+// and kept through renames.
+func loginID(l savedLogin) string {
+	if l.ID != "" {
+		return l.ID
+	}
+	sum := sha256.Sum256([]byte("magpie login\n" + l.Agent + "\n" + accountKey(l.User)))
+	return hex.EncodeToString(sum[:8])
+}
+
+// LoginID is the stable id of an agent's account known by its name
+// (#905): the login's, kept through renames, or one made of the name
+// for an account whose logins haven't been written since — and for an
+// agent that keeps its accounts elsewhere, made of the name always.
+func LoginID(agent, user string) string {
+	for _, l := range readLogins() {
+		if l.Agent == agent && accountKey(l.User) == accountKey(user) {
+			return loginID(l)
+		}
+	}
+	return loginID(savedLogin{Agent: agent, User: user})
+}
+
 func loginsPath() string { return filepath.Join(filepath.Dir(Path()), "logins.json") }
 
 // lastLogins is the accounts last read from logins.json: a read that fails
@@ -154,21 +186,36 @@ func readLogins() []savedLogin {
 }
 
 // keepUnreadLogins copies a logins.json that doesn't parse aside before it
-// is written over, so the accounts in it can still be got back.
-func keepUnreadLogins(path string) {
+// is written over, so the accounts in it can still be got back. A failure
+// to read or keep an existing file stops the write.
+func keepUnreadLogins(path string) error {
 	b, err := os.ReadFile(path)
-	if err != nil || json.Valid(b) {
-		return
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	// Match readLogins: valid JSON can still have unreadable field types.
+	var ls []savedLogin
+	if json.Unmarshal(b, &ls) == nil {
+		return nil
 	}
 	bad := path + ".bad-" + time.Now().Format("20060102-150405")
 	if err := os.WriteFile(bad, b, 0o600); err != nil {
 		log.Printf("logins.json doesn't parse and couldn't be kept: %v", err)
-		return
+		return err
 	}
 	log.Printf("logins.json didn't parse; it is kept as %s", filepath.Base(bad))
+	return nil
 }
 
 func writeLogins(ls []savedLogin) error {
+	// every account gets its stable id before it is written (#905): the
+	// one it has, or the stand-in made of its name, there to stay
+	for i := range ls {
+		ls[i].ID = loginID(ls[i])
+	}
 	sort.SliceStable(ls, func(i, j int) bool {
 		if ls[i].Agent != ls[j].Agent {
 			return ls[i].Agent < ls[j].Agent
@@ -189,7 +236,9 @@ func writeLogins(ls []savedLogin) error {
 		return err
 	}
 	defer Changed() // an account added, switched or gone: All builds anew
-	keepUnreadLogins(loginsPath())
+	if err := keepUnreadLogins(loginsPath()); err != nil {
+		return err
+	}
 	if err := writePrivate(loginsPath(), append(b, '\n')); err != nil {
 		return err
 	}
@@ -231,6 +280,9 @@ func writePrivate(path string, b []byte) error {
 
 func upsertLogin(ls []savedLogin, l savedLogin) []savedLogin {
 	l.User = codexName(ls, l)
+	if claudeSignInOfAnother(ls, l) {
+		return ls
+	}
 	for i := range ls {
 		if sameLogin(ls[i], l) {
 			// a refused Claude credential stays refused while it is the
@@ -421,6 +473,19 @@ func claudeUser(email, plan string, acct map[string]any) string {
 func codexAuthPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".codex", "auth.json")
+}
+
+// CodexAPIKeySignedIn says Codex itself is signed in with an OpenAI
+// API key rather than a ChatGPT account (auth.json's auth_mode): its
+// sign-in is a key's, and spends no account a gateway key's list
+// governs.
+func CodexAPIKeySignedIn() bool {
+	b, err := os.ReadFile(codexAuthPath())
+	if err != nil {
+		return false
+	}
+	var a codexAuth
+	return json.Unmarshal(b, &a) == nil && a.AuthMode == "apikey"
 }
 
 // claudeProfilePath is Claude Code's global state file, which holds the
@@ -1156,4 +1221,38 @@ func forgetAccountCaches() {
 	subscriptionUsageCache.at = time.Time{}
 	subscriptionUsageCache.data = nil
 	subscriptionUsageCache.Unlock()
+}
+
+// claudeSignInOfAnother says the Claude sign-in l carries is another saved
+// account's, not the one its profile names: Claude Code's credential and
+// ~/.claude.json were read from two moments, as when magpie switches
+// Claude Code (keeping it signed in to one account) and a Claude Code
+// started on the account before writes that one's profile after. Saved,
+// it put the one account's sign-in and plan under the other's name, whose
+// runs and Usage card then were the first's (netfishx on X). The account
+// the profile names holding the sign-in already, it is that one's.
+func claudeSignInOfAnother(ls []savedLogin, l savedLogin) bool {
+	if l.Agent != "claude" {
+		return false
+	}
+	c, ok := parseClaudeCredentials(l.Auth)
+	if !ok {
+		return false
+	}
+	holds := func(x savedLogin) bool {
+		o, ok := parseClaudeCredentials(x.Auth)
+		return ok && (c.OAuth.AccessToken != "" && o.OAuth.AccessToken == c.OAuth.AccessToken ||
+			c.OAuth.RefreshToken != "" && o.OAuth.RefreshToken == c.OAuth.RefreshToken)
+	}
+	another := false
+	for _, x := range ls {
+		if x.Agent != "claude" || !holds(x) {
+			continue
+		}
+		if sameLogin(x, l) {
+			return false
+		}
+		another = true
+	}
+	return another
 }

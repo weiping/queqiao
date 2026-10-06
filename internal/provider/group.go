@@ -23,6 +23,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -32,6 +33,13 @@ import (
 
 // GroupPrefix starts a group's id in the catalog: "group/<id>".
 const GroupPrefix = "group/"
+
+// GroupIDOf is the group id a ref names ("group/<id>"), with spaces and the
+// [1m] mark Claude Code puts on a 1M window taken off, as an agent's own
+// settings carry it. ok is false for a ref that isn't a group's.
+func GroupIDOf(ref string) (string, bool) {
+	return strings.CutPrefix(strings.TrimSuffix(strings.TrimSpace(ref), "[1m]"), GroupPrefix)
+}
 
 // Affinities are how long a conversation stays with the key or account that
 // answered it: "" auto, as long as what the vendor cached of it is worth
@@ -307,6 +315,20 @@ func SetAutoGroups(on bool) error {
 // vendor spells it: "auto-claude-opus-5-5" for claude-opus-5.5.
 func AutoGroupID(model string) string { return "auto-" + Slug(sameModel(model)) }
 
+var groupDots = regexp.MustCompile(`\.{2,}`)
+
+// GroupSlug derives a group's own id from a name as Slug does, the dots
+// kept: "GPT 6.1 Sol" → "gpt-6.1-sol", so an agent sending group/<id> sends
+// the model's name as harnesses that price or tune by it read it (#968). A
+// run of dots is one, and none starts or ends it. The ids magpie finds
+// (auto-…) stay Slug's, so no id saved before changes.
+func GroupSlug(name string) string {
+	s := strings.Join(strings.FieldsFunc(strings.ToLower(name), func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '.'
+	}), "-")
+	return strings.Trim(groupDots.ReplaceAllString(s, "."), "-.")
+}
+
 // AutoGroupOf is the id of the group magpie finds for a provider's model:
 // AutoGroupID of the model the user said it is the same as (settings'
 // ModelSameAs), else of its own id.
@@ -334,7 +356,7 @@ func mergeKey(pid, model string, same map[string]string) string {
 // session begun on it, keeps working, on one provider. ok is false for any
 // other id, a group the user has of that id, or while found groups are on.
 func AutoStandIn(id string) (string, bool) {
-	gid, ok := strings.CutPrefix(strings.TrimSuffix(strings.TrimSpace(id), "[1m]"), GroupPrefix)
+	gid, ok := GroupIDOf(id)
 	if !ok || !strings.HasPrefix(gid, "auto-") || AutoGroupsOn() {
 		return "", false
 	}
@@ -476,7 +498,10 @@ func GroupFinder() func(id string) (Group, []Member, bool) {
 		read    bool
 	)
 	return func(id string) (Group, []Member, bool) {
-		gid, ok := strings.CutPrefix(strings.TrimSpace(id), GroupPrefix)
+		// the mark Claude Code puts on a 1M window rides on the group's
+		// id, as it does on a model's: GroupFor takes it off for the
+		// gateway, and a ref the gateway routes is a group here too
+		gid, ok := GroupIDOf(id)
 		if !ok {
 			return Group{}, nil, false
 		}
@@ -703,10 +728,10 @@ func SaveGroup(g Group) error {
 	g.ID = strings.ToLower(strings.TrimSpace(g.ID))
 	g.Name = strings.TrimSpace(g.Name)
 	if g.ID == "" {
-		g.ID = Slug(g.Name)
+		g.ID = GroupSlug(g.Name)
 	}
-	if g.ID == "" || g.ID != Slug(g.ID) {
-		return fmt.Errorf("a group's id must be lowercase letters, digits and dashes, not %q", g.ID)
+	if g.ID == "" || g.ID != GroupSlug(g.ID) {
+		return fmt.Errorf("a group's id must be lowercase letters, digits, dots and dashes, not %q", g.ID)
 	}
 	if g.Name == "" {
 		g.Name = g.ID
@@ -1050,7 +1075,7 @@ func SwitchGroup(id string, on bool) error {
 // DisabledGroup is the group of the user's a model id names ("group/<id>",
 // or a model's as GroupFor takes it) when it is switched off.
 func DisabledGroup(id string) (Group, bool) {
-	gid, ok := strings.CutPrefix(strings.TrimSuffix(strings.TrimSpace(id), "[1m]"), GroupPrefix)
+	gid, ok := GroupIDOf(id)
 	if !ok {
 		if gid, ok = GroupFor(id); !ok {
 			return Group{}, false
@@ -1093,8 +1118,8 @@ func ShowGroup(id string) error {
 func RenameGroup(from, to string) error {
 	from = strings.ToLower(strings.TrimSpace(from))
 	to = strings.ToLower(strings.TrimSpace(to))
-	if to == "" || to != Slug(to) {
-		return fmt.Errorf("a group's id must be lowercase letters, digits and dashes, not %q", to)
+	if to == "" || to != GroupSlug(to) {
+		return fmt.Errorf("a group's id must be lowercase letters, digits, dots and dashes, not %q", to)
 	}
 	if to == from {
 		return nil

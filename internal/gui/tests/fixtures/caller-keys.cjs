@@ -14,7 +14,10 @@ function fixture(lang, theme, events, options = {}) {
     { id: "server", name: "Server", masked: "sk-magpie-key-…222222" },
     { id: "work", name: "Work", masked: "sk-magpie-key-…333333" },
   ];
-  for (const k of keys) if (options.limits?.[k.id]) Object.assign(k, options.limits[k.id]);
+  for (const k of keys) {
+    if (options.limits?.[k.id]) Object.assign(k, options.limits[k.id]);
+    if (options.keyHolds?.[k.id]) Object.assign(k, options.keyHolds[k.id]);
+  }
   let serial = 0;
   let lan = !!options.lan;
   let lanKeyID = "", rotations = 0, lanSecret = "";
@@ -90,6 +93,10 @@ function fixture(lang, theme, events, options = {}) {
       { id: "relay/m", name: "Model", provider: "relay", providerName: "Relay" },
       { id: "relay/m-mini", name: "Model mini", provider: "relay", providerName: "Relay" },
       { id: "openai/gpt-5", name: "GPT-5", provider: "openai", providerName: "OpenAI" },
+    ], accounts: options.accounts === false ? [] : [
+      { id: "relay/me@example.com", name: "me@example.com", provider: "relay", providerName: "Relay", account: true, plan: "Pro" },
+      { id: "relay/spare@example.com", name: "spare@example.com", provider: "relay", providerName: "Relay", account: true },
+      { id: "openai/k-1a2b3c", name: "k-1a2b3c", provider: "openai", providerName: "OpenAI", key: true },
     ] });
     if (url.pathname.startsWith("/api/caller-keys/")) {
       const action = url.pathname.split("/").at(-1), body = req.postDataJSON();
@@ -118,7 +125,8 @@ function fixture(lang, theme, events, options = {}) {
         k.used = body.limit ? { period: body.limit.period, start: new Date().toISOString(), reset: new Date(Date.now() + 864e5).toISOString(),
           calls: 0, tokens: 0, cost: 0, tokenLimit: body.limit.tokens, costLimit: body.limit.cost, tokensLeft: body.limit.tokens, costLeft: body.limit.cost, spent: false } : undefined;
       }
-      if (action === "models-key") k.models = body.models.length ? body.models : undefined;
+      if (action === "models-key") k.models = body.models?.length ? body.models : undefined;
+      if (action === "accounts-key") k.accounts = body.accounts?.length ? body.accounts : undefined;
       if (action === "copy-key") secret = k.id === lanKeyID ? lanSecret : secrets.get(k.id);
       return json({ keys, secret });
     }

@@ -51,6 +51,28 @@ func fresh(t *testing.T) {
 	classified.Lock()
 	classified.m, classified.failed = map[string]classifiedAs{}, map[string]classifyFailure{}
 	classified.Unlock()
+	levelled.Lock()
+	levelled.m = map[string]levelling{}
+	levelled.Unlock()
+	provider.ForgetCopilotForTest()
+	provider.ForgetRemoteCardsForTest()
+	remoteRefreshes.Lock()
+	remoteRefreshes.at = map[string]time.Time{}
+	remoteRefreshes.Unlock()
+	forgetRouting()
+}
+
+// forgetRouting clears what routing keeps for the gateway's life — each
+// provider's turn, each candidate's failures and tokens, each weighted
+// round — so a test run again (-count) starts where it did the first time
+// rather than a turn on, or with a failure already counted.
+func forgetRouting() {
+	routed.Lock()
+	routed.turn, routed.used, routed.failures = map[string]int{}, map[string]tokenUse{}, map[string]int{}
+	routed.Unlock()
+	wrr.Lock()
+	wrr.m = map[string]*wrrRound{}
+	wrr.Unlock()
 }
 
 // setHome makes dir the home, where Windows (USERPROFILE) finds it too.

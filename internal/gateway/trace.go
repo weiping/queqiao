@@ -59,6 +59,9 @@ type Route struct {
 	Millis   int64        `json:"ms,omitempty"`
 	Tokens   int          `json:"tokens,omitempty"`
 	Output   int          `json:"out,omitempty"` // of Tokens, the reply's
+	// Reasoning: of Output, the reply's reasoning, which its speed leaves
+	// out (usage.DecodeOf)
+	Reasoning int `json:"reasoning,omitempty"`
 	// TTFT: ms from the request to its reply's first content (text,
 	// reasoning or a tool call), FirstText to its first text, as Millis
 	// counts: streamed replies only (#196)
@@ -194,11 +197,17 @@ type Weighed struct {
 	// Barred: left out as the user set it not to serve the model, its
 	// own list of models leaving it out (#474)
 	Barred bool `json:"barred,omitempty"`
+	// Held: left out as the gateway key asking may not use its account or
+	// key (#905)
+	Held bool `json:"held,omitempty"`
 	// Capped: left out as held at the usage cap the user set on the
 	// account, this cap in percent; Used is then its fullest window's
 	// share, CapBack when the last window at or past it renews
 	Capped  int        `json:"capped,omitempty"`
 	CapBack *time.Time `json:"capBack,omitempty"`
+	// NoCredits: held at 100% (Capped), a Codex account the user set not
+	// to spend its credits once its allowance is used up
+	NoCredits bool `json:"noCredits,omitempty"`
 	// Rank: its place in its provider's own list of accounts or keys, the
 	// order the provider's page shows and a drag sets (#217); routing may
 	// weigh them in another
@@ -268,6 +277,9 @@ type AutoReset struct {
 
 type planned struct {
 	order, left []Weighed
+	// held: the accounts left out (in left) as they won't spend their
+	// credits, for one that spends its resets by itself to spend one
+	held []candidate
 }
 
 func weighed(c candidate, p provider.Provider, wg weighing, fallback bool, from provider.Protocol) Weighed {

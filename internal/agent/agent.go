@@ -56,6 +56,12 @@ type Option struct {
 	// (claude-opus-4-5-20251101 → claude-opus-4-5): the picker shows one
 	// row for the two, the alias, unless the dated one is the value set
 	Alias string `json:"alias,omitempty"`
+	// FastFor is the agent a catalog model with a fast mode (provider.
+	// CanFast) is switched fast or not for, by the model in the picker
+	// (#954): the one whose requests the gateway sends it on; Fast is
+	// whether it is now (provider.IsFastPick)
+	FastFor string `json:"fastFor,omitempty"`
+	Fast    bool   `json:"fast,omitempty"`
 
 	// own: served on the agent's own sign-in (viaMagpie), for Same
 	own bool
@@ -202,6 +208,17 @@ type Agent struct {
 	// detect, when set, says whether the agent is here in place of looking
 	// for its files and binary: a distro's, probed once.
 	detect func() bool
+	// reach, when set, is the gateway's address as the agent's config has
+	// it where that is kept apart from Gateway (this machine's Codex at an
+	// address of the user's, #816): Drift tries it (see reach.go).
+	reach func() string
+	// move, when set, points the agent's config at to where it names the
+	// gateway at from: an address of WSL's that changed (#1013).
+	move func(from, to string) error
+	// dirShared says Dir is a folder another agent keeps its files in too
+	// (omp's, when PI_CODING_AGENT_DIR points it at Pi's): that it is there
+	// says nothing of this agent.
+	dirShared bool
 }
 
 // Running reports whether a process whose command line matches any pattern
@@ -237,7 +254,7 @@ func (a *Agent) Detected() bool {
 	if _, err := os.Stat(a.Path); err == nil {
 		return true
 	}
-	if a.Dir != "" && isDir(a.Dir) {
+	if a.Dir != "" && !a.dirShared && isDir(a.Dir) {
 		return true
 	}
 	if a.Bin != "" {

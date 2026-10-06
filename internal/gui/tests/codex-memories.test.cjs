@@ -61,8 +61,8 @@ function server(lang, sets) {
 
 // the words as i18n.js has them
 const W = {
-  en: { unset: "memories: Codex's own: gpt-5.6-terra, threads summed up with gpt-5.6-luna", def: "Default", set: "memories: GPT-5.4 mini" },
-  zh: { unset: "记忆整理模型：Codex 自带的：整理用 gpt-5.6-terra，总结对话用 gpt-5.6-luna", def: "默认", set: "记忆整理模型：GPT-5.4 mini" },
+  en: { unset: "Codex memories model: Codex's own: gpt-5.6-terra, threads summed up with gpt-5.6-luna", def: "Default", set: "Codex memories model: GPT-5.4 mini" },
+  zh: { unset: "Codex 记忆整理模型：Codex 自带的：整理用 gpt-5.6-terra，总结对话用 gpt-5.6-luna", def: "默认", set: "Codex 记忆整理模型：GPT-5.4 mini" },
 };
 
 const codex = '.row.agent[data-id="codex"]';

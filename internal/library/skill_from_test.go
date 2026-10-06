@@ -33,7 +33,7 @@ func TestSkillRepoTraced(t *testing.T) {
 		"grill-me":{"source":"mattpocock/skills","sourceType":"github","sourceUrl":"https://github.com/mattpocock/skills.git","skillPath":"skills/grill-me/SKILL.md"},
 		"tdd":{"source":"x","sourceType":"git","sourceUrl":"git@gitlab.com:team/skills.git"}}}`)
 	os.MkdirAll(filepath.Join(h, ".claude/skills"), 0o755)
-	os.Symlink(filepath.Join(h, ".agents/skills/grill-me"), filepath.Join(h, ".claude/skills/grill-me"))
+	dirLink(filepath.Join(h, ".agents/skills/grill-me"), filepath.Join(h, ".claude/skills/grill-me"))
 	// a clone of the repository, linked from the library
 	clone := filepath.Join(h, "code/skills")
 	skill(t, filepath.Join(clone, "skills/write-a-prd"), "write-a-prd", "PRD")

@@ -69,3 +69,54 @@ func TestCallerKeyModelsRoutes(t *testing.T) {
 		t.Fatal("every model", w.Code, w.Body)
 	}
 }
+
+// The Gateway page lists the accounts and keys a key can be held to
+// (#905), and keeps what was picked for it. An account's stable id, shown
+// by who is signed in, is exercised against a real sign-in in the
+// gateway's tests; a key's fingerprint is one here.
+func TestCallerKeyAccountsRoutes(t *testing.T) {
+	sandboxHome(t)
+	if err := provider.Save(provider.Provider{ID: "relay", Name: "Relay", Chat: "http://127.0.0.1:1/v1", Keys: []provider.KeyAccount{{Key: "sk-1", Name: "First"}, {Key: "sk-2", Name: "Second"}}}); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	callerKeyRoutes(mux)
+	request := func(method, path, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(method, path, strings.NewReader(body)))
+		return w
+	}
+	k1, k2 := provider.KeyID("sk-1"), provider.KeyID("sk-2")
+	var l struct{ Accounts []keyModelJSON }
+	if w := request("GET", "/api/caller-keys/models", ""); w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &l) != nil {
+		t.Fatal(w.Code, w.Body)
+	}
+	var ids []string
+	for i, a := range l.Accounts {
+		ids = append(ids, a.ID)
+		if !a.Key || a.Account || a.Provider != "relay" || a.ProviderName != "Relay" || a.Name != []string{"First", "Second"}[i] {
+			t.Fatalf("key %+v", a)
+		}
+	}
+	if !slices.Equal(ids, []string{"relay/" + k1, "relay/" + k2}) {
+		t.Fatal("accounts", ids)
+	}
+	var s struct{ Keys []access.Key }
+	if w := request("POST", "/api/caller-keys/add-key", `{"name":"Phone"}`); w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &s) != nil {
+		t.Fatal(w.Code, w.Body)
+	}
+	id := s.Keys[0].ID
+	if w := request("POST", "/api/caller-keys/accounts-key", `{"key":"`+id+`","accounts":["relay/First","relay/`+k2+`"]}`); w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &s) != nil {
+		t.Fatal(w.Code, w.Body)
+	}
+	if !slices.Equal(s.Keys[0].Accounts, []string{"relay/" + k1, "relay/" + k2}) {
+		t.Fatal("kept", s.Keys[0].Accounts)
+	}
+	if w := request("POST", "/api/caller-keys/accounts-key", `{"key":"`+id+`","accounts":["relay/`+provider.KeyID("sk-9")+`"]}`); w.Code != 400 || !strings.Contains(w.Body.String(), "has no key") {
+		t.Fatal("accepted a key the provider has not", w.Code, w.Body.String())
+	}
+	var free struct{ Keys []access.Key }
+	if w := request("POST", "/api/caller-keys/accounts-key", `{"key":"`+id+`","accounts":[]}`); w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &free) != nil || free.Keys[0].Accounts != nil {
+		t.Fatal("every account", w.Code, w.Body)
+	}
+}

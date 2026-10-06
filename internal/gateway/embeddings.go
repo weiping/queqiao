@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -73,6 +74,18 @@ func (s *Server) retrieve(path, operation string) http.HandlerFunc {
 		if isGroup {
 			if cs, _ := s.planGroup(g.Live(), ms, provider.Chat); len(cs) > 0 {
 				tries = cs
+			}
+		}
+		// the accounts or keys the calling key may not use are left out of
+		// the tries too (#905): a group's members through it no less
+		if keyWho, held := accountHolds(r); held {
+			tries = slices.DeleteFunc(tries, func(c candidate) bool { return !accountAllowed(keyWho, c) })
+			if len(tries) == 0 {
+				msg := keyAccountsError(keyWho, asked)
+				call.Status, call.Error = 403, msg
+				writeError(w, provider.Chat, 403, msg)
+				s.record(call)
+				return
 			}
 		}
 		var skipped []string

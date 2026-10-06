@@ -92,6 +92,44 @@
   const reqs = el("div", "list rt-reqs");
   // the days the history keeps on disk, to look back at one: see listed
   const dayBar = el("div", "rt-days");
+  // the days past the bar's width go under one more pill, whose menu lists
+  // them (#961): the bar scrolled with its scrollbar hidden, so they were cut
+  // off and out of reach of a mouse wheel. The day looked at stays in
+  // sight: when it is one of them, the pill is named by it
+  const moreDays = el("button", "rt-day rt-day-more");
+  moreDays.type = "button";
+  moreDays.setAttribute("aria-haspopup", "menu");
+  moreDays.setAttribute("aria-expanded", "false");
+  let unseenDays = [];
+  moreDays.onclick = (e) => {
+    e.stopPropagation();
+    if (moreDays.classList.contains("open")) return closeProtoMenu();
+    openProtoMenu(moreDays, unseenDays.map((d) => ({ v: d.day, name: dayName(d.day), literalName: true, note: String(d.requests) })),
+      day, (v) => { if (v !== day) lookAt(v); }, "Earlier days", "rt-days-menu");
+  };
+  function nameMoreDays() {
+    const picked = unseenDays.find((d) => d.day === day);
+    moreDays.classList.toggle("on", !!picked);
+    moreDays.setAttribute("aria-pressed", String(!!picked));
+    moreDays.replaceChildren(el("span", "", picked ? dayName(picked.day) : t("Earlier days")),
+      ...(picked ? [el("small", "", String(picked.requests))] : []), svg(CHEV, 10, 1.6));
+  }
+  function fitDays() {
+    if (!dayBar.clientWidth) return; // out of sight: fitted when it shows
+    const pills = [...dayBar.children].filter((x) => x !== moreDays);
+    for (const x of pills) x.hidden = false;
+    unseenDays = [];
+    if (dayBar.scrollWidth <= dayBar.clientWidth + 1) { moreDays.remove(); return; }
+    dayBar.append(moreDays);
+    // pills[0] is Live, pills[i] days[i - 1], newest first: the oldest go
+    for (let i = pills.length - 1; i >= 1; i--) {
+      pills[i].hidden = true;
+      unseenDays.unshift(days[i - 1]);
+      nameMoreDays();
+      if (dayBar.scrollWidth <= dayBar.clientWidth + 1) break;
+    }
+  }
+  new ResizeObserver(() => fitDays()).observe(dayBar);
   const groupBar = el("div", "rt-group-by");
   let bySession = false;
   try { bySession = localStorage.getItem("magpie.routingBySession") === "1"; } catch {}
@@ -195,7 +233,21 @@
   // 100 ms or would have it write over 10,000 tok/s, as it came in one
   // burst at its end (usage.DecodeWindow, #731: a whole Gemini tool call,
   // 8264 tokens 1 ms before the end, read 8,264,000 tok/s)
-  const speedOf = (out, ms, ttft) => out > 0 && ttft > 0 && ms - ttft >= 100 && out * 1000 <= 10000 * (ms - ttft) ? out / ((ms - ttft) / 1000) : 0;
+  // A reply that reasoned counts its answer, its output less the
+  // reasoning, from its first text (usage.DecodeOf, tony on Discord):
+  // the reasoning was written before the stream showed any, OpenAI's
+  // encrypted and its summary sent when done, and counting it read
+  // gpt-6.1-sol at 163 tok/s. The reply's reasoning is its served try's.
+  function decodeOf(r, ms, ttft, firstText) {
+    const think = reasoningOf(r), n = think > 0 ? r.out - think : r.out, from = think > 0 ? firstText : ttft;
+    const w = ms - from;
+    return n > 0 && ttft > 0 && from > 0 && w >= 100 && n * 1000 <= 10000 * w ? { n, w } : null;
+  }
+  const reasoningOf = (r) => r.reasoning ?? (r.usage?.length ? r.usage[r.usage.length - 1].reasoning || 0 : 0);
+  const speedOf = (r, ms = r.ms, ttft = r.ttft, firstText = r.firstText) => {
+    const d = decodeOf(r, ms, ttft, firstText);
+    return d ? d.n / (d.w / 1000) : 0;
+  };
   function promptOf(r) {
     let prompt = 0, read = 0;
     // Input excludes both cache tiers. Include writes in the denominator,
@@ -231,7 +283,7 @@
     // Both times start at the request, so subtracting them leaves the
     // reply's decode window even after a retry. Output is the reply's,
     // not the prompt or the output of earlier billable tries.
-    const speed = r.done && how !== "bad" ? speedOf(r.out, r.ms, r.ttft) : 0;
+    const speed = r.done && how !== "bad" ? speedOf(r) : 0;
     const values = {
       duration: ["duration", "Duration", r.done && r.ms ? took(r.ms) : "—", ""],
       ttft: ["ttft", "First token", r.done && r.ttft ? took(r.ttft) : "—", t("First token")],
@@ -239,7 +291,7 @@
       cache: ["cache-hit", "Cache", prompt ? pct(100 * read / prompt) : "—",
         t("Cache hit rate") + ": " + t("The share of the prompt read from the cache")],
       speed: ["speed", "Speed", speed ? t("{n} tok/s", { n: Math.round(speed) }) : "—",
-        t("Output tokens a second after the first, over the streamed replies")],
+        t("Output tokens a second after the first, over the streamed replies") + ". " + t("A reply that reasoned counts only its answer, from its first text: the reasoning was written before the stream showed it")],
       cost: ["cost", "Cost", routeCost(r), r.priced ? costNote() : t("No known price or token counts for this request")],
     };
     return visibleMetrics.map((key) => values[key]).filter((metric) => metric[2] !== "—");
@@ -255,7 +307,7 @@
   function firstNote(r, tr) {
     let s = tr.ttft ? " · " + t("first token in {ms}", { ms: took(tr.ttft) }) : "";
     if (tr.ttft && tr.firstText > tr.ttft) s += " · " + t("first text in {ms}", { ms: took(tr.firstText) });
-    const v = speedOf(r.out, tr.ms, tr.ttft);
+    const v = speedOf(r, tr.ms, tr.ttft, tr.firstText);
     if (v) s += " · " + t("{n} tok/s", { n: Math.round(v) });
     const { prompt, read } = promptOf(r);
     if (prompt) s += " · " + t("request cache hit rate {p}", { p: pct(100 * read / prompt) });
@@ -298,7 +350,7 @@
   // from its vendor does — relays list each key its own group's models
   // or the user set the account or key to serve other models only (#474)
   // or it is held at the usage cap the user set on the account
-  const unlistedWord = (w) => w.capped ? t("held at its {cap}% usage cap", { cap: w.capped }) : w.barred ? t("set to serve other models, not {model}", { model: w.model }) : w.kind === "key" ? t("{name}'s list for this key has no {model}", { name: w.name, model: w.model }) : t("its plan doesn't list {model}", { model: w.model });
+  const unlistedWord = (w) => w.held ? t("not an account the gateway key may use") : w.noCredits ? t("held: its allowance used up, set not to spend credits") : w.capped ? t("held at its {cap}% usage cap", { cap: w.capped }) : w.barred ? t("set to serve other models, not {model}", { model: w.model }) : w.kind === "key" ? t("{name}'s list for this key has no {model}", { name: w.name, model: w.model }) : t("its plan doesn't list {model}", { model: w.model });
   const group = (w) => w.used >= 98 ? "spent" : w.used >= 90 ? "low" : "fine";
   const renews = (w) => (w.renews || []).map((s) => known0(s) ? at(s) : 0);
   // renewsBy is renews as Smart ranks them: an auto-used Codex reset that
@@ -367,6 +419,7 @@
       return t("{name} is resting, so its fallback {fb} goes first.", { name, fb: `${f.provider}/${f.model}` });
     }
     const peers = r.order.filter((x) => x !== f && !x.fallback && !x.rest);
+    const someKnown = r.order.some((x) => x.known);
     const rested = r.order.filter((x) => x !== f && !x.fallback && x.rest).map(who);
     const restedTo = (s) => rested.length ? t("With {rested} resting after a failure, {who} goes first: ", { rested: rested.join(", "), who: w }) + s : null;
     switch (f.routing) {
@@ -376,11 +429,11 @@
       case "rotate": return t("In turn: it's {who}'s turn — each request starts one further along.", { who: w });
       case "weight": return t("By weight: it's {who}'s share — each key takes requests as its weight says.", { who: w });
       case "usage":
-        if (f.kind === "account" && f.known) return t("Least used first: {who} has the most of its allowance left — {n} used.", { who: w, n: pct(f.used) });
-        if (f.kind === "key") return t("Least used first: {who} served the fewest tokens lately — {n}.", { who: w, n: tokens(f.tokens || 0) });
+        if (f.known) return t("Least used first: {who} has the most of its allowance left — {n} used.", { who: w, n: pct(f.used) });
+        if (f.kind === "key" && !someKnown) return t("Least used first: {who} served the fewest tokens lately — {n}.", { who: w, n: tokens(f.tokens || 0) });
         return t("Least used first: {who} goes first.", { who: w });
       case "pace":
-        if (f.kind === "account" && f.known) {
+        if (f.known) {
           // The allowance window used for pace, which may be shorter than a week.
           const left = known0(f.due) ? Math.min(100, Math.round((f.pace || 0) * Math.max(1, (at(f.due) - at(r.time)) / 36e5))) : null;
           if (left !== null && f.dueBy === "reset") return t("Weekly pace: {who} has the most remaining allowance per hour until one of its Codex resets about to run out is used by itself — {n} left, used in {d}.", { who: w, n: pct(left), d: dur(at(f.due) - at(r.time)) });
@@ -388,17 +441,22 @@
             ? t("Weekly pace: {who} has the most remaining allowance per hour until reset — {n} left, resets in {d}.", { who: w, n: pct(left), d: dur(at(f.due) - at(r.time)) })
             : t("Weekly pace: {who} has the most remaining allowance per hour until reset — {n} used.", { who: w, n: pct(f.used) });
         }
-        if (f.kind === "key") return t("Weekly pace: {who} served the fewest tokens lately — {n}.", { who: w, n: tokens(f.tokens || 0) });
+        if (f.kind === "key" && !someKnown) return t("Weekly pace: {who} served the fewest tokens lately — {n}.", { who: w, n: tokens(f.tokens || 0) });
         return t("Weekly pace: {who} goes first.", { who: w });
     }
-    if (f.kind === "key") {
+    // keys that read their own windows (a sub2api key's limits) are
+    // weighed by them, as accounts are, and one not read yet beside them
+    // too: told below as one
+    if (f.kind === "key" && !someKnown) {
       if (!f.fit && peers.some((p) => p.fit > 0)) return t("{who} goes first: it's made for {api}, the API {model} is at home in, so nothing is translated.", { who: w, api: API[f.speaks] || f.speaks, model: f.model });
       return restedTo(t("the others go in their order.")) || t("{who} goes first: keys go in their order, those that suit the request first.", { who: w });
     }
-    if (f.kind !== "account") return t("{who} goes first.", { who: w });
+    if (f.kind !== "account" && !f.known) return t("{who} goes first.", { who: w });
     if (f.learns && peers.some((p) => p.known)) return t("{who} goes first: what it has left isn't known yet, and its answer tells — kept behind those known, it would never answer and never be known.", { who: w });
     if (!f.known && !peers.some((p) => p.known)) return t("The vendor hasn't said yet what these accounts have left, so they go in their order: {who} first.", { who: w });
-    if (group(f) !== "fine") return t("Every account is at 90% or more of its allowance, so the one with the most left goes first: {who}, at {n}.", { who: w, n: pct(f.used) });
+    if (group(f) !== "fine") return r.order.some((x) => x.kind !== "account" && x.known)
+      ? t("Every key and account here is at 90% or more of its allowance, so the one with the most left goes first: {who}, at {n}.", { who: w, n: pct(f.used) })
+      : t("Every account is at 90% or more of its allowance, so the one with the most left goes first: {who}, at {n}.", { who: w, n: pct(f.used) });
     const next = peers.find((p) => p.known && group(p) === "fine");
     const soon = renewsBy(f).find(Boolean);
     if (!next) return t("{who} goes first: it has quota to spare, and the others are kept for last.", { who: w });
@@ -423,7 +481,7 @@
     }
     const rule = ruleWhy(r, false);
     if (rule) out.push(rule);
-    const smart = (x) => !x.routing && x.kind === "account";
+    const smart = (x) => !x.routing && (x.kind === "account" || x.known);
     const someKnown = r.order.some((x) => x.known);
     for (const x of r.order.slice(1)) {
       if (x.sunk && !x.rest) out.push(t("{who} was rate limited at {time} while it had quota left, so it went to the back: it comes round again once those ahead of it are rate limited in turn.", { who: who(x), time: clock(x.sunk) }));
@@ -435,7 +493,11 @@
     }
     const pooled = r.order.find((x) => !x.aside && x.kind === "key");
     for (const x of r.order.filter((x) => x.aside)) out.push(t("{who} is made for {api}, not {other} as the keys routed over are, so it isn't one of them: it's tried after them.", { who: who(x), api: API[x.speaks] || x.speaks || t("any API"), other: API[pooled?.speaks] || pooled?.speaks || t("any API") }));
-    for (const x of r.left || []) out.push(x.capped
+    for (const x of r.left || []) out.push(x.held
+      ? t("{who} is left out: the gateway key asking may not use its account.", { who: who(x) })
+      : x.noCredits
+      ? t("{who} is left out: a usage window is used up, and the account is set not to spend its credits, so it counts as used up until that window renews.", { who: who(x) })
+      : x.capped
       ? t("{who} is left out: a usage window is at {n}, past the {cap}% cap set on the account, so it counts as used up until that window renews.", { who: who(x), n: pct(x.used), cap: x.capped })
       : x.barred
       ? t("{who} is left out: it is set to serve other models, not {model}.", { who: who(x), model: x.model })
@@ -1108,7 +1170,8 @@
     what.replaceChildren(el("b", "", g ? g.name : f?.name || r.provider),
       el("span", "", (g ? " · " + t("routing group") : "") + " · " + t(on === 1 ? "one on" : "{n} on", { n: on })
         + (many > 1 ? " · " + t("{n} agents at once", { n: many }) : "")));
-    mode.textContent = g && routing === "order" ? t(GROUP_ORDER) : t(!routing && f?.kind === "key" && !g ? KEYS_SMART : m[1]);
+    // keys that read their own windows are weighed as accounts are
+    mode.textContent = g && routing === "order" ? t(GROUP_ORDER) : t(!routing && f?.kind === "key" && !r.order.some((x) => x.known) && !g ? KEYS_SMART : m[1]);
   }
 
   // what a row says now: resting, answering, or what routing weighed it by
@@ -1140,7 +1203,7 @@
       else if (answered.has(id)) s = agents.size > 1 ? t("answered {agent}", { agent: agentName(r.agent) }) : t("answered this request");
       else if (gave.has(id)) s = t("{status} · {fail} · passed to {agent}", { status: gave.get(id).status, fail: failWord(gave.get(id).fail), agent: agentName(r.agent) });
       else if (w.sunk) s = t("rate limited at {time} · at the back", { time: clock(w.sunk) });
-      else if (w.kind === "account" && w.known) {
+      else if (w.known) {
         const soon = renews(w)[0];
         s = !w.routing && w.used >= 98 ? quota(w, "{n} used · all but used up", "{n} left · all but used up")
           : !w.routing && w.used >= 90 ? quota(w, "{n} used · kept for last", "{n} left · kept for last")
@@ -1151,7 +1214,7 @@
       else if (w.speaks) s = t("{api} only", { api: API[w.speaks] || w.speaks });
       else s = w.kind === "key" ? t("API key") : t("one key");
       if (row.st.textContent !== s) row.st.textContent = s;
-      const bar = w.kind === "account" && w.known;
+      const bar = w.known;
       row.li.classList.toggle("nobar", !bar);
       row.bi.style.width = bar ? fill(w) : "0";
       const on = !resting && (trying.has(id) || answered.has(id) || onWire.has(id));
@@ -1484,6 +1547,7 @@
     dayBar.dataset.key = key;
     dayBar.replaceChildren(b("", t("Live")), ...days.map((d) => b(d.day, dayName(d.day), d.requests)));
     dayBar.hidden = !days.length && !day;
+    fitDays();
   }
   // the list's head, made once: a trace update redraws the list, and a
   // button made again each time is one WebKit may drop a click on
@@ -1578,9 +1642,8 @@
           s.completed++;
           const { prompt, read } = promptOf(r);
           if (prompt) { s.prompt += prompt; s.read += read; s.cached++; }
-          if (outcome(r)[1] !== "bad" && speedOf(r.out, r.ms, r.ttft)) {
-            s.decodeMs += r.ms - r.ttft; s.decodeOut += r.out; s.timed++;
-          }
+          const d = outcome(r)[1] !== "bad" && decodeOf(r, r.ms, r.ttft, r.firstText);
+          if (d) { s.decodeMs += d.w; s.decodeOut += d.n; s.timed++; }
         }
         return s;
       }, { cost: 0, tokens: 0, priced: 0, unpriced: 0, running: 0, completed: 0, prompt: 0, read: 0, cached: 0, decodeMs: 0, decodeOut: 0, timed: 0 });
@@ -1610,7 +1673,7 @@
       if (g.key && visibleMetrics.includes("cache") && total.prompt) meta.push(metricElement(["cache-hit", "Avg. cache", pct(100 * total.read / total.prompt),
         t("Total cache reads divided by total prompt tokens; larger prompts carry more weight") + "\n" + coverage(total.cached)]));
       if (g.key && visibleMetrics.includes("speed") && total.decodeMs) meta.push(metricElement(["speed", "Avg. speed", t("{n} tok/s", { n: Math.round(total.decodeOut * 1000 / total.decodeMs) }),
-        t("Total output tokens divided by total decode time; excludes waiting and replies without usable timing") + "\n" + coverage(total.timed)]));
+        t("Total output tokens divided by total decode time; excludes waiting and replies without usable timing") + ". " + t("A reply that reasoned counts only its answer, from its first text: the reasoning was written before the stream showed it") + "\n" + coverage(total.timed)]));
       const metaSig = JSON.stringify([bits, tokenHelp, meta.map((e) => [e.textContent, e.title])]);
       if (x.meta.dataset.sig !== metaSig) { x.meta.replaceChildren(...meta); x.meta.dataset.sig = metaSig; }
       setText(x.cost, total.priced ? "≈" + fmtCost({ cost: total.cost, unpriced: 0 }) + (total.unpriced ? "+" : "") : "");
@@ -1823,7 +1886,7 @@
       const resting = a.rest && at(a.rest.until) > n;
       if (resting) { st = `${failWord(a.rest.why)} · ${restWhen(a.rest)}`; cls = "rest"; }
       else if (w.unlisted) { st = unlistedWord(w); cls = "left"; }
-      else if (w.kind === "account" && w.known) {
+      else if (w.known) {
         const soon = renews(w)[0];
         st = soon && soon <= n ? quota(w, "{n} used at {time}; it has renewed since", "{n} left at {time}; it has renewed since", { time: clock(a.at) })
           : (soon ? quota(w, "{n} used · renews in {d}", "{n} left · renews in {d}", { d: dur(soon - n) }) : quota(w, "{n} used", "{n} left")) + " · " + t("as of {time}", { time: clock(a.at) });
@@ -1857,7 +1920,7 @@
         fix.append(go);
         row.append(fix);
       }
-      if (w.kind === "account" && w.known) {
+      if (w.known) {
         const bar = el("div", "bar"), bi = el("i");
         bi.style.width = fill(w);
         bar.append(bi);
@@ -2999,8 +3062,8 @@
     }
     const idIn = g ? keys(input(d.id, g.id)) : null;
     const idOf = () => {
-      if (g) return slug(d.id) || g.id;
-      let id = slug(d.name) || "group", n = 1;
+      if (g) return groupSlug(d.id) || g.id;
+      let id = groupSlug(d.name) || "group", n = 1;
       const base = id;
       while (groups.groups.some((x) => x.id === id)) id = `${base}-${++n}`;
       return id;

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -441,7 +442,13 @@ func usageRoutes(mux *http.ServeMux, w Windows) {
 		defer cancel()
 		// a WorkBuddy (China) account's card says how its daily check-in
 		// went (#694)
-		writeJSON(rw, provider.WithCheckins(provider.Quotas(ctx)))
+		qs := provider.WithCheckins(provider.Quotas(ctx))
+		// an account's card may be the stale copy a read under way will
+		// replace: the page asks again until it has landed (#959)
+		if provider.SubscriptionUsageReading() {
+			rw.Header().Set("X-Magpie-Reading", "1")
+		}
+		writeJSON(rw, qs)
 	})
 	// One card read again, from its refresh button (#840): ?provider= and,
 	// of a card with several accounts, &user=; the others are left as they
@@ -489,10 +496,40 @@ func usageRoutes(mux *http.ServeMux, w Windows) {
 		}
 		writeJSON(rw, rs)
 	})
+	// and Qoder's daily credits, for each Qoder and Qoder CN account
+	mux.HandleFunc("POST /api/usage/qoder-checkin", func(rw http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+		defer cancel()
+		rs := provider.CheckInQoder(ctx)
+		if rs == nil {
+			rs = []provider.WorkBuddyCheckin{}
+		}
+		writeJSON(rw, rs)
+	})
+	// and a plugin's own, for each account of the provider it names
+	mux.HandleFunc("POST /api/usage/plugin-checkin", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct{ Provider string }
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Provider == "" {
+			fail(rw, errors.New("no provider"))
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+		defer cancel()
+		rs := provider.CheckInPlugins(ctx, in.Provider)
+		if rs == nil {
+			rs = []provider.WorkBuddyCheckin{}
+		}
+		writeJSON(rw, rs)
+	})
 	// what was left of each window over time, for the quota cards' curves
 	// (#651); ?days= back
 	mux.HandleFunc("GET /api/usage/quotas/history", func(rw http.ResponseWriter, r *http.Request) {
-		writeJSON(rw, provider.QuotaHistories(provider.QuotaHistorySince(r.URL.Query().Get("days"), time.Now()), "", ""))
+		days := r.URL.Query().Get("days")
+		hs := provider.QuotaHistories(provider.QuotaHistorySince(days, time.Now()), "", "")
+		// and a remote magpie's, for its cards (office/codex)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		writeJSON(rw, append(hs, provider.RemoteQuotaHistories(ctx, days)...))
 	})
 	// spends one of a Codex account's rate-limit resets, which the page
 	// has asked the user about first; what it did comes back

@@ -614,6 +614,10 @@ var (
 	hasTrae      = provider.HasTrae
 	checkinMM    = provider.CheckInMiniMax
 	hasMiniMax   = provider.HasMiniMax
+	checkinQd    = provider.CheckInQoder
+	hasQoder     = provider.HasQoder
+	checkinPl    = func(ctx context.Context) []provider.WorkBuddyCheckin { return provider.CheckInPlugins(ctx) }
+	hasPlugin    = provider.HasPluginCheckin
 )
 
 // checkinCmd presses WorkBuddy's daily check-in (签到) now for every
@@ -621,7 +625,9 @@ var (
 // as the app's Usage card's "Check in now" and magpie accounts checkin do:
 // the built-in's or the plugin's (akic404 on Discord: the TUI had no way
 // to); and Trae CN's (每日签到) for each Trae CN account (#694), and
-// MiniMax Code's for each MiniMax Code (China) account (#811). It says
+// MiniMax Code's for each MiniMax Code account (#811), and Qoder's daily
+// credits for each Qoder account, and each plugin's own check-in
+// (auth.checkin) for its accounts. It says
 // how each account stands: the credits and streak, in
 // already today, or why not. A shared magpie's accounts are checked in
 // on that magpie, from its own app, TUI or CLI.
@@ -654,8 +660,24 @@ func checkinCmd() tea.Msg {
 			parts = append(parts, checkinWords(r))
 		}
 	}
+	if hasQoder() {
+		for _, r := range checkinQd(ctx) {
+			if r.Outcome == provider.CheckinFailed {
+				failed++
+			}
+			parts = append(parts, checkinWords(r))
+		}
+	}
+	if hasPlugin() {
+		for _, r := range checkinPl(ctx) {
+			if r.Outcome == provider.CheckinFailed {
+				failed++
+			}
+			parts = append(parts, checkinWords(r))
+		}
+	}
 	if len(parts) == 0 {
-		return checkinMsg{text: "no WorkBuddy (China), Trae CN or MiniMax Code account is signed in · only they have the daily check-in"}
+		return checkinMsg{text: "no WorkBuddy (China), Trae CN, MiniMax Code, Qoder or check-in plugin account is signed in · only they have the daily check-in"}
 	}
 	return checkinMsg{text: strings.Join(parts, "; "), ok: failed == 0}
 }
@@ -672,6 +694,12 @@ func checkinWords(r provider.WorkBuddyCheckin) string {
 		who = "MiniMax Code"
 	case r.By == "minimax":
 		who = "MiniMax Code " + who
+	case r.By == "qoder" && who == "":
+		who = "Qoder"
+	case r.By == "qoder":
+		who = "Qoder " + who
+	case r.Vendor != "":
+		who = strings.TrimSpace(r.Vendor + " " + who)
 	case who == "":
 		who = "WorkBuddy"
 	}
@@ -692,6 +720,8 @@ func checkinWords(r provider.WorkBuddyCheckin) string {
 		return who + " isn't eligible for the check-in"
 	case provider.CheckinInactive:
 		return who + ": no check-in event now"
+	case provider.CheckinCaptcha:
+		return who + " asks for a captcha: check in in its own app"
 	}
 	msg := r.Msg
 	if msg == "" {
@@ -725,6 +755,8 @@ func checkinCell(q provider.SubscriptionQuota, now time.Time) string {
 		return sMuted.Render("签到 not eligible")
 	case provider.CheckinInactive:
 		return sMuted.Render("签到 no event now")
+	case provider.CheckinCaptcha:
+		return sMuted.Render("签到 needs a captcha · check in in its app")
 	}
 	return sBad.Render("签到 failed") + sMuted.Render(" · c tries again")
 }
@@ -975,7 +1007,7 @@ func quotaLines(qs []provider.SubscriptionQuota, asked, left bool, width int, no
 			ci = "   " + ci
 		}
 		switch {
-		case q.Balance != "":
+		case q.Balance != "" && len(q.Windows) == 0:
 			out = append(out, line+"  "+sText.Render(q.Balance)+sMuted.Render(" left")+ci)
 			continue
 		case q.Error != "":
@@ -986,10 +1018,18 @@ func quotaLines(qs []provider.SubscriptionQuota, asked, left bool, width int, no
 			continue
 		}
 		// the windows follow the name, those that don't fit on lines below
-		// it, and a Codex account's resets after them
+		// it, then the credits a ChatGPT account holds beside them and a
+		// Codex account's resets
 		var cells []string
 		for _, w := range provider.PooledWindows(q.Windows) {
 			cells = append(cells, quotaCell(w, left, now))
+		}
+		if q.Balance != "" {
+			c := sText.Render(q.Balance) + sMuted.Render(" left")
+			if q.Provider == "codex" && q.User != "" && !provider.CodexCredits(q.User) {
+				c += sFaint.Render(" · not spent") // held once a window is used up
+			}
+			cells = append(cells, c)
 		}
 		if ci != "" {
 			cells = append(cells, ci[3:])

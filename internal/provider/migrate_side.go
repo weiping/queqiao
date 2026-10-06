@@ -108,7 +108,7 @@ func init() {
 	// names, as the built-in does: the homes stay where they are.
 	movers["grok"] = &mover{
 		pkg:    "@magpie-community/opencode-grok-auth",
-		min:    "0.1.8", // a failure's status and its sign-in mark as the built-in's; grok-4.7's reasoning levels; a token Grok refuses early reads as expired; the sign-in renewed ahead of time through auth.refresh; a 429 shows a spent Rate limit window until it lifts; a login with no link says why
+		min:    "0.1.9", // a Go key the Provider API refuses is taken as Go's and asked at /alpha/generate (#969); a failure's status and its sign-in mark as the built-in's; grok-4.7's reasoning levels; a token Grok refuses early reads as expired; the sign-in renewed ahead of time through auth.refresh; a 429 shows a spent Rate limit window until it lifts; a login with no link says why
 		agents: []string{"grok"},
 		out: func() ([]Moving, error) {
 			var out []Moving
@@ -150,7 +150,7 @@ func init() {
 
 	movers[CommandCodePlanID] = &mover{
 		pkg:    "@magpie-community/opencode-commandcode-auth",
-		min:    "0.1.8", // a failure's status and its sign-in mark as the built-in's; a Go account lists Go's models; a model the plugin doesn't know takes pictures as models.dev says
+		min:    "0.1.9", // a Go key the Provider API refuses is taken as Go's and asked at /alpha/generate (#969); a failure's status and its sign-in mark as the built-in's; a Go account lists Go's models; a model the plugin doesn't know takes pictures as models.dev says
 		agents: []string{CommandCodePlanID},
 		out: func() ([]Moving, error) {
 			var out []Moving

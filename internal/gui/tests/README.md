@@ -1,5 +1,29 @@
 # Dropdown browser regression
 
+## Installed desktop fonts
+
+`fonts.test.cjs` exercises the interface/code font controls with installed
+family/style fixtures: independent traits, literal names, search and keyboard
+selection, rapid queued saves and rollback, reload, unavailable faces,
+discovery failure and refresh, empty collections, platform fallback,
+Omarchy precedence and browser-mode isolation. It checks narrow windows and
+no scroll on click in Chromium and WebKit, in English and Chinese.
+`ARTIFACT_DIR` retains screenshots; `MAGPIE_FONT_ASSETS` can point to an older
+asset directory to verify that the test fails on the missing picker.
+`font-cascade.test.cjs` checks that a reset restores the original weights
+under bold parents, while explicit component emphasis survives a choice.
+
+```sh
+node --test internal/gui/tests/fonts.test.cjs internal/gui/tests/font-cascade.test.cjs internal/gui/tests/win-fonts.test.cjs
+go test -v ./internal/fonts
+go test -tags nogui ./internal/settings ./internal/gui -run '^TestFont'
+```
+
+The native test reads the operating system's actual installed font metadata.
+Run `go test -v ./internal/fonts` without `nogui` on each desktop platform.
+Browser fixtures never read or write user settings, install fonts or contact
+a live gateway.
+
 ## Gateway Caller Keys
 
 `gateway-caller-keys.test.cjs` checks the named caller-key list on the
@@ -151,6 +175,14 @@ shared helper; a control under what it unrolls (`data-unrolls`) going down
 with it; a click that asks to go somewhere with `scrollOnPurpose(e)`;
 the room kept at the foot going as the reader scrolls back; and the wheel.
 
+`routing-days-fit.test.cjs` checks Routing › Requests' day bar with the 30
+days the gateway keeps (#961): at 1100px, 733px (1100 at 150% text size) and
+440px no pill is cut off at its edge and the days that don't fit are under its
+last pill, whose menu lists each with its count; the oldest picked from it is
+asked for and names the pill, with the bar held where it was; three days need
+no such pill; a window narrowed then widened fits again. Chromium and WebKit,
+in English, Chinese, Japanese and German.
+
 `agent-disconnect-preview.test.cjs` checks the disconnect confirmation's
 file previews fill the body instead of the editor's label column. omp and
 Codex previews, restored values, expanding hidden lines, scrolling, Cancel,
@@ -164,6 +196,17 @@ Set `ARTIFACT_DIR` to retain screenshots.
 node --test internal/gui/tests/agent-disconnect-preview.test.cjs
 ```
 
+`agent-unreachable.test.cjs` checks an agent whose config is right but whose
+address doesn't answer (#1013): its line says so in red with the advice as
+its tooltip, its pill is "How to fix", which opens the advice in a dialog and
+sets nothing, and when WSL reaches Windows at another address now the pill is
+"Use <address>" and posts the reapply. The window at 560px and the tray panel
+at 440px, in English, Chinese, Japanese and German on Chromium and WebKit.
+
+```sh
+node --test internal/gui/tests/agent-unreachable.test.cjs
+```
+
 `agent-layout.test.cjs` keeps the main window's agent names readable at 520,
 560 and 600 CSS pixels, while the model and effort controls stay inside their
 rows. At 601, the default 660 and 960 pixels, controls remain aligned beside
@@ -173,6 +216,11 @@ the names. English and Chinese, Chromium and WebKit.
 sign-in with pasteCallback shows) in a narrow Chinese
 dark window: invalid input remains editable, retry reaches the callback route,
 and a pending or accepted submission cannot be submitted twice.
+
+`signin-paste-plugin.test.cjs` checks a plugin's browser sign-in that comes
+back to a port on magpie's machine: the plugin's words, the pasted-address
+field posted to the sign-in, and the plugin's API key way, in a 360px window.
+English and Chinese, Chromium and WebKit.
 
 `plugin-updates.test.cjs` checks the dot on Plugins while a plugin's update
 waits for the reader, gone once it's updated, and the "Auto-updated" chip on a
@@ -315,6 +363,16 @@ the pick remembered. A 450-event stream draws 200 at a time from a button under
 the box that stays where it is, the page too; a body that isn't a stream is as
 before. English and Chinese, Chromium and WebKit.
 
+`json-tree.test.cjs` opens a JSON request and response in the Gateway page's
+recent calls: keys, strings, numbers and keywords each have their colour, the
+body's text is still the pretty-printed JSON, an object or array folds to
+`{…}` with its count and unfolds from its arrow or that summary with the page
+kept where it is, a fold outlives the list being drawn again, a value's copy
+button (shown on hovering its line) copies a string's text or an object's
+JSON, a click on a key copies its name, and a stream's events and its reply
+fold the same way. English, Chinese, Japanese and German, 1000px and 440px,
+Chromium and WebKit.
+
 `routing-kind.test.cjs` lists calls Codex makes for itself (a guardian review,
 a title, memories, a turn on Luna Reserve, a kind it does not know yet): each
 has a grey tag by its model in the Requests list, in English and Chinese, the
@@ -375,6 +433,11 @@ leaves the list while the user's stays, the hint says only theirs are served,
 and the status line says which agent was moved to the model from one provider;
 clicked on, the found group is back. Neither click moves the page, the switch
 has no left-border accent, and every string has its Chinese.
+
+`group-id-dots.test.cjs` checks that a routing group's id keeps the dots of a
+model's name (#968): a new group named "GPT 6.1 Sol" is said and sent as
+`group/gpt-6.1-sol`, and `groupSlug` folds a run of dots and trims them at the
+ends as `provider.GroupSlug` does, in English and Chinese, Chromium and WebKit.
 
 `group-new-head.test.cjs` checks that a routing group of any models can be
 made from the top of the Routing page, in Chromium and WebKit, English and
@@ -562,6 +625,18 @@ disables panel-header dragging,
 and cancels navigation after five seconds or a purposeful user scroll.
 It runs in English and Chinese on Chromium and WebKit, with a mocked API. Run with
 `node --test internal/gui/tests/tray-cell-click.test.cjs`.
+
+`panel-arrange.test.cjs` opens the tray panel's Allowances tab at 440px with a
+subscription hidden in the settings: it has no card and the foot says one is
+hidden. *Arrange* keeps the page where the reader scrolled it and lists a row
+a subscription in the shared order, with the note that hiding is the panel's
+only; the grip by a logo shows on hover only, and no row has a left stripe or
+runs off sideways. *Show* and *Hide* post `panelHidden` without moving the
+page, a failed save is put back, Alt+arrow and a drag by the logo post the
+`order`, and *Done* draws the cards in it. A menu bar cell for a hidden
+subscription still opens its card until the panel is put away, and the Usage
+page keeps the hidden card in the same order. It runs in English, Chinese,
+Japanese and German on Chromium and WebKit, with a mocked API.
 
 `TestTrayCellClickReleasedPanel` (darwin, cgo, GUI) runs a separate AppKit
 process with an isolated config and a minimal page: a quota click recreates
@@ -816,6 +891,26 @@ folds them again without moving the page, and is remembered across a
 reload; DeepSeek's keys fold too, four keys aren't folded, a subscription's
 accounts aren't keys, an unread key leaves the sum out, and at 440px nothing
 is cut; in Chromium and WebKit, English and Chinese.
+
+`upstream-status.test.cjs` checks the vendors' status pages on the
+Providers and Usage pages (#971): with Anthropic's page saying its API is
+down, the Anthropic provider's row and the Claude subscription's row and
+usage card carry "API outage" beside the name, its title naming the part and
+the incident; a click opens the incident and not the row; a relay serving
+the same models, OpenAI (its page all well) and Moonshot (its page unread)
+carry nothing, and nothing does once the page is well again; at 440px the
+badge is whole (the name gives way) and nothing spills; in Chromium and
+WebKit, English and Chinese.
+
+`usage-accounts-fold.test.cjs` checks the Usage page's card of a subscription
+with many accounts (Linx on X: twenty-odd on one plugin made a very long
+card): of 22 WorkBuddy AI accounts the first five are in sight, the rest
+behind "Show 17 more accounts" at its foot; of nine Trae accounts the one in
+full and the one with the check-in switch stay in sight too; eight aren't
+folded. The button opens them in place without moving the page, is
+remembered across a reload and folds them again from the foot (the page
+resting at its end, the button in sight); at 440px nothing is cut, folded or
+open; in Chromium and WebKit, in English, Chinese, Japanese and German.
 
 `sessions-calendar-fill.test.cjs` checks that the Sessions overview's activity
 calendar fills its card: 118 days (17 weeks) at 1400 wide take over 90% of
@@ -1965,3 +2060,25 @@ Chinese, Chromium and WebKit.
 ```sh
 node --test internal/gui/tests/library-rtk-nohook.test.cjs
 ```
+
+## Local Provider Discovery
+
+`provider-discovery.test.cjs` checks the automatic Providers-page hint on
+Chromium and WebKit: discovery runs without blocking the list or resetting an
+Add-sheet search, details are read only when the picker opens, and only selected
+entries are imported. It covers refresh after partial and complete imports,
+late scan responses, a prominent first-use hint and a compact entry beside Add
+provider for existing users, a later visit finding new configurations,
+persistent dismissal across reloads and partial imports, newly added or changed
+configurations without selecting previously ignored entries, manual import of
+ignored entries, a scan containing only an ID collision or a disabled Alma
+provider (no hint, but both remain selectable in manual import), an empty scan,
+a failed scan, and a narrow window. The main flow runs in English and
+Chinese; all credentials and API responses are fixtures. Run with
+`node --test internal/gui/tests/provider-discovery.test.cjs` and the Playwright
+environment described in this file. `TestLocalProviderDiscovery` exercises the real
+readers and summary endpoint in an isolated home, including duplicate and
+unimportable entries, unreadable sources, stable fingerprints despite ID
+collisions, changed configuration fingerprints, excluding unticked collision and
+disabled Alma entries while preserving the add-key case, and keeping credentials
+server-side.

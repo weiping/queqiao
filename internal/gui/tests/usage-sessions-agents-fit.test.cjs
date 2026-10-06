@@ -72,8 +72,15 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       // the strip drawn again kept its buttons and where it was scrolled
       await strip.evaluate((e) => { e.scrollLeft = e.scrollWidth; });
       const last = strip.locator(".opt").last();
-      const lb = await last.boundingBox();
-      await page.mouse.click(lb.x + lb.width / 2, lb.y + lb.height / 2);
+      // Playwright's WebKit stops hit-testing a scroller's children once it
+      // has been scrolled (a click lands on the strip, ~70% of runs; the
+      // system's WKWebView takes it, tried from a WKWebView in AppKit), so
+      // there the button is clicked as an element
+      if (engine === "webkit") await last.evaluate((b) => b.click());
+      else {
+        const lb = await last.boundingBox();
+        await page.mouse.click(lb.x + lb.width / 2, lb.y + lb.height / 2);
+      }
       await page.waitForFunction(() => document.querySelector("#sessAgent .opt.on")?.textContent === "Zed");
       await settle();
       assert.equal(await strip.getByRole("button", { pressed: true }).textContent(), "Zed", "the reused button exposes its new selection");

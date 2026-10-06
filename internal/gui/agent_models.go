@@ -183,6 +183,23 @@ func agentModelList(a *agent.Agent) []agentModelJSON {
 func orderable(id string) bool { return id == "codex" }
 
 func agentModelsAPI(mux *http.ServeMux) {
+	// a model the agent picks sent in its vendor's fast mode, or not (#954):
+	// for is the option's fastFor, the agent whose requests it goes on
+	mux.HandleFunc("POST /api/agent-fast", func(rw http.ResponseWriter, r *http.Request) {
+		var in struct {
+			For, Ref string
+			Fast     bool
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			fail(rw, err)
+			return
+		}
+		if err := provider.SetFastPick(in.For, in.Ref, in.Fast); err != nil {
+			fail(rw, err)
+			return
+		}
+		writeJSON(rw, map[string]any{"fast": provider.IsFastPick(in.For, in.Ref)})
+	})
 	mux.HandleFunc("GET /api/agent-models/{id}", func(rw http.ResponseWriter, r *http.Request) {
 		a, err := agent.Find(r.PathValue("id"))
 		if err != nil {

@@ -162,6 +162,75 @@ func TestWSLStoppedDistroKept(t *testing.T) {
 	}
 }
 
+// A distro the user stops after the last listing (wsl --shutdown, to repair
+// WSL: TJHHHH on Discord, magpie kept starting it) isn't opened, though
+// WSLHomes, as old as internal/agent's last look, still says it runs: the
+// next listing and every read ask WSLRunning first. Once it runs again its
+// files are read as before.
+func TestWSLStoppedSinceNotOpened(t *testing.T) {
+	home, _ := wslDistro(t)
+	up := true
+	WSLRunning = func(d string) bool { return d == "Ubuntu" && up }
+	t.Cleanup(func() { WSLRunning = nil })
+	if n := len(List(0)); n != 4 {
+		t.Fatalf("want the 4 sessions, got %d", n)
+	}
+	wslSettle()
+	project := filepath.Join(home, ".claude", "projects", "-work-app")
+	var before Session
+	for _, s := range List(0) {
+		if s.Agent == "claude" && s.ID == "11111111-2222-3333-4444-555555555555" {
+			before = s
+		}
+	}
+	grown := before.Path
+	if grown == "" {
+		t.Fatal("no Claude Code session")
+	}
+
+	up = false
+	const id = "99999999-2222-3333-4444-555555555555"
+	line := `{"type":"user","message":{"role":"user","content":"after the stop"},"uuid":"u9","timestamp":"2026-09-20T10:00:01.000Z","cwd":"/work/app","sessionId":"` + id + `"}` + "\n"
+	if err := os.WriteFile(filepath.Join(project, id+".jsonl"), []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(grown, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(`{"parentUuid":"x","message":{"model":"claude-opus-5-5","id":"msg_9","type":"message","role":"assistant","content":[{"type":"text","text":"more"}],"usage":{"input_tokens":1000,"output_tokens":500}},"requestId":"req_9","type":"assistant","uuid":"a9","timestamp":"2026-09-20T10:09:05.000Z","cwd":"/work/app","sessionId":"11111111-2222-3333-4444-555555555555"}` + "\n")
+	f.Close()
+	if !wslCold(grown) {
+		t.Fatal("a file of the stopped distro isn't cold")
+	}
+	for i := 0; i < 2; i++ {
+		wslSess.Lock()
+		wslSess.at = time.Time{} // wslRelist later
+		wslSess.Unlock()
+		ss := List(0)
+		wslSettle()
+		if len(ss) != 4 {
+			t.Fatalf("pass %d: the stopped distro was listed again: %d sessions", i, len(ss))
+		}
+		for _, s := range ss {
+			if s.Path == grown && s.Output != before.Output {
+				t.Fatalf("pass %d: the stopped distro's file was read: output %d, was %d", i, s.Output, before.Output)
+			}
+		}
+	}
+
+	up = true
+	wslSess.Lock()
+	wslSess.at = time.Time{}
+	wslSess.Unlock()
+	List(0)
+	wslSettle()
+	ss := List(0)
+	if len(ss) != 5 {
+		t.Fatalf("running again: want 5 sessions, got %d", len(ss))
+	}
+}
+
 // Off WSL (WSLHomes nil, as on macOS and Linux) nothing changes.
 func TestWSLNoneWithoutHomes(t *testing.T) {
 	setup(t)

@@ -61,6 +61,9 @@ exec 3<&0
 ( while read -r line; do echo "$line" >> "$CLAUDE_CONFIG_DIR/.pasted"; done ) <&3 >/dev/null 2>&1 &
 reader=$!
 while :; do
+  # a test that ended without signing in removed this folder: end, rather
+  # than poll for ever (one did for days after its run)
+  [ -d "${0%%/*}" ] || exit 3
   [ -f '%s' ] && break
   grep -qx 'the-code#st' "$CLAUDE_CONFIG_DIR/.pasted" 2>/dev/null && break
   sleep 0.05

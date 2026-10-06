@@ -93,11 +93,21 @@ func TestWSLSkillsCopied(t *testing.T) {
 			t.Errorf("%s isn't the library's skill", d)
 		}
 	}
-	if !linked(filepath.Join(home(), ".claude/skills/pdf")) {
-		t.Error("this machine's Claude Code got a copy, not a link")
+	// Windows without the right to make symlinks (Developer Mode off, not
+	// elevated) links with junctions (#973); only where neither can be
+	// made is the library's a copy of the folder, and this machine's Claude
+	// Code a marked copy of that
+	links := dirLink(t.TempDir(), filepath.Join(t.TempDir(), "link")) == nil
+	if local := filepath.Join(home(), ".claude/skills/pdf"); linked(local) != links || !ours(local, "pdf") {
+		t.Errorf("this machine's Claude Code: linked %v, symlinks here %v", linked(local), links)
 	}
-	// the skill is its folder: an edit there reaches the copies at the next sync
-	write(t, filepath.Join(src, "pdf/SKILL.md"), "---\nname: pdf\ndescription: Changed\n---\n")
+	// the skill is its folder: an edit there reaches the copies at the next
+	// sync; where the library holds a copy, the edit is made in that copy
+	edited := filepath.Join(src, "pdf/SKILL.md")
+	if !links {
+		edited = filepath.Join(skillDir("pdf"), "SKILL.md")
+	}
+	write(t, edited, "---\nname: pdf\ndescription: Changed\n---\n")
 	res := ok(t)(Sync())
 	if !slices.Contains(res.Changed, wslCodex) {
 		t.Errorf("changed: %v", res.Changed)
@@ -255,6 +265,27 @@ func TestWSLMagpieImage(t *testing.T) {
 	res, err := Sync()
 	if err != nil || len(res.Problems) == 0 || !strings.Contains(res.Problems[0].Error, "interop") {
 		t.Errorf("interop off: %+v", res.Problems)
+	}
+}
+
+// TJHHHH on Discord: magpie kept starting WSL while they repaired it. An
+// agent made while its distro ran, which the user then stops (wsl
+// --shutdown), is no target: writing the library there would start it.
+// Giving it something says the distro isn't running.
+func TestWSLStoppedSinceNoTarget(t *testing.T) {
+	wslSandbox(t)
+	tg := targetByID(wslCodex)
+	if tg == nil {
+		t.Fatalf("not a target while running: %v", ids(Targets()))
+	}
+	agent.StopFakeWSL("Ubuntu-24.04")
+	if wslTargetOf(tg.Agent) != nil {
+		t.Fatal("a target in the stopped distro")
+	}
+	for _, t2 := range Targets() {
+		if t2.Agent.WSL != "" {
+			t.Fatalf("%s is a target while its distro is stopped", t2.Agent.ID)
+		}
 	}
 }
 

@@ -41,20 +41,31 @@ func evalPath(p string) string {
 	return p
 }
 
-// Only magpie's own programs are taken for magpie.
+// Only magpie's own programs are taken for magpie. An update moves a running
+// exe aside to exe.old, and to exe.old-2, -3 when that one is held too, so
+// every name it can take while it still runs is magpie's.
 func TestIsMagpie(t *testing.T) {
 	for path, want := range map[string]bool{
 		"/Applications/Magpie.app/Contents/MacOS/magpie": true,
 		"/usr/local/bin/magpie":                          true,
 		`C:\Users\u\AppData\Local\magpie\magpie.exe`:     true,
 		`C:\Users\u\AppData\Local\magpie\magpie.exe.old`: true,
-		"/home/u/.local/bin/dial":                        true,
-		"/opt/magpie-dev":                                true,
-		"/usr/bin/python3":                               false,
-		"/usr/bin/magpies":                               false,
-		"/tmp/other-server":                              false,
-		`C:\Windows\System32\svchost.exe`:                false,
-		"":                                               false,
+		// an update that finds .old still held leaves the running exe at
+		// .old-2, the name it holds the gateway port under
+		`C:\Users\u\AppData\Local\magpie\magpie.exe.old-2`: true,
+		`C:\Users\u\AppData\Local\magpie\magpie.exe.old-3`: true,
+		"/home/u/magpie.old-2":                             true,
+		"/home/u/dial.old-4":                               true,
+		// the numbered suffix is an update's, not another program's
+		`C:\Users\u\other-server.old-2`:   false,
+		`C:\Users\u\magpie.old-backup`:    false,
+		"/home/u/.local/bin/dial":         true,
+		"/opt/magpie-dev":                 true,
+		"/usr/bin/python3":                false,
+		"/usr/bin/magpies":                false,
+		"/tmp/other-server":               false,
+		`C:\Windows\System32\svchost.exe`: false,
+		"":                                false,
 	} {
 		if IsMagpie(path) != want {
 			t.Errorf("IsMagpie(%q) = %v", path, !want)

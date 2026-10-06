@@ -122,7 +122,10 @@ type subscriptionRun struct {
 	model  string
 	cmd    *exec.Cmd
 	tree   *proc.Tree // cmd once started, with all it starts
-	tmp    string
+	// the read ends of Claude Code's output, and their readers
+	outputs []*os.File
+	reading sync.WaitGroup
+	tmp     string
 	// schema says the client asked for an answer fitting a JSON schema,
 	// which Claude Code gives as its StructuredOutput call
 	schema bool
@@ -130,7 +133,11 @@ type subscriptionRun struct {
 	// the tools its agent was told of, as it started and since
 	tools map[string]bool
 
-	mu       sync.Mutex
+	mu sync.Mutex
+	// sending is held across a send to the segment and taken before it is
+	// closed, so a send blocked on a full segment no one reads yet holds
+	// this, not mu: the request's heard, stderr and abort go on meanwhile
+	sending  sync.Mutex
 	segment  chan Event
 	pending  map[string]chan mcpToolResult
 	closed   bool
@@ -289,6 +296,27 @@ func sweepBridgeProjects(claudeDir, tempDir string) {
 				_ = os.RemoveAll(filepath.Join(root, e.Name()))
 				break
 			}
+		}
+	}
+}
+
+// sweepBridgeTemps removes the folders runs a gateway no longer running
+// left in the temp directory: a run's own magpie-claude-<n> (its tools.json,
+// its work folder when it has no shared one) is removed when it ends, but a
+// gateway quit for an update, or killed, ends none of its runs (#958).
+// Another gateway on the same account (a dev build) makes them in the same
+// folder, so only those untouched for as long as a session's passing files
+// are left (tempLongest) go: a run's helper reads its tools.json as it
+// starts, and a run working in its folder touches it.
+func sweepBridgeTemps(tempDir string) {
+	entries, _ := os.ReadDir(tempDir)
+	for _, e := range entries {
+		rest, ok := strings.CutPrefix(e.Name(), "magpie-claude-")
+		if !ok || !e.IsDir() || rest == "" || strings.Trim(rest, "0123456789") != "" {
+			continue
+		}
+		if path := filepath.Join(tempDir, e.Name()); untouchedFor(path, tempLongest) {
+			_ = os.RemoveAll(path)
 		}
 	}
 }
@@ -458,7 +486,12 @@ func (b *subscriptionBridge) start(ctx context.Context, req *Request, model, con
 	if err != nil {
 		return nil, nil, err
 	}
-	b.sweep.Do(func() { go sweepBridgeProjects(claudeConfigDir(), os.TempDir()) })
+	b.sweep.Do(func() {
+		go func() {
+			sweepBridgeProjects(claudeConfigDir(), os.TempDir())
+			sweepBridgeTemps(os.TempDir())
+		}()
+	})
 	tmp, err := os.MkdirTemp("", "magpie-claude-")
 	if err != nil {
 		return nil, nil, err
@@ -525,16 +558,22 @@ func (b *subscriptionBridge) start(ctx context.Context, req *Request, model, con
 		cleanup()
 		return nil, nil, err
 	}
-	stdout, err := cmd.StdoutPipe()
+	// Claude Code's output comes through pipes of the run's own, not
+	// cmd.StdoutPipe's, which Wait closes as Claude Code exits: what it
+	// wrote last, or the reading under way as it was stopped, failed
+	// "file already closed", and the client heard that for an error.
+	stdout, stdoutW, err := os.Pipe()
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	stderr, err := cmd.StderrPipe()
+	stderr, stderrW, err := os.Pipe()
 	if err != nil {
+		_, _ = stdout.Close(), stdoutW.Close()
 		cleanup()
 		return nil, nil, err
 	}
+	cmd.Stdout, cmd.Stderr = stdoutW, stderrW
 
 	run := &subscriptionRun{bridge: b, token: token, model: model, cmd: cmd, tmp: tmp, schema: len(req.Schema) > 0, pending: map[string]chan mcpToolResult{}, stdin: stdin, owner: owner, effort: req.Effort, sessions: sessions}
 	run.safeguardBeta = req.SafeguardBeta
@@ -549,14 +588,24 @@ func (b *subscriptionBridge) start(ctx context.Context, req *Request, model, con
 	b.runs[token] = run
 	b.mu.Unlock()
 
-	if err := run.launch(); err != nil {
+	run.outputs = []*os.File{stdout, stderr}
+	run.reading.Add(2)
+	err = run.launch()
+	_, _ = stdoutW.Close(), stderrW.Close() // Claude Code has its own
+	if err != nil {
+		_, _ = stdout.Close(), stderr.Close()
 		b.removeRun(run)
 		return nil, nil, err
 	}
 	go func() {
+		defer run.reading.Done()
 		_, _ = io.Copy(&lockedWriter{run: run}, io.LimitReader(stderr, 1<<20))
+		_, _ = io.Copy(io.Discard, stderr)
 	}()
-	go run.readOutput(stdout)
+	go func() {
+		defer run.reading.Done()
+		run.readOutput(stdout)
+	}()
 
 	if len(req.Safeguards) > 0 {
 		// Initialize the SDK before applying settings. Send the potentially
@@ -1672,9 +1721,11 @@ func (r *subscriptionRun) attach() chan Event {
 }
 
 func (r *subscriptionRun) emit(ev Event) {
+	r.sending.Lock()
+	defer r.sending.Unlock()
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.segment != nil {
+	ch := r.segment
+	if ch != nil {
 		switch ev.Kind {
 		case KStart: // a reply begins
 			r.shown = nil
@@ -1685,8 +1736,19 @@ func (r *subscriptionRun) emit(ev Event) {
 				r.shown[n-1].args += ev.Text
 			}
 		}
-		r.segment <- ev
 	}
+	r.mu.Unlock()
+	if ch != nil {
+		ch <- ev
+	}
+}
+
+// closeSegment closes a segment taken off the run, once no send to it is
+// under way.
+func (r *subscriptionRun) closeSegment(ch chan Event) {
+	r.sending.Lock()
+	close(ch)
+	r.sending.Unlock()
 }
 
 func (r *subscriptionRun) endSegment() {
@@ -1698,7 +1760,7 @@ func (r *subscriptionRun) endSegment() {
 	}
 	r.mu.Unlock()
 	if ch != nil {
-		close(ch)
+		r.closeSegment(ch)
 	}
 }
 
@@ -2091,7 +2153,7 @@ func (r *subscriptionRun) readOutput(rd io.Reader) {
 	pmu.Lock()
 	defer pmu.Unlock()
 	settle()
-	if err := s.Err(); err != nil {
+	if err := s.Err(); err != nil && !errors.Is(err, os.ErrClosed) {
 		r.emit(Event{Kind: KError, Text: err.Error()})
 	} else if cut {
 		failed("and Claude Code stopped")
@@ -2751,7 +2813,7 @@ func (r *subscriptionRun) finish() {
 		close(waiter)
 	}
 	if ch != nil {
-		close(ch)
+		r.closeSegment(ch)
 	}
 	if r.bridge != nil { // a run made in a test may have none
 		r.bridge.removeRun(r)
@@ -2769,9 +2831,32 @@ func (r *subscriptionRun) launch() error {
 	r.mu.Unlock()
 	go func() {
 		_ = t.Wait()
+		r.drain()
 		r.finish()
 	}()
 	return nil
+}
+
+// outputDrain is how long the run's output is read once Claude Code has
+// exited and its group been ended: a process that left the group may
+// still hold the pipes, and is not waited for longer.
+var outputDrain = 2 * time.Second
+
+// drain waits for what Claude Code wrote to be read, so its last lines
+// reach the client before the run ends, then closes its pipes.
+func (r *subscriptionRun) drain() {
+	read := make(chan struct{})
+	go func() {
+		r.reading.Wait()
+		close(read)
+	}()
+	select {
+	case <-read:
+	case <-time.After(outputDrain):
+	}
+	for _, f := range r.outputs {
+		_ = f.Close()
+	}
 }
 
 func (r *subscriptionRun) abort() {
@@ -2933,6 +3018,16 @@ func (s *Server) serveSubscription(w http.ResponseWriter, r *http.Request, from 
 		if name == "Claude Code" {
 			err = run.setSafeguards(req)
 		}
+		// the tools are the run's before its agent is handed them: from
+		// then on it may answer, finish the turn and be shelved, or be
+		// asked whether it offers them, before this goroutine goes on
+		if err == nil && more != nil {
+			run.mu.Lock()
+			for _, t := range req.Tools {
+				run.tools[t.Name] = true
+			}
+			run.mu.Unlock()
+		}
 		if err == nil {
 			events, err = run.continueWith(results, more)
 		}
@@ -2941,12 +3036,6 @@ func (s *Server) serveSubscription(w http.ResponseWriter, r *http.Request, from 
 			// it ended while it waited: a new one is told the whole
 			// conversation
 			run, how = nil, runExpired
-		} else if more != nil {
-			run.mu.Lock()
-			for _, t := range req.Tools {
-				run.tools[t.Name] = true
-			}
-			run.mu.Unlock()
 		}
 	}
 	// how tool results found the run waiting on them, or why a new one is
@@ -2957,15 +3046,18 @@ func (s *Server) serveSubscription(w http.ResponseWriter, r *http.Request, from 
 	if run == nil {
 		run, events, err = start(r.Context(), req)
 		if err == nil {
-			run.tools = map[string]bool{}
+			// its agent is running already: what it was told is set
+			// under the run's lock, as offers and shelve read it
+			tools := map[string]bool{}
 			for _, t := range req.Tools {
-				run.tools[t.Name] = true
+				tools[t.Name] = true
 			}
+			run.mu.Lock()
+			run.tools = tools
 			if search.Name != "" {
-				run.mu.Lock()
 				run.search, run.searchName = s.webSearch, search.Name
-				run.mu.Unlock()
 			}
+			run.mu.Unlock()
 		}
 	}
 	if err != nil {
