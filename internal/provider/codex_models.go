@@ -22,6 +22,7 @@ import (
 	"github.com/yetone/magpie/internal/catalog"
 	"github.com/yetone/magpie/internal/codexcat"
 	"github.com/yetone/magpie/internal/proc"
+	"github.com/yetone/magpie/internal/settings"
 )
 
 // codexClientVersion is the Codex CLI version the models list is asked for
@@ -85,29 +86,22 @@ func codexVersion() string {
 		var c struct {
 			ClientVersion string `json:"client_version"`
 		}
-		if b, err := os.ReadFile(filepath.Join(codexCLIHome(), "models_cache.json")); err == nil && json.Unmarshal(b, &c) == nil {
+		if b, err := os.ReadFile(catalog.CodexModelsCache()); err == nil && json.Unmarshal(b, &c) == nil {
 			newer(c.ClientVersion)
 		}
 		if exe := codexExecutable(); exe != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if out, err := proc.ProbeContext(ctx, exe, "--version").Output(); err == nil {
-				newer(string(out)) // "codex-cli 0.155.1"
-			}
-			cancel()
+			// "codex-cli 0.155.1"; read from its npm package, and not run
+			// again once it failed (#864: macOS's malware alert each time)
+			newer(codexCLIVersion(exe))
 		}
 		codexVersionCache.v, codexVersionCache.at = v, time.Now()
 	}
 	return newerVersion(codexVersionCache.v, codexSeen.get())
 }
 
-// codexCLIHome is where Codex CLI keeps its state: CODEX_HOME, else ~/.codex.
-func codexCLIHome() string {
-	if dir := os.Getenv("CODEX_HOME"); dir != "" {
-		return dir
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".codex")
-}
+// codexCLIVersion is what the codex CLI at exe says its version is; a var
+// so tests can fake it.
+var codexCLIVersion = proc.Version
 
 // newerVersion is the later of two versions, a when b isn't one.
 func newerVersion(a, b string) string {
@@ -247,6 +241,20 @@ func (a *Account) Lists(model string) bool {
 	if !ok {
 		return true
 	}
+	if a.Agent == "antigravity" {
+		// Clients pick the family, while each account lists raw effort
+		// variants. A secondary account may be the only one listing it.
+		if variants, family := AntigravityVariants(model); family {
+			return slices.ContainsFunc(live, func(m catalog.Model) bool {
+				for _, id := range variants {
+					if m.ID == id {
+						return true
+					}
+				}
+				return false
+			})
+		}
+	}
 	return slices.ContainsFunc(live, func(m catalog.Model) bool { return m.ID == model })
 }
 
@@ -260,6 +268,9 @@ func (a *Account) Levels(model string) (levels []string, ok bool) {
 	live, _, found := catalog.Live(accountModels(a.Agent, a.User))
 	if !found {
 		return nil, false
+	}
+	if a.Agent == "antigravity" {
+		live = collapseAntigravityModels(live)
 	}
 	for _, m := range live {
 		if m.ID == model && len(m.Efforts) > 0 {
@@ -363,23 +374,69 @@ func CodexNativeHidden() map[string]bool {
 	}
 	out := map[string]bool{}
 	for _, e := range Catalog() {
-		if off[e.ID] && e.Group == "" && e.Provider.Account != nil && e.Provider.Account.Agent == "codex" {
+		if off[e.ID] && CodexOwn(e) {
 			out[e.Model] = true
 		}
 	}
 	return out
 }
 
-// CodexListTag names the list Codex is handed, for its ETag: magpie's models
-// and the account's own taken out of it, so either changing has Codex ask
-// for the list again.
+// CodexOrder is where each model of Codex's list goes when the user put
+// them in an order of their own on the Agents page (#855), by the slug
+// Codex knows it by — a ChatGPT account's own by its bare one, as the
+// backend lists it — and whether they did. A model it doesn't name keeps
+// its place after them.
+func CodexOrder() (map[string]int, bool) {
+	order := ModelOrder("codex")
+	if len(order) == 0 {
+		return nil, false
+	}
+	at := make(map[string]int, len(order))
+	for i, id := range order {
+		at[id] = i
+	}
+	out := map[string]int{}
+	for _, e := range Catalog() {
+		i, ok := at[e.ID]
+		if !ok {
+			continue
+		}
+		slug := e.ID
+		if CodexOwn(e) {
+			slug = e.Model
+		}
+		if cur, seen := out[slug]; !seen || i < cur {
+			out[slug] = i
+		}
+	}
+	return out, true
+}
+
+// CodexListTag names the list Codex is handed, for its ETag: magpie's models,
+// the account's own taken out of it, the order they are in, the windows set on them, the auto-review model, and whether its OpenAI models say
+// multi-agent V1 (settings.CodexAgentsV1), so any of them changing has
+// Codex ask for the list again.
 func CodexListTag() string {
 	ms := CodexListed()
 	off := slices.Sorted(maps.Keys(CodexNativeHidden()))
 	for _, slug := range off {
 		ms = append(ms, catalog.Model{ID: "-" + slug})
 	}
-	return codexcat.Tag(ms)
+	// and the order the user put them in, the account's own among them
+	for _, id := range ModelOrder("codex") {
+		ms = append(ms, catalog.Model{ID: "^" + id})
+	}
+	ms = append(ms, codexWindowsTag()...)
+	// and where a model with no threshold of its own is compacted, when
+	// that isn't the working window
+	if n := settings.Load().Compact(); n != settings.WorkingWindow {
+		ms = append(ms, catalog.Model{ID: "~compact", Context: n})
+	}
+	// and the model Codex's auto-review runs on (#938)
+	if v := settings.Load().CodexAutoReview; v != "" {
+		ms = append(ms, catalog.Model{ID: "~autoreview:" + v})
+	}
+	return codexcat.PolicyTag(codexcat.Tag(ms))
 }
 
 // CodexNativePicked is the set of the ChatGPT account's own model slugs the
@@ -403,6 +460,48 @@ func CodexNativePicked() (map[string]bool, bool) {
 	return keep, true
 }
 
+// CodexNativeWindow is the context window Codex is handed for one of the
+// ChatGPT account's own models, by the backend's slug, and the most it may
+// be raised to (0: as the entry says): the window the user set on the codex
+// provider (Provider.ContextOf), as /v1/models says it (#674). ok is false
+// for a model the user set none for, whose entry keeps the backend's window
+// — unless restore, for an entry not fresh from the backend: Codex's
+// models_cache.json keeps what magpie last handed it, a window since taken
+// away among it, so such an entry takes the account's own list's again.
+func CodexNativeWindow(restore bool) func(slug string) (n, most int, ok bool) {
+	p, _ := find(All(), "codex")
+	live, _, _ := catalog.Live("codex")
+	return func(slug string) (int, int, bool) {
+		if n := p.ContextOf(slug); n > 0 {
+			return n, 0, true
+		}
+		if !restore {
+			return 0, 0, false
+		}
+		for _, m := range live {
+			if m.ID == slug && m.Context > 0 {
+				// a list without the max (saved before magpie kept
+				// it) leaves the cache's own; Window still raises it to
+				// the window when it's below
+				return m.Context, m.MaxContext, true
+			}
+		}
+		return 0, 0, false
+	}
+}
+
+// codexWindowsTag is the windows the user set on the codex provider, for
+// the ETag of Codex's list: setting one, or taking it away, has Codex ask
+// for the list again.
+func codexWindowsTag() []catalog.Model {
+	p, _ := find(All(), "codex")
+	var out []catalog.Model
+	for _, k := range slices.Sorted(maps.Keys(p.Contexts)) {
+		out = append(out, catalog.Model{ID: "=" + k, Context: p.Contexts[k]})
+	}
+	return out
+}
+
 // codexListed marks a group Fast when a ChatGPT account's GPT model is in
 // it, so Codex offers /fast there too; the tier goes out only to that
 // account (buildResponses).
@@ -411,11 +510,15 @@ func codexListed(shown []Entry, members func(id string) []Member) []catalog.Mode
 	// named among all shown: the account's own, which the backend lists,
 	// are in Codex's picker beside these
 	labels := Labels(shown)
+	seen := described()
+	s := settings.Load()
+	find := func(id string) (Group, []Member, bool) { return Group{}, members(id), true }
 	for i, e := range shown {
-		if e.Group == "" && e.Provider.Account != nil && e.Provider.Account.Agent == "codex" {
+		if CodexOwn(e) {
 			continue
 		}
-		m := catalog.Model{ID: e.ID, Name: labels[i], Efforts: e.Efforts, Images: e.Images, Context: e.Context}
+		m := catalog.Model{ID: e.ID, Name: labels[i], Efforts: e.Efforts, Images: e.Images || seen, Context: e.Context, AgentsV2: e.AgentsV2}
+		m.Compact = compactSet(s, e.ID, find)
 		if e.Group != "" {
 			for _, mb := range members(e.ID) {
 				if a := mb.Provider.Account; a != nil && a.Agent == "codex" && strings.HasPrefix(mb.Model, "gpt-") {

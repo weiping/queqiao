@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,7 @@ type Listing struct {
 	Providers []string          `json:"providers,omitempty"` // OpenCode's ids of those it signs in to
 	Community bool              `json:"community,omitempty"` // written by magpie's community
 	Replaces  string            `json:"replaces,omitempty"`  // the built-in subscription it does the work of
+	Kind      string            `json:"kind,omitempty"`      // "middleware" for gateway middleware; none for a provider
 	Summary   map[string]string `json:"summary,omitempty"`   // by language: en, zh
 }
 
@@ -169,7 +171,9 @@ func Market(ctx context.Context) []Listing {
 	}
 	if src != "off" {
 		c, cancel := context.WithTimeout(ctx, 6*time.Second)
-		b, err := fetchJSONOfficial(c, src, 1<<20)
+		// the list names the packages installed: a copy of the very file
+		// may stand in for it (with 「国内镜像」), a proxy may not
+		b, err := fetchJSONFaithful(c, src, 1<<20)
 		cancel()
 		if err == nil {
 			if l, err := parseMarket(b); err == nil {
@@ -192,27 +196,30 @@ func Market(ctx context.Context) []Listing {
 	return l
 }
 
+// RefreshMarket has the next Market fetch the list again, as with the
+// 「国内镜像」 switch just turned on; the one held is kept till then.
+func RefreshMarket() {
+	marketMu.Lock()
+	marketAt = time.Time{}
+	marketMu.Unlock()
+}
+
 func fetchJSON(ctx context.Context, u string, limit int64) ([]byte, error) {
-	return fetchJSONFrom(ctx, u, limit, true)
+	return fetchJSONFrom(ctx, u, limit, source.Do)
 }
 
-func fetchJSONOfficial(ctx context.Context, u string, limit int64) ([]byte, error) {
-	return fetchJSONFrom(ctx, u, limit, false)
+func fetchJSONFaithful(ctx context.Context, u string, limit int64) ([]byte, error) {
+	return fetchJSONFrom(ctx, u, limit, source.DoFaithful)
 }
 
-func fetchJSONFrom(ctx context.Context, u string, limit int64, mirror bool) ([]byte, error) {
+func fetchJSONFrom(ctx context.Context, u string, limit int64, do func(*http.Client, *http.Request) (*http.Response, error)) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "magpie")
 	req.Header.Set("Accept", "application/json")
-	var res *http.Response
-	if mirror {
-		res, err = source.Do(http.DefaultClient, req)
-	} else {
-		res, err = source.DoOfficial(http.DefaultClient, req)
-	}
+	res, err := do(http.DefaultClient, req)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +423,9 @@ type Hit struct {
 	NPM
 }
 
-// Search asks npm for OpenCode plugins matching q.
+// Search asks npm for plugins matching q: OpenCode plugins, and pi
+// packages, which list "pi-package" among their keywords as pi's own
+// gallery asks.
 func Search(ctx context.Context, q string) ([]Hit, error) {
 	q = strings.TrimSpace(q)
 	if q == "" {
@@ -424,7 +433,46 @@ func Search(ctx context.Context, q string) ([]Hit, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	v := url.Values{"text": {q + " opencode"}, "size": {"30"}}
+	var (
+		wg       sync.WaitGroup
+		oc, pi   []Hit
+		ocE, piE error
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		// a plugin, not a tool that mentions OpenCode: its name says so,
+		// or its keywords name an OpenCode plugin
+		oc, ocE = searchNPM(ctx, q+" opencode", func(text string, _ []string) bool {
+			return strings.Contains(text, "opencode") && (strings.Contains(text, "auth") || strings.Contains(text, "plugin") || strings.Contains(text, "provider"))
+		})
+	}()
+	go func() {
+		defer wg.Done()
+		// a pi package that signs in to a provider or brings one; one
+		// that only adds pi a command or a tool has nothing for magpie
+		pi, piE = searchNPM(ctx, "keywords:pi-package "+q, func(text string, kw []string) bool {
+			return slices.Contains(kw, "pi-package") && (strings.Contains(text, "auth") || strings.Contains(text, "provider"))
+		})
+	}()
+	wg.Wait()
+	if ocE != nil && piE != nil {
+		return nil, ocE
+	}
+	out, seen := []Hit{}, map[string]bool{}
+	for _, h := range append(oc, pi...) {
+		if !seen[h.Package] {
+			seen[h.Package] = true
+			out = append(out, h)
+		}
+	}
+	return out, nil
+}
+
+// searchNPM is npm's search for text, the packages keep says are plugins
+// (given their name and keywords, lowercased, and the keywords).
+func searchNPM(ctx context.Context, text string, keep func(string, []string) bool) ([]Hit, error) {
+	v := url.Values{"text": {text}, "size": {"30"}}
 	b, err := fetchJSON(ctx, npmRegistry+"/-/v1/search?"+v.Encode(), 4<<20)
 	if err != nil {
 		return nil, err
@@ -453,13 +501,10 @@ func Search(ctx context.Context, q string) ([]Hit, error) {
 	if err := json.Unmarshal(b, &r); err != nil {
 		return nil, err
 	}
-	out := []Hit{}
+	var out []Hit
 	for _, o := range r.Objects {
 		p := o.Package
-		// a plugin, not a tool that mentions OpenCode: its name says so,
-		// or its keywords name an OpenCode plugin
-		text := strings.ToLower(p.Name + " " + strings.Join(p.Keywords, " "))
-		if !strings.Contains(text, "opencode") || !(strings.Contains(text, "auth") || strings.Contains(text, "plugin") || strings.Contains(text, "provider")) {
+		if !keep(strings.ToLower(p.Name+" "+strings.Join(p.Keywords, " ")), p.Keywords) {
 			continue
 		}
 		out = append(out, Hit{Package: p.Name, NPM: NPM{

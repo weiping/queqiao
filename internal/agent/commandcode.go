@@ -39,7 +39,7 @@ func commandCodeIn(at place) *Agent {
 		return edit.DelJSON(providers, "provider."+magpieID)
 	}
 	return &Agent{
-		ID: "commandcode", Name: "Command Code", Icon: "commandcode", Aliases: []string{"command-code", "cmd"},
+		ID: "commandcode", Name: "Command Code", Icon: "commandcode", Aliases: []string{"command-code", "cmd"}, Spelled: prefixed,
 		UA:  []string{"command-code", "commandcode"},
 		Bin: "command-code", Dir: dir, Path: path,
 		Sync: func() error {
@@ -144,12 +144,9 @@ func commandCodeIn(at place) *Agent {
 	}
 }
 
-// ccProviderJSON is magpie's entry in providers.json. The key is false:
-// the gateway takes any, and Command Code refuses one written out.
-func ccProviderJSON() any { return ccProviderJSONAt(gatewayV1()) }
-
-// ccProviderJSONAt is ccProviderJSON for a Command Code reaching the
-// gateway's /v1 at v1.
+// ccProviderJSONAt is magpie's entry in providers.json, for a Command Code
+// reaching the gateway's /v1 at v1. The key is false: the gateway takes
+// any, and Command Code refuses one written out.
 func ccProviderJSONAt(v1 string) any {
 	ms := map[string]any{}
 	for _, m := range magpieModels("commandcode") {

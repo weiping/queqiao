@@ -499,6 +499,7 @@ func (s *Server) videosCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, provider.Chat, code, msg)
 		s.record(call)
 	}
+	named := f.Model != "" // a gateway key's models hold one the caller names (#882)
 	if f.Model == "" {
 		m, ok := videomaker()
 		if !ok {
@@ -517,6 +518,10 @@ func (s *Server) videosCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fail(404, fmt.Sprintf("magpie knows no model %q to make videos with", f.Model))
+		return
+	}
+	if keyWho, held := keyHolds(r); held && named && !modelAllowed(keyWho, p, model) {
+		fail(403, keyModelError(keyWho, f.Model))
 		return
 	}
 	call.Provider, call.To = p.ID, provider.Chat

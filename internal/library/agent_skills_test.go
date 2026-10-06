@@ -41,6 +41,20 @@ func TestAgentsSkillsFolders(t *testing.T) {
 	if tg := targetByID("kimi"); tg == nil || tg.Skills != filepath.Join(h, ".config/agents/skills") {
 		t.Errorf("kimi with ~/.config/agents/skills: %+v", tg)
 	}
+	// Alma, there once it has its data folder, reads ~/.config/alma/skills
+	// on every system, and Claude Code's, Codex's and the shared ones (#824)
+	cfg, _ := os.UserConfigDir()
+	os.MkdirAll(filepath.Join(cfg, "alma"), 0o755)
+	if tg := targetByID("alma"); tg == nil || tg.Skills != filepath.Join(h, ".config/alma/skills") ||
+		!slices.Contains(tg.SkillsAlso, "claude") || !slices.Contains(tg.SkillsAlso, "codex") || !slices.Contains(tg.SkillsAlso, "goose") {
+		t.Errorf("alma: %+v", tg)
+	}
+	src := filepath.Join(h, "src/skills")
+	skill(t, filepath.Join(src, "pdf"), "pdf", "Read PDFs")
+	ok(t)(InstallSkills(src, []string{"pdf"}, []string{"alma"}))
+	if !ours(filepath.Join(h, ".config/alma/skills/pdf"), "pdf") {
+		t.Error("a skill given to Alma isn't in ~/.config/alma/skills")
+	}
 	if ProjectSkillsDir("kimi") != ".agents/skills" {
 		t.Error("kimi reads a project's .agents/skills")
 	}
@@ -120,4 +134,29 @@ func TestImportSharedSkillForKimi(t *testing.T) {
 		t.Errorf("skills: %+v", v.Skills)
 	}
 	ok(t)(Sync())
+}
+
+// Droid and Grok Build read a user-wide AGENTS.md in their folders
+// (~/.factory, $GROK_HOME else ~/.grok): the library's instructions reach
+// them there, after what the user wrote, which stays.
+func TestDroidGrokInstructions(t *testing.T) {
+	h := sandbox(t)
+	write(t, filepath.Join(h, ".factory/settings.json"), "")
+	g := filepath.Join(h, "grok-home")
+	t.Setenv("GROK_HOME", g)
+	write(t, filepath.Join(g, "config.toml"), "")
+	files := map[string]string{"droid": filepath.Join(h, ".factory/AGENTS.md"), "grok": filepath.Join(g, "AGENTS.md")}
+	for id, f := range files {
+		if tg := targetByID(id); tg == nil || tg.Instructions != f {
+			t.Fatalf("%s: %+v", id, tg)
+		}
+		write(t, f, "# Mine\n")
+	}
+	shared := "Use tabs."
+	ok(t)(SaveInstructions(InstructionsChange{Shared: &shared, Agents: []string{"droid", "grok"}}))
+	for id, f := range files {
+		if s := read(t, f); s != "# Mine\n\n"+blockBegin+"\nUse tabs.\n"+blockEnd+"\n" {
+			t.Errorf("%s's AGENTS.md:\n%s", id, s)
+		}
+	}
 }

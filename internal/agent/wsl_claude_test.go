@@ -44,7 +44,7 @@ func noOwnClaude(t *testing.T) {
 // The probe asks after Claude Code as after Codex and Pi, and reads what
 // it says.
 func TestWSLProbeFindsClaude(t *testing.T) {
-	for _, want := range []string{`[ -d "$HOME/.claude" ] && echo dir:.claude`, `p=$(command -v claude 2>/dev/null) && echo "bin:claude $p"`,
+	for _, want := range []string{`[ -d "$HOME/.claude" ] && echo dir:.claude`, `p=$(command -v claude 2>/dev/null || wslbin claude) && echo "bin:claude $p"`,
 		`[ -d "$HOME/.pi" ] && echo dir:.pi`, `[ -d "$HOME/.codex" ] && echo dir:.codex`} {
 		if !strings.Contains(wslProbeScript, want) {
 			t.Errorf("probe lacks %q:\n%s", want, wslProbeScript)
@@ -147,7 +147,7 @@ func TestWSLClaudePick(t *testing.T) {
 			gw = "http://172.20.0.1:" + gateway.Port()
 		}
 		env := func(k string) string { v, _ := edit.GetJSON(path, "env."+k); return v }
-		if env("ANTHROPIC_BASE_URL") != gw || env("ANTHROPIC_AUTH_TOKEN") != gateway.Token || env("ANTHROPIC_MODEL") != "relay/glm-4.6" ||
+		if env("ANTHROPIC_BASE_URL") != gw || env("ANTHROPIC_AUTH_TOKEN") != gateway.Token || env("ANTHROPIC_MODEL") != "" ||
 			env("ANTHROPIC_DEFAULT_HAIKU_MODEL") != "relay/glm-4.6" || env(claudeEffortEnv) != "max" {
 			t.Fatalf("mirrored %v:\n%s", mirrored, readFile(path))
 		}

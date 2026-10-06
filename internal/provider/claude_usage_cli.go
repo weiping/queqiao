@@ -109,8 +109,8 @@ func clipLine(s string) string {
 	return s
 }
 
-// claudeResetTime reads "Oct 1 at 3:30pm (Asia/Shanghai)" or "3pm
-// (Asia/Shanghai)", in the zone named, else local time; a date with no
+// claudeResetTime reads "Oct 1 at 3:30pm (Asia/Shanghai)", "Oct 9, 2:59pm
+// (UTC)" (Claude Code 2.1.285 on) or "3pm (Asia/Shanghai)", in the zone named, else local time; a date with no
 // year is the next one from a day before now.
 func claudeResetTime(s string, now time.Time) (time.Time, bool) {
 	s = strings.TrimSpace(s)
@@ -126,7 +126,10 @@ func claudeResetTime(s string, now time.Time) (time.Time, bool) {
 	}
 	s = strings.ReplaceAll(strings.ReplaceAll(s, "AM", "am"), "PM", "pm")
 	ref := now.In(loc)
-	for _, layout := range []string{"Jan 2 at 3:04pm", "Jan 2 at 3pm", "Jan 2, 2006 at 3:04pm", "Jan 2, 2006 at 3pm"} {
+	for _, layout := range []string{
+		"Jan 2 at 3:04pm", "Jan 2 at 3pm", "Jan 2, 2006 at 3:04pm", "Jan 2, 2006 at 3pm",
+		"Jan 2, 3:04pm", "Jan 2, 3pm", "Jan 2, 2006, 3:04pm", "Jan 2, 2006, 3pm",
+	} {
 		t, err := time.ParseInLocation(layout, s, loc)
 		if err != nil {
 			continue

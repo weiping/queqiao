@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/yetone/magpie/internal/provider"
+	"github.com/yetone/magpie/internal/testenv"
 )
 
 // Run the public command in a fresh process, with only a fake account,
@@ -68,7 +69,10 @@ func TestAccountsCachedReading(t *testing.T) {
 			cmd.Env = []string{"MAGPIE_TEST_ACCOUNTS_READING=" + mode, "HOME=" + home, "USERPROFILE=" + home,
 				"XDG_CONFIG_HOME=" + filepath.Dir(config), "XDG_CACHE_HOME=" + filepath.Join(home, ".cache"),
 				"CLAUDE_CONFIG_DIR=" + filepath.Join(home, ".claude"), "CODEX_HOME=" + filepath.Join(home, ".codex"), "PATH=" + home,
-				"SystemRoot=" + os.Getenv("SystemRoot"), "USER=magpie-test", "NO_COLOR=1"}
+				"SystemRoot=" + os.Getenv("SystemRoot"), "USER=magpie-test", "NO_COLOR=1",
+				// so that the binary keeps this home instead of a sandbox of its own
+				testenv.Marker + "=" + os.Getenv(testenv.Marker),
+				"TMP=" + os.Getenv("TMP"), "TEMP=" + os.Getenv("TEMP"), "TMPDIR=" + os.Getenv("TMPDIR")}
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("accounts: %v: %s", err, out)
@@ -121,5 +125,46 @@ func TestQuotaCell(t *testing.T) {
 	got := quotaCell(quotaSpan{Name: "5 hours", Used: 42, ResetsAt: &at})
 	if !strings.HasPrefix(got, "5h 42%") || !strings.Contains(got, "↻2h13m "+provider.ResetClock(at, time.Now())) {
 		t.Fatalf("%q", got)
+	}
+	// a pool's own window comes in named with its pool (PooledWindows) and
+	// reads compactly, without the " · "
+	pooled := quotaCell(quotaSpan{Name: "Gemini · 7 days", Pool: "Gemini", Used: 80})
+	if !strings.HasPrefix(pooled, "Gemini 7d 80%") {
+		t.Fatalf("pooled: %q", pooled)
+	}
+}
+
+// accountRows shows a pool's own windows in place of its models', as the
+// usage page does; reverting it to the raw per-model windows fails here.
+func TestAccountRowsPoolsAntigravity(t *testing.T) {
+	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	reset := now.Add(48 * time.Hour)
+	five, week := 5*time.Hour, 7*24*time.Hour
+	provider.LoginUsageVia(func(context.Context, string) map[string]provider.SubscriptionQuota {
+		return map[string]provider.SubscriptionQuota{"u@x.com": {
+			Provider: "antigravity", Name: "Antigravity", User: "u@x.com",
+			Windows: []provider.QuotaWindow{
+				{Name: "Gemini 3 Flash", Model: "gemini-3-flash", Family: "Gemini", Pool: "Gemini", Used: 85, ResetsAt: &reset},
+				{Name: "Gemini 3.1 Pro (High)", Model: "gemini-3.1-pro-high", Family: "Gemini", Pool: "Gemini", Used: 85, ResetsAt: &reset},
+				{Name: "Claude Opus 4.6 (Thinking)", Model: "claude-opus-4-6-thinking", Family: "Claude", Pool: "Claude & GPT", Used: 90},
+				{Name: "GPT-OSS 120B (Medium)", Model: "gpt-oss-120b-medium", Family: "GPT-OSS", Pool: "Claude & GPT", Used: 90},
+				{Name: "7 days", Pool: "Gemini", Span: week, Aside: true, Used: 85, ResetsAt: &reset},
+				{Name: "5 hours", Pool: "Gemini", Span: five, Aside: true, Used: 95, ResetsAt: &reset},
+				{Name: "7 days", Pool: "Claude & GPT", Span: week, Aside: true, Used: 90, ResetsAt: &reset},
+				{Name: "5 hours", Pool: "Claude & GPT", Span: five, Aside: true, Used: 90, ResetsAt: &reset},
+			},
+		}}
+	})
+	t.Cleanup(func() { provider.LoginUsageVia(nil) })
+	rows := accountRows([]provider.Login{{Agent: "antigravity", User: "u@x.com", Active: true, On: true}}, now)
+	if len(rows) != 1 {
+		t.Fatalf("%d rows", len(rows))
+	}
+	var names []string
+	for _, w := range rows[0].Windows {
+		names = append(names, w.Name)
+	}
+	if strings.Join(names, ",") != "Gemini · 7 days,Gemini · 5 hours,Claude & GPT · 7 days,Claude & GPT · 5 hours" {
+		t.Fatalf("windows %v", names)
 	}
 }

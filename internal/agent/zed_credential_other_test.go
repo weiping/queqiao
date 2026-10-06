@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/yetone/magpie/internal/testenv"
 )
 
 func TestZedCredentialCommand(t *testing.T) {
@@ -57,7 +59,7 @@ func TestZedAppPath(t *testing.T) {
 	bin := t.TempDir()
 	t.Setenv("PATH", bin)
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testenv.SetHome(t, home)
 	app := filepath.Join(home, "Applications", "Zed.app")
 	if err := os.MkdirAll(app, 0o755); err != nil {
 		t.Fatal(err)
@@ -87,5 +89,19 @@ func TestZedAppPath(t *testing.T) {
 	}
 	if got, err := zedAppPath(context.Background()); err != nil || got != custom {
 		t.Fatalf("CLI's bundle: %q, %v", got, err)
+	}
+	customEnv := filepath.Join(t.TempDir(), "ZedG.app")
+	customBin := filepath.Join(customEnv, "Contents", "MacOS", "zedg")
+	writeFile(t, customBin, "#!/bin/sh\n")
+	if err := os.Chmod(customBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	customEnv, err = filepath.EvalSymlinks(customEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MAGPIE_ZED_BIN", customBin)
+	if got, err := zedAppPath(context.Background()); err != nil || got != customEnv {
+		t.Fatalf("custom configured bundle: %q, %v", got, err)
 	}
 }

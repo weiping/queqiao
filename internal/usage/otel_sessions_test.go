@@ -13,6 +13,7 @@ import (
 
 	"github.com/yetone/magpie/internal/sessions"
 	"github.com/yetone/magpie/internal/settings"
+	"github.com/yetone/magpie/internal/testenv"
 )
 
 func TestSessionTraceWirePrivacyAndTokenOwnership(t *testing.T) {
@@ -58,8 +59,38 @@ func TestSessionTraceWirePrivacyAndTokenOwnership(t *testing.T) {
 	}
 }
 
+func TestSessionExporterDefersPendingRoot(t *testing.T) {
+	e := newOTelExporter()
+	defer e.cancel()
+	cfg := settings.OTel{Bodies: true}
+	at := time.Now()
+	root := sessions.TraceSpan{Agent: "codex", Session: "session", Turn: "turn", ID: "1111111111111111", Kind: "span", Name: "codex interaction", Start: at, End: at, Pending: true}
+	e.offerSession(root, cfg)
+	if len(e.queue) != 0 {
+		t.Fatal("unfinished root exported")
+	}
+	root.Pending = false
+	root.End = at.Add(time.Minute)
+	root.Input = `[{"type":"local_image","path":"/tmp/image.png"},{"type":"text","text":"Describe this image"}]`
+	root.Output = "An image"
+	e.offerSession(root, cfg)
+	if len(e.queue) != 1 {
+		t.Fatal("completed root missing")
+	}
+	record := (<-e.queue).record
+	wire, err := json.Marshal(e.traces([]Record{record}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"langfuse.observation.input", "langfuse.observation.output", "local_image", "Describe this image", "An image"} {
+		if !strings.Contains(string(wire), want) {
+			t.Fatalf("completed root missing %s", want)
+		}
+	}
+}
+
 func TestOTelSessionWatcherExportsNewInteractionWithoutGatewayDuplicates(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testenv.SetHome(t, t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	t.Setenv("OPENCODE_DB", "")
@@ -99,6 +130,7 @@ func TestOTelSessionWatcherExportsNewInteractionWithoutGatewayDuplicates(t *test
 	for _, o := range []map[string]any{
 		{"type": "message", "id": "new-user", "timestamp": now, "message": map[string]any{"role": "user", "content": "PRIVATE-NEW"}},
 		{"type": "message", "id": "assistant", "parentId": "new-user", "timestamp": now.Add(time.Millisecond), "message": map[string]any{"role": "assistant", "timestamp": now.UnixMilli(), "model": "model", "provider": "magpie", "stopReason": "stop", "content": "PRIVATE-REPLY", "usage": map[string]int{"input": 10, "output": 5}}},
+		{"type": "custom", "parentId": "assistant", "customType": "timing-final", "timestamp": now.Add(2 * time.Millisecond), "data": map[string]any{"totalMs": 2, "endAt": now.Add(2 * time.Millisecond).UnixMilli()}},
 	} {
 		b, _ := json.Marshal(o)
 		f.Write(append(b, '\n'))
@@ -129,6 +161,29 @@ func TestOTelSessionWatcherExportsNewInteractionWithoutGatewayDuplicates(t *test
 		}
 		if strings.Count(text, `"key":"gen_ai.usage.input_tokens"`) != 1 {
 			t.Fatalf("duplicate model usage: %s", text)
+		}
+		var wire struct {
+			ResourceSpans []struct {
+				ScopeSpans []struct {
+					Spans []struct {
+						SpanID string `json:"spanId"`
+					}
+				}
+			}
+		}
+		if err := json.Unmarshal(b, &wire); err != nil {
+			t.Fatal(err)
+		}
+		ids := map[string]bool{}
+		for _, resource := range wire.ResourceSpans {
+			for _, scope := range resource.ScopeSpans {
+				for _, span := range scope.Spans {
+					if ids[span.SpanID] {
+						t.Fatalf("duplicate span %s: %s", span.SpanID, text)
+					}
+					ids[span.SpanID] = true
+				}
+			}
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("session watcher did not export")
@@ -171,7 +226,7 @@ func TestSessionTracingSuppressesSupportedLocalClientsOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := &sessionAvailability{config: cfg, agents: map[string]time.Time{}}
-	for _, agent := range []string{"codex", "pi", "omp", "claude", "claude-desktop", "opencode", "gemini"} {
+	for _, agent := range []string{"codex", "pi", "omp", "opencode", "gemini", "claude", "claude-desktop"} {
 		if OTelSessionAgent(agent) {
 			t.Fatal("unreadable store suppressed gateway")
 		}
@@ -300,5 +355,29 @@ func TestSessionTracingMatchesNativeConversation(t *testing.T) {
 	e.sessions.Store(&sessionAvailability{config: cfg, seen: map[observedSession]time.Time{{"codex", "local"}: now}})
 	if OTelSession("codex", "local") {
 		t.Fatal("session readiness survived changed config")
+	}
+}
+
+func TestSessionTracingRetainsUnrepresentedCalls(t *testing.T) {
+	otelConfig(t, settings.OTel{Endpoint: "http://localhost:4318"})
+	t.Setenv("MAGPIE_OTEL_SESSIONS", "true")
+	e := newOTelExporter()
+	previous := otel.Swap(e)
+	defer func() { otel.Store(previous); e.cancel() }()
+	cfg, err := settings.OTelExport()
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	e.sessions.Store(&sessionAvailability{config: cfg, agents: map[string]time.Time{"claude": now, "claude-desktop": now, "codex": now}, seen: map[observedSession]time.Time{{"claude", "parent"}: now, {"claude-desktop", "parent"}: now, {"codex", "parent"}: now}})
+	for _, tc := range []struct{ agent, kind string }{
+		{"claude", "title_generation"},
+		{"claude-desktop", "title_generation"}, {"codex", "thread_title"}, {"codex", "review"},
+	} {
+		offerOTel(Record{Agent: tc.agent, Kind: tc.kind, Session: "parent", Local: true, Time: now, Status: 200})
+		if len(e.queue) != 1 {
+			t.Fatalf("%s/%s unrepresented request lost", tc.agent, tc.kind)
+		}
+		<-e.queue
 	}
 }

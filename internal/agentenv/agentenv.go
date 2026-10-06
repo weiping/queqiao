@@ -30,6 +30,12 @@ package agentenv
 var Vars = []string{
 	// Claude Code, Codex and Copilot CLI
 	"CLAUDE_CONFIG_DIR", "CODEX_HOME", "COPILOT_HOME",
+	// Claude Code's temp folder, the images its sessions were given
+	"CLAUDE_CODE_TMPDIR",
+	// Zed, or a fork of it that keeps its settings (ZedG)
+	"MAGPIE_ZED_BIN", "MAGPIE_ZED_CONFIG_DIR", "MAGPIE_ZED_PROCESS_NAMES",
+	// Codex's state database, when it is kept apart from CODEX_HOME
+	"CODEX_SQLITE_HOME",
 	// Gemini CLI's session/config home
 	"GEMINI_CLI_HOME",
 	// Cline: its folder, its data, its sessions and its MCP settings file
@@ -48,8 +54,12 @@ var Vars = []string{
 	// MiMo Code, MiniMax Code, OpenHanako, Hermes, dsh, WorkBuddy
 	"MIMOCODE_HOME", "MINIMAX_DATA_DIR", "HANA_HOME", "HERMES_HOME", "DSH_HOME",
 	"WORKBUDDY_CONFIG_DIR",
+	// Mister Morph's config file
+	"MISTER_MORPH_CONFIG",
 	// T3 Code's base folder (its settings in userdata/)
 	"T3CODE_HOME",
+	// AtomCode's config folder
+	"ATOMCODE_HOME",
 	// Cursor's CLI: its config folder (its chats) and its data folder
 	"CURSOR_CONFIG_DIR", "CURSOR_DATA_DIR",
 	// OpenCode and OpenChamber
@@ -57,4 +67,16 @@ var Vars = []string{
 	// Droid's home, Windsurf's API server, ZCode's credential seed: what
 	// makes an account or an installation visible that the test didn't make
 	"FACTORY_HOME_OVERRIDE", "WINDSURF_API_SERVER_URL", "ZCODE_CREDENTIAL_SECRET",
+}
+
+// NotPaths are the Vars that name no folder or file under the working
+// folder: a profile's name, a server's address, a secret, or a name its
+// agent puts under a folder of its own (PI_CONFIG_DIR under the home,
+// OPENCODE_DB in OpenCode's data folder), which a relative value is meant
+// for.
+var NotPaths = map[string]bool{
+	"PI_PROFILE": true, "OMP_PROFILE": true,
+	"WINDSURF_API_SERVER_URL": true, "ZCODE_CREDENTIAL_SECRET": true,
+	"PI_CONFIG_DIR": true, "OPENCODE_DB": true,
+	"MAGPIE_ZED_BIN": true, "MAGPIE_ZED_PROCESS_NAMES": true,
 }

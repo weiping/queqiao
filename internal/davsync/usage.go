@@ -3,7 +3,10 @@ package davsync
 // Shared usage (#542): with Config.Usage on, each computer puts its calls on
 // the server beside the backup, at magpie/usage/<id>-<day>.magpie-usage, one
 // file a day, sealed with the passphrase, and brings the other computers'
-// down for the Usage page. A computer writes and deletes its own files
+// down for the Usage page. Beside its days, a computer puts what it read
+// of its accounts' windows over time (#651), at magpie/usage/<id>.magpie-quotas,
+// sealed alike, and merges the others' into its own (provider.MergeQuotaHistory)
+// for the quota cards' curves. A computer writes and deletes its own files
 // alone, so none is ever written over by another; nothing of them is in the
 // backup, nor in what is hashed to tell whether it changed. A magpie
 // before them never looks in the folder.
@@ -24,6 +27,7 @@ import (
 	"time"
 
 	"github.com/yetone/magpie/internal/backup"
+	"github.com/yetone/magpie/internal/provider"
 	"github.com/yetone/magpie/internal/usage"
 )
 
@@ -31,6 +35,7 @@ import (
 const (
 	usageFolder = "usage"
 	usageExt    = ".magpie-usage"
+	quotasExt   = ".magpie-quotas"
 )
 
 // usageEvery is how often a sync shares usage; a sync asked for (SyncNow)
@@ -48,6 +53,10 @@ type usageState struct {
 	// yesterday and today are made again
 	Whole bool   `json:"whole,omitempty"`
 	Error string `json:"error,omitempty"`
+	// QuotasSent is this computer's quota history as last put, hashed;
+	// Quotas the others' brought in, each at the version listed
+	QuotasSent string            `json:"quotasSent,omitempty"`
+	Quotas     map[string]string `json:"quotas,omitempty"`
 }
 
 // files are a remote's usage files: listed with a version each, read,
@@ -186,6 +195,59 @@ func shareWith(ctx context.Context, c Config, u *usageState, fs files) error {
 			delete(u.Got, f)
 		}
 	}
+	return shareQuotas(ctx, c, u, fs, listed, id)
+}
+
+// shareQuotas merges the other computers' quota histories into this one's,
+// then puts this one's up when it changed. The merge keeps each point once
+// (by account, window and when it was read), so what came from another and
+// goes up again with this one's is nothing twice.
+func shareQuotas(ctx context.Context, c Config, u *usageState, fs files, listed map[string]string, id string) error {
+	if u.Quotas == nil {
+		u.Quotas = map[string]string{}
+	}
+	for f, ver := range listed {
+		who, ok := strings.CutSuffix(f, quotasExt)
+		if !ok || who == id || !usage.ValidComputer(who) {
+			continue
+		}
+		if ver != "" && u.Quotas[f] == ver {
+			continue
+		}
+		plain, err := readSealed(ctx, fs, f, c.Passphrase)
+		if err != nil {
+			return err
+		}
+		if err := provider.MergeQuotaHistory(plain, time.Now()); err != nil {
+			return fmt.Errorf("reading %s: %w", f, err)
+		}
+		u.Quotas[f] = ver
+	}
+	for f := range u.Quotas {
+		if _, ok := listed[f]; !ok {
+			delete(u.Quotas, f)
+		}
+	}
+	plain := provider.QuotaHistoryData()
+	if len(plain) == 0 {
+		return nil
+	}
+	h := sum(plain)
+	if u.QuotasSent == h {
+		return nil
+	}
+	var z bytes.Buffer
+	w := gzip.NewWriter(&z)
+	w.Write(plain)
+	w.Close()
+	sealed, err := backup.SealData(z.Bytes(), c.Passphrase)
+	if err != nil {
+		return err
+	}
+	if err := fs.write(ctx, id+quotasExt, sealed); err != nil {
+		return err
+	}
+	u.QuotasSent = h
 	return nil
 }
 
@@ -216,26 +278,31 @@ func usageName(f string) (who, day string, ok bool) {
 
 func readDay(ctx context.Context, fs files, f, pass string) (usage.SharedDay, error) {
 	var d usage.SharedDay
-	sealed, err := fs.read(ctx, f)
-	if err != nil {
-		return d, err
-	}
-	z, err := backup.OpenData(sealed, pass)
-	if errors.Is(err, backup.ErrPassphrase) {
-		return d, fmt.Errorf("the passphrase doesn't open %s: another computer shares its usage sealed with another one", f)
-	}
-	if err != nil {
-		return d, err
-	}
-	zr, err := gzip.NewReader(bytes.NewReader(z))
-	if err != nil {
-		return d, err
-	}
-	plain, err := io.ReadAll(io.LimitReader(zr, 256<<20))
+	plain, err := readSealed(ctx, fs, f, pass)
 	if err != nil {
 		return d, err
 	}
 	return d, json.Unmarshal(plain, &d)
+}
+
+// readSealed is a usage folder's file read, opened and unzipped.
+func readSealed(ctx context.Context, fs files, f, pass string) ([]byte, error) {
+	sealed, err := fs.read(ctx, f)
+	if err != nil {
+		return nil, err
+	}
+	z, err := backup.OpenData(sealed, pass)
+	if errors.Is(err, backup.ErrPassphrase) {
+		return nil, fmt.Errorf("the passphrase doesn't open %s: another computer shares its usage sealed with another one", f)
+	}
+	if err != nil {
+		return nil, err
+	}
+	zr, err := gzip.NewReader(bytes.NewReader(z))
+	if err != nil {
+		return nil, err
+	}
+	return io.ReadAll(io.LimitReader(zr, 256<<20))
 }
 
 // WebDAV
@@ -273,7 +340,7 @@ func (d *dav) list(ctx context.Context) (map[string]string, error) {
 			h = u.Path
 		}
 		name := pathpkg.Base(strings.TrimRight(h, "/"))
-		if r.Collected != nil || !strings.HasSuffix(name, usageExt) {
+		if r.Collected != nil || !strings.HasSuffix(name, usageExt) && !strings.HasSuffix(name, quotasExt) {
 			continue
 		}
 		v := r.ETag

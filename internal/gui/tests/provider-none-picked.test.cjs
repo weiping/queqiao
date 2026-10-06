@@ -3,8 +3,10 @@
 // list (#614: the one model unticked and saved was still "1 model" on the
 // card, and the editor showed it unticked as if left out). With no pick the
 // models agents are served are drawn as served (dashed, .auto), their title
-// says why, and the hint says how to show agents none. A pick drops the
-// rest back to plain chips. In English and Chinese, Chromium and WebKit.
+// says why, and the hint says how to show agents none, from the moment the
+// editor opens. A served one clicked is picked alone (#681: it used to be
+// left out, the rest picked in its place). In English and Chinese, Chromium
+// and WebKit.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -40,7 +42,7 @@ function serve(lang) {
 
 const words = {
   en: { why: "Agents see it: none are picked", hint: "To show them none, tick Only through routing groups" },
-  zh: { why: "Agent 能看到它：没有勾选任何模型时", hint: "不想让 Agent 看到任何模型，就勾选「只通过路由分组使用」" },
+  zh: { why: "Agent 能看到它：没有勾选任何模型时", hint: "要隐藏全部模型，勾选「只通过路由分组使用」" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
@@ -67,10 +69,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await chip("glm-5.2").waitFor();
       const cls = (id) => chip(id).evaluate((c) => [c.classList.contains("on"), c.classList.contains("auto")]);
 
-      // opened, both are served and shown picked; unpick both
-      assert.deepEqual(await cls("glm-5.3-free"), [true, false]);
-      await chip("glm-5.3-free").click();
-      await chip("glm-5.2").click();
+      // opened with none picked, both are drawn as served, not as picked
+      // (#614: they were drawn ticked, and the next Save made them picks)
       for (const id of ["glm-5.3-free", "glm-5.2"]) {
         assert.deepEqual(await cls(id), [false, true], id + " drawn as served");
         assert.ok((await chip(id).getAttribute("title")).includes(w.why), id + " title");
@@ -78,11 +78,15 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await chip("glm-5.2").evaluate((c) => getComputedStyle(c).borderTopStyle), "dashed");
       await editor.getByText(w.hint).waitFor();
 
-      // one picked: the other is plain, left out
+      // a served one clicked is picked, alone (#681)
       await chip("glm-5.2").click();
       assert.deepEqual(await cls("glm-5.2"), [true, false]);
       assert.deepEqual(await cls("glm-5.3-free"), [false, false]);
       assert.equal(await editor.getByText(w.hint).count(), 0);
+      // and another clicked joins it
+      await chip("glm-5.3-free").click();
+      assert.deepEqual(await cls("glm-5.2"), [true, false]);
+      assert.deepEqual(await cls("glm-5.3-free"), [true, false]);
       assert.deepEqual(errors, []);
     });
   }

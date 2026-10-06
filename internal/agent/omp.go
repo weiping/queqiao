@@ -4,7 +4,7 @@ package agent
 // (or where ompDir says its variables move it),
 // the model of each role under modelRoles as "provider/model", and providers
 // of the user's own in models.yml beside it. magpie adds itself there as the
-// provider "magpie", keyless (auth: none), with the catalog as its models; a
+// provider "magpie", keyless (auth: none) on loopback, with the catalog as its models; a
 // model through magpie is "magpie/<provider>/<model>", which omp matches
 // whole against provider/id. The other roles, the fallback chains and the
 // like may name them as well (ompRefKeys); magpie stays while any does.
@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/catalog"
 	"github.com/yetone/magpie/internal/edit"
 	"github.com/yetone/magpie/internal/gateway"
@@ -95,7 +96,7 @@ var ompProfileName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 // agent there. omp takes that variable as given, without expanding "~".
 func ompDir(home string) string {
 	root := filepath.Join(home, ".omp")
-	if d := os.Getenv("PI_CONFIG_DIR"); d != "" {
+	if d := appdir.Getenv("PI_CONFIG_DIR"); d != "" {
 		root = filepath.Join(home, d)
 	}
 	p, set := os.LookupEnv("OMP_PROFILE")
@@ -105,7 +106,7 @@ func ompDir(home string) string {
 	if p = strings.TrimSpace(p); p != "" && p != "default" && ompProfileName.MatchString(p) && !strings.HasSuffix(p, ".") {
 		return filepath.Join(root, "profiles", p, "agent")
 	}
-	if d := os.Getenv("PI_CODING_AGENT_DIR"); filepath.IsAbs(d) {
+	if d := appdir.Getenv("PI_CODING_AGENT_DIR"); filepath.IsAbs(d) {
 		return filepath.Clean(d)
 	}
 	return filepath.Join(root, "agent")
@@ -117,10 +118,12 @@ func omp(home string) *Agent {
 
 // ompIn is omp in a WSL distro (see wsl.go): ~/.omp/agent, as the
 // distro's variables that move it aren't read. The omp there isn't the one
-// on Windows' PATH, so its version isn't known, and its models offer xhigh
-// rather than a max an older omp would refuse.
+// on Windows' PATH: its version is the one the distro's probe asked it
+// (whqtian on Discord: a WSL omp's max became xhigh while its version wasn't
+// known), and without one its models offer xhigh rather than a max an older
+// omp would refuse.
 func ompIn(at place) *Agent {
-	return ompAt(at, filepath.Join(at.home, ".omp", "agent"), func() ompProviderEntry { return ompProviderAt(at.gw(), "") })
+	return ompAt(at, filepath.Join(at.home, ".omp", "agent"), func() ompProviderEntry { return ompProviderAt(at.gw(), at.version) })
 }
 
 // ompAt is omp with its agent folder at dir, magpie's entry in its
@@ -267,7 +270,7 @@ func ompAt(at place, dir string, entry func() ompProviderEntry) *Agent {
 		}
 	}
 	return &Agent{
-		ID: "omp", Name: "omp", Icon: "omp", Aliases: []string{"oh-my-pi"},
+		ID: "omp", Name: "omp", Icon: "omp", Aliases: []string{"oh-my-pi"}, Spelled: prefixed,
 		UA:  []string{"oh-my-pi"},
 		Bin: "omp", Dir: dir, Path: path,
 		// a role's thinking level is omp's, after whichever model it is on;
@@ -383,7 +386,11 @@ type ompThinking struct {
 type ompProviderEntry struct {
 	BaseURL string `yaml:"baseUrl"`
 	API     string `yaml:"api"`
-	Auth    string `yaml:"auth"`
+	// Auth is none on loopback, where the gateway asks for no key; APIKey,
+	// for an omp that reaches it from beyond (a WSL distro under NAT), the
+	// key the gateway is shared on the network with
+	Auth   string `yaml:"auth,omitempty"`
+	APIKey string `yaml:"apiKey,omitempty"`
 	// Headers name omp to the gateway: omp 16.x asks with Bun's User-Agent
 	// and only a later one with its own (omp/18.4.4), so its requests went
 	// to "Bun" in usage and past omp's own rules and stand-ins
@@ -468,8 +475,14 @@ func ompProviderAt(gw, version string) ompProviderEntry {
 		}
 		ms = append(ms, e)
 	}
-	return ompProviderEntry{BaseURL: gw + "/v1", API: "openai-completions", Auth: "none",
+	e := ompProviderEntry{BaseURL: gw + "/v1", API: "openai-completions", Auth: "none",
 		Headers: map[string]string{"User-Agent": "omp"}, Models: ms}
+	// whqtian on Discord: a WSL omp under NAT asks Windows' address, where
+	// the gateway turns a request without a named key away
+	if key := keyAt(gw); key != gateway.Token {
+		e.Auth, e.APIKey = "", key
+	}
+	return e
 }
 
 // ompOwnOptions lists the models of the providers the user added to omp's
@@ -513,7 +526,7 @@ func ompOwnOptions(modelsFile, cur string) []Option {
 	}
 	at := map[string]int{}
 	var out []Option
-	for _, o := range append(opts, ownOptions("", cur)...) {
+	for _, o := range append(opts, ownOptionsFrom(ompRegistry, "", cur)...) {
 		i, dup := at[o.Value]
 		if !dup {
 			at[o.Value] = len(out)

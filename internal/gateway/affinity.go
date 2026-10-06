@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -281,6 +282,7 @@ func affine(scope, mode string, rotate bool, in http.Header, from provider.Proto
 	case "session", "turn", "cache":
 		a.Kept = true
 		if at > 0 {
+			weightedKept(cs[0], cs[at])
 			cs = append(append([]candidate{cs[at]}, cs[:at]...), cs[at+1:]...)
 			order := append(append([]Weighed{pl.order[at]}, pl.order[:at]...), pl.order[at+1:]...)
 			pl.order = order
@@ -292,8 +294,69 @@ func affine(scope, mode string, rotate bool, in http.Header, from provider.Proto
 		if rotate {
 			cs, pl = after(cs, pl, at)
 		}
+	case "first":
+		if rotate {
+			cs, pl = leastHeld(scope, cs, pl)
+		}
 	}
 	return cs, pl, a, key
+}
+
+// heldFor is how long after its last answer a conversation still counts as
+// holding the one that answered it: a session whose user is reading or
+// typing is still going.
+const heldFor = 30 * time.Minute
+
+// leastHeld puts first, for a conversation nobody has answered yet, the
+// one in turn that the fewest other conversations in scope are held on
+// (#946): in turn counts requests, not conversations, so a second session
+// started after the first had sent an even number of them went to the
+// model the first was kept on. Of those held on as few, routing's order
+// stands.
+func leastHeld(scope string, cs []candidate, pl planned) ([]candidate, planned) {
+	if len(cs) < 2 || len(pl.order) < len(cs) {
+		return cs, pl
+	}
+	if strings.HasPrefix(scope, provider.GroupPrefix) {
+		if _, ms, ok := provider.FindGroup(scope); ok {
+			for _, m := range ms {
+				if len(m.Path) > 1 {
+					return cs, pl // a group in the group: its own routing orders its models (#576)
+				}
+			}
+		}
+	}
+	now := time.Now()
+	held := map[string]int{}
+	sticks.Lock()
+	for k, st := range sticks.m {
+		if strings.HasPrefix(k, scope+"|") && now.Sub(st.at) <= heldFor {
+			held[st.who+"/"+provider.WithMemberEffort(st.model, st.effort)]++
+		}
+	}
+	sticks.Unlock()
+	if len(held) == 0 {
+		return cs, pl
+	}
+	seat := func(c candidate) string { return c.who() + "/" + provider.WithMemberEffort(c.model, c.effort) }
+	best := -1
+	for i, c := range cs {
+		if pl.order[i].Rest != nil || pl.order[i].Aside {
+			continue
+		}
+		if best < 0 || held[seat(c)] < held[seat(cs[best])] {
+			best = i
+		}
+	}
+	if best <= 0 {
+		return cs, pl
+	}
+	cs = append(append([]candidate{cs[best]}, cs[:best]...), cs[best+1:]...)
+	pl.order = append(append([]Weighed{pl.order[best]}, pl.order[:best]...), pl.order[best+1:]...)
+	for j := range pl.order {
+		pl.order[j].Turn = j == 0
+	}
+	return cs, pl
 }
 
 // after puts first the one after cs[at], round from the end, that isn't
@@ -331,6 +394,25 @@ func answered(key string, c candidate, turn, cacheRead int) {
 	}
 	sticks.Unlock()
 	saveSticks()
+}
+
+// unanswered forgets that c answered a conversation, when its reply to it
+// broke off (#733): the agent's retry goes by routing again, not back to
+// the one that just failed it. The account alone is enough: affine's
+// widest match keeps a conversation on an account whose answerer's model
+// has since left the group, so a stick that only matched by its model
+// would leave the next request kept on the account that just broke off.
+func unanswered(key string, c candidate) {
+	sticks.Lock()
+	st, ok := stickOf(key)
+	ok = ok && st.who == c.who()
+	if ok {
+		delete(sticks.m, key)
+	}
+	sticks.Unlock()
+	if ok {
+		saveSticks()
+	}
 }
 
 // foreignReasoning is how a vendor refuses reasoning another account (or

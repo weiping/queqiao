@@ -966,12 +966,13 @@ func callTo(item map[string]any, name string, named map[string]nsTool) map[strin
 }
 
 // itemPrefix is the prefix of a call item's id, by its type: OpenAI turns
-// away a tool_search_call whose id isn't a tsc_ one ("Invalid
-// 'input[98].id': 'fc_…'. Expected an ID that begins with 'tsc'"), and
-// Codex hands the item back to it when the conversation goes there.
+// away a tool_search_call or custom_tool_call whose id isn't its own kind
+// ("Invalid 'input[98].id': 'fc_…'. Expected an ID that begins with
+// 'tsc'", openaiItemPrefix), and Codex hands the item back to it when the
+// conversation goes there.
 func itemPrefix(item map[string]any) string {
-	if item["type"] == "tool_search_call" {
-		return "tsc_"
+	if t, _ := item["type"].(string); openaiItemPrefix[t] != "" {
+		return openaiItemPrefix[t]
 	}
 	return "fc_"
 }

@@ -17,6 +17,7 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,6 +30,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/yetone/magpie/internal/netproxy"
 	"github.com/yetone/magpie/internal/proc"
@@ -66,15 +68,115 @@ func Dir() string { return filepath.Join(settings.Dir(), "plugins") }
 // AuthPath is the plugins' sign-ins, OpenCode's auth.json in shape.
 func AuthPath() string { return filepath.Join(settings.Dir(), "plugin-auth.json") }
 
+// authLockStale is how long plugin-auth.json.lock is held at most: one
+// older was left by a host or a magpie that died holding it.
+const authLockStale = 10 * time.Second
+
+// lockAuth takes plugin-auth.json.lock, which host.js takes too, for a
+// change to plugin-auth.json read afresh under it: two hosts (one being
+// restarted) and magpie never write each other's accounts away. It gives
+// the unlock.
+func lockAuth() func() {
+	lock := AuthPath() + ".lock"
+	start := time.Now()
+	for {
+		f, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			f.Close()
+			return func() { os.Remove(lock) }
+		}
+		if !os.IsExist(err) && !os.IsPermission(err) {
+			return func() {} // no folder to lock in: no file to change either
+		}
+		if fi, err := os.Stat(lock); err == nil && time.Since(fi.ModTime()) > authLockStale || time.Since(start) > 2*authLockStale {
+			os.Remove(lock)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func listPath() string { return filepath.Join(settings.Dir(), "plugins.json") }
 
-// Load reads plugins.json.
-func Load() List {
-	var l List
-	if b, err := steady.ReadFile(listPath()); err == nil {
-		_ = json.Unmarshal(b, &l)
+// pluginsList is plugins.json as last read, with the bytes it was parsed
+// from. The file is read every time: an edit that keeps the file's size and
+// time (a swap of two accounts of one length, a replaced file whose time is
+// put back) would be missed by a stamp, and only the parse is reused.
+var pluginsList struct {
+	sync.Mutex
+	path string
+	raw  []byte
+	list List
+}
+
+// list is plugins.json, read now. What it gives is shared and must not be
+// changed; Load gives the mutable copy.
+func list() List {
+	path := listPath()
+	b, err := steady.ReadFile(path)
+	if err != nil {
+		// Do not cache read failures; a later call will read the file again.
+		return List{}
 	}
+	pluginsList.Lock()
+	defer pluginsList.Unlock()
+	if pluginsList.path == path && bytes.Equal(pluginsList.raw, b) {
+		return pluginsList.list
+	}
+	var l List
+	// Preserve partially decoded values on type errors, as Load has always done.
+	_ = json.Unmarshal(b, &l)
+	pluginsList.path, pluginsList.raw, pluginsList.list = path, b, l
 	return l
+}
+
+// Load reads plugins.json. What it gives is the caller's to change at every
+// level: the mutators (Add, Remove, SetOff, SetConfig) each get their own
+// copy, so nothing they change reaches what list keeps.
+func Load() List {
+	l := list()
+	return List{Plugins: clonePlugins(l.Plugins), Config: cloneMap(l.Config)}
+}
+
+// clonePlugins copies the entries, their options with them.
+func clonePlugins(es []Entry) []Entry {
+	if es == nil {
+		return nil
+	}
+	out := make([]Entry, len(es))
+	for i, e := range es {
+		out[i] = e
+		out[i].Options = cloneMap(e.Options)
+	}
+	return out
+}
+
+// cloneMap copies a JSON object and everything under it.
+func cloneMap(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = cloneJSON(v)
+	}
+	return out
+}
+
+// cloneJSON copies a JSON value: Unmarshal into any gives only objects,
+// arrays, strings, numbers, bools and nil, so this reaches every part of one.
+func cloneJSON(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		return cloneMap(x)
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = cloneJSON(e)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 // writeWhole writes b to p by a rename, so a magpie or the host reading
@@ -122,17 +224,24 @@ var listSeen struct {
 	set   bool
 }
 
+// listStamp is plugins.json as it is now, and what is installed: bun's
+// package.json and lockfile in Dir(), which `magpie plugin update` changes
+// without touching plugins.json (#952: a terminal's update to 0.1.18 left
+// the app's host answering with 0.1.17 until it was killed).
 func listStamp() string {
-	fi, err := os.Stat(listPath())
-	if err != nil {
-		return ""
+	var b strings.Builder
+	for _, p := range []string{listPath(), filepath.Join(Dir(), "package.json"), filepath.Join(Dir(), "bun.lock"), filepath.Join(Dir(), "bun.lockb")} {
+		if fi, err := os.Stat(p); err == nil {
+			fmt.Fprint(&b, fi.ModTime().UnixNano(), " ", fi.Size())
+		}
+		b.WriteString(";")
 	}
-	return fmt.Sprint(fi.ModTime().UnixNano(), fi.Size())
+	return b.String()
 }
 
 // hostStale is set when another magpie changed the plugins (magpie plugin
-// add, remove or move in a terminal while the app runs): the host running
-// has the old ones loaded.
+// add, remove, update or move in a terminal while the app runs): the host
+// running has the old ones loaded.
 var hostStale atomic.Bool
 
 // checkList notices plugins.json changed by another magpie: the host is
@@ -262,6 +371,9 @@ func Add(ctx context.Context, spec string) (Entry, error) {
 			return Entry{}, err
 		}
 	}
+	if err := ensurePi(ctx, Target(spec)); err != nil {
+		return Entry{}, err
+	}
 	listMu.Lock()
 	defer listMu.Unlock()
 	l := Load()
@@ -291,10 +403,13 @@ func Add(ctx context.Context, spec string) (Entry, error) {
 func Update(ctx context.Context) error {
 	var errs []error
 	for _, e := range Load().Plugins {
-		if IsPath(e.Spec) {
-			continue
+		if !IsPath(e.Spec) {
+			if err := reinstall(ctx, e.Spec); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", e.Spec, err))
+				continue
+			}
 		}
-		if err := reinstall(ctx, e.Spec); err != nil {
+		if err := ensurePi(ctx, Target(e.Spec)); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", e.Spec, err))
 		}
 	}
@@ -344,17 +459,41 @@ func SetOff(name string, off bool) error {
 	return nil
 }
 
-// SetConfig sets the OpenCode config the plugins are handed.
-func SetConfig(cfg map[string]any) error {
+// SetOptions sets the options a plugin is handed (a middleware's
+// ctx.options); nil takes them away.
+func SetOptions(name string, opts map[string]any) error {
 	listMu.Lock()
 	defer listMu.Unlock()
 	l := Load()
-	l.Config = cfg
+	i := slices.IndexFunc(l.Plugins, func(x Entry) bool { return Name(x.Spec) == name || x.Spec == name })
+	if i < 0 {
+		// a short name, as the community's READMEs write it: param-override
+		// for @magpie-community/middleware-param-override
+		i = slices.IndexFunc(l.Plugins, func(x Entry) bool { return ShortName(Name(x.Spec)) == name })
+	}
+	if i < 0 {
+		return fmt.Errorf("no plugin %q", name)
+	}
+	if len(opts) == 0 {
+		opts = nil
+	}
+	l.Plugins[i].Options = opts
 	if err := save(l); err != nil {
 		return err
 	}
 	Restart()
 	return nil
+}
+
+// ShortName is a package's name without its scope and the words every
+// package of its kind has: model-map for @magpie-community/middleware-model-map,
+// zed for @magpie-community/opencode-zed-auth.
+func ShortName(pkg string) string {
+	if i := strings.LastIndex(pkg, "/"); i >= 0 {
+		pkg = pkg[i+1:]
+	}
+	pkg = strings.TrimPrefix(strings.TrimPrefix(pkg, "middleware-"), "opencode-")
+	return strings.TrimSuffix(pkg, "-auth")
 }
 
 // install puts an npm package into plugins/ with bun add, its scripts
@@ -378,6 +517,73 @@ func install(ctx context.Context, spec string) error {
 		return fmt.Errorf("bun add %s: %v: %s", spec, err, lastLines(string(out), 6))
 	}
 	return nil
+}
+
+// piAgent is the package pi's extensions import pi from; the host loads
+// them with it (pi.js), whichever of its names they import.
+const piAgent = "@earendil-works/pi-coding-agent"
+
+// IsPi is whether the plugin at target is pi's (a pi package or
+// extension) rather than OpenCode's, as host.js's pi.js tells them.
+func IsPi(target string) bool {
+	st, err := os.Stat(target)
+	if err != nil {
+		return false
+	}
+	if !st.IsDir() {
+		b, err := os.ReadFile(target)
+		if err != nil {
+			return false
+		}
+		s := string(b)
+		for _, n := range []string{piAgent, "@mariozechner/pi-coding-agent"} {
+			if strings.Contains(s, `"`+n+`"`) || strings.Contains(s, `'`+n+`'`) {
+				return true
+			}
+		}
+		return false
+	}
+	b, err := os.ReadFile(filepath.Join(target, "package.json"))
+	if err != nil {
+		return false
+	}
+	var pkg struct {
+		Pi       any               `json:"pi"`
+		Keywords []string          `json:"keywords"`
+		Deps     map[string]string `json:"dependencies"`
+		Peers    map[string]string `json:"peerDependencies"`
+	}
+	if json.Unmarshal(b, &pkg) != nil {
+		return false
+	}
+	if _, ok := pkg.Pi.(map[string]any); ok || slices.Contains(pkg.Keywords, "pi-package") {
+		return true
+	}
+	for _, d := range []map[string]string{pkg.Deps, pkg.Peers} {
+		if _, ok := d[piAgent]; ok {
+			return true
+		}
+		if _, ok := d["@mariozechner/pi-coding-agent"]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// ensurePi installs pi for a pi plugin that came without it (one that
+// doesn't name it among what it depends on, or one on disk), as pi itself
+// is what loads it.
+func ensurePi(ctx context.Context, target string) error {
+	if !IsPi(target) {
+		return nil
+	}
+	if _, err := os.Stat(filepath.Join(Dir(), "node_modules", piAgent, "package.json")); err == nil {
+		return nil
+	}
+	if _, err := os.Stat(filepath.Join(target, "node_modules", piAgent, "package.json")); err == nil {
+		return nil
+	}
+	return install(ctx, piAgent)
 }
 
 // reinstall installs spec again: an npm one with bun add, a git one with

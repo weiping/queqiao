@@ -50,10 +50,11 @@ type t3Envelope struct {
 			Name         string `json:"name"`
 			Capabilities *struct {
 				OptionDescriptors []struct {
-					ID      string `json:"id"`
-					Label   string `json:"label"`
-					Type    string `json:"type"`
-					Options []struct {
+					ID           string `json:"id"`
+					Label        string `json:"label"`
+					Type         string `json:"type"`
+					CurrentValue *bool  `json:"currentValue"`
+					Options      []struct {
 						ID        string `json:"id"`
 						Label     string `json:"label"`
 						IsDefault *bool  `json:"isDefault"`
@@ -103,7 +104,9 @@ func t3Format(t *testing.T, raw []byte) t3Envelope {
 					defaults++
 				}
 			}
-			if d.ID == "" || d.Label == "" || d.Type != "select" || len(d.Options) == 0 || defaults != 1 {
+			select_ := d.Type == "select" && len(d.Options) > 0 && defaults == 1 && d.CurrentValue == nil
+			boolean := d.Type == "boolean" && len(d.Options) == 0 && d.CurrentValue != nil
+			if d.ID == "" || d.Label == "" || !select_ && !boolean {
 				t.Errorf("descriptor: %s", raw)
 			}
 		}
@@ -262,22 +265,24 @@ func TestT3CodeHomeAndInstance(t *testing.T) {
 
 // Each magpie model in T3 Code has a Reasoning pick of the levels it takes
 // that Claude Code can send, medium chosen first, else the lowest (KevinXC
-// on Discord: every model ran at medium with no way to change it); none
-// for a model with no such level.
+// on Discord: every model ran at medium with no way to change it), and a
+// model that thinks at some level a Thinking switch, on at first, as T3's
+// own Claude Haiku has; neither for a model with no such level.
 func TestT3CodeEfforts(t *testing.T) {
 	type opt struct {
 		id  string
 		def bool
 	}
-	pick := func(id string, efforts []string) []opt {
+	pick := func(id string, efforts []string) ([]opt, bool) {
 		c := t3Capabilities(id, efforts)
 		if c == nil {
-			return nil
+			return nil, false
 		}
 		raw, _ := json.Marshal(c)
 		var caps struct {
 			OptionDescriptors []struct {
 				ID, Label, Type string
+				CurrentValue    *bool
 				Options         []struct {
 					ID, Label string
 					IsDefault bool
@@ -285,32 +290,41 @@ func TestT3CodeEfforts(t *testing.T) {
 			}
 		}
 		json.Unmarshal(raw, &caps)
-		if len(caps.OptionDescriptors) != 1 || caps.OptionDescriptors[0].ID != "effort" || caps.OptionDescriptors[0].Type != "select" {
-			t.Fatalf("%s: %s", id, raw)
-		}
 		var out []opt
-		for _, o := range caps.OptionDescriptors[0].Options {
-			if o.Label == "" {
-				t.Errorf("%s: no label: %s", id, raw)
+		thinking := false
+		for _, d := range caps.OptionDescriptors {
+			switch {
+			case d.ID == "effort" && d.Type == "select" && out == nil:
+				for _, o := range d.Options {
+					if o.Label == "" {
+						t.Errorf("%s: no label: %s", id, raw)
+					}
+					out = append(out, opt{o.ID, o.IsDefault})
+				}
+			case d.ID == "thinking" && d.Type == "boolean" && d.Label == "Thinking" && d.CurrentValue != nil && *d.CurrentValue && !thinking:
+				thinking = true
+			default:
+				t.Fatalf("%s: %s", id, raw)
 			}
-			out = append(out, opt{o.ID, o.IsDefault})
 		}
-		return out
+		return out, thinking
 	}
 	for _, c := range []struct {
-		id      string
-		efforts []string
-		want    []opt
+		id       string
+		efforts  []string
+		want     []opt
+		thinking bool
 	}{
-		{"codex/gpt-6", []string{"none", "minimal", "low", "medium", "high", "xhigh"}, []opt{{"low", false}, {"medium", true}, {"high", false}, {"xhigh", false}}},
-		{"ds/deepseek-v4", []string{"high", "max"}, []opt{{"high", true}, {"max", false}}},
-		{"claude/claude-opus-4-6", []string{"low", "medium", "high", "xhigh", "max"}, []opt{{"low", false}, {"medium", true}, {"high", false}, {"max", false}}},
-		{"claude/claude-haiku-4-5", []string{"low", "medium", "high"}, nil},
-		{"glm/glm-4.6", []string{"none", "minimal"}, nil},
-		{"glm/glm-4.6", nil, nil},
+		{"codex/gpt-6", []string{"none", "minimal", "low", "medium", "high", "xhigh"}, []opt{{"low", false}, {"medium", true}, {"high", false}, {"xhigh", false}}, true},
+		{"ds/deepseek-v4", []string{"high", "max"}, []opt{{"high", true}, {"max", false}}, true},
+		{"claude/claude-opus-4-6", []string{"low", "medium", "high", "xhigh", "max"}, []opt{{"low", false}, {"medium", true}, {"high", false}, {"max", false}}, true},
+		{"claude/claude-haiku-4-5", []string{"low", "medium", "high"}, nil, true},
+		{"glm/glm-4.6", []string{"none", "minimal"}, nil, true},
+		{"glm/glm-4.6", []string{"none"}, nil, false},
+		{"glm/glm-4.6", nil, nil, false},
 	} {
-		if got := pick(c.id, c.efforts); !slices.Equal(got, c.want) {
-			t.Errorf("%s %v: %v, want %v", c.id, c.efforts, got, c.want)
+		if got, thinking := pick(c.id, c.efforts); !slices.Equal(got, c.want) || thinking != c.thinking {
+			t.Errorf("%s %v: %v thinking %v, want %v thinking %v", c.id, c.efforts, got, thinking, c.want, c.thinking)
 		}
 	}
 }

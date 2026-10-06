@@ -14,14 +14,17 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/yetone/magpie/internal/appdir"
 )
 
 // Call is one model call as an agent's own session file records it.
 type Call struct {
-	Time    time.Time `json:"t"`
-	Agent   string    `json:"agent"`   // claude (Claude Code's CLI), claude-desktop (Desktop's Code tab and Cowork), codex
-	Session string    `json:"session"` // the id the agent sends the gateway as its session header
-	Model   string    `json:"model"`   // the model the file names: for Claude, the one the vendor answered
+	ResponseID string    `json:"response_id,omitempty"`
+	Time       time.Time `json:"t"`
+	Agent      string    `json:"agent"`   // claude (Claude Code's CLI), claude-desktop (Desktop's Code tab and Cowork), codex
+	Session    string    `json:"session"` // the id the agent sends the gateway as its session header
+	Model      string    `json:"model"`   // the model the file names: for Claude, the one the vendor answered
 	// Requested: the model Claude Code was running as (its identity note) when it made
 	// the call, as it was asked for: claude-opus-5[1m] for claude-opus-5 with the long context
 	Requested string `json:"requested,omitempty"`
@@ -55,6 +58,7 @@ type Call struct {
 // callFile is what one file's read has come to: the calls found in it, and
 // what it takes to read on from off.
 type callFile struct {
+	Claude      *claudeUsageState
 	ContentHash string
 	dirty       map[int]bool
 	Size        int64
@@ -87,30 +91,32 @@ type cxRun struct {
 	Meta                              bool // session_meta seen
 	Session, Cwd, Model, Effort, Turn string
 	Upstream, AccountID, UserID       string
-	Total                             *cxCallUsage // the running total last seen
+	Usage                             *codexUsageState
+	Contexts                          map[string]cxContext
 	Turns                             map[string]cxOpen
 	LastIn, LastCall                  time.Time // the last thing the model was given, and the last call's end
 	LastEnd                           int64     // where the last call's line ended
+	Timings                           []cxCallTiming
+	LastIndex                         int
 }
 
 // cxOpen is a turn still open: how many calls it has made, and where the first is.
-type cxOpen struct{ N, First int }
-
-// cxCallUsage is Codex's usage with the reasoning tokens in it, which
-// cxUsage leaves out.
-type cxCallUsage struct {
-	// These fields must be explicit: gob skips an unexported embedded cxUsage,
-	// losing the previous cumulative counters when the append shard is reloaded.
-	Input      int `json:"input_tokens"`
-	Cached     int `json:"cached_input_tokens"`
-	CacheWrite int `json:"cache_write_input_tokens"`
-	Output     int `json:"output_tokens"`
-	Reasoning  int `json:"reasoning_output_tokens"`
+type cxOpen struct {
+	N, First             int
+	Duration, FirstToken int64
+	Complete             bool
+}
+type cxCallTiming struct {
+	Input    time.Time
+	Previous int
 }
 
-func (u cxCallUsage) raw() Tokens {
-	return Tokens{Input: u.Input, Output: u.Output, CacheRead: u.Cached, CacheWrite: u.CacheWrite}
+type cxContext struct {
+	Model, Effort, Cwd, Upstream string
+	LastIn                       time.Time
 }
+
+type cxCallUsage = cxUsage
 
 // callDesktopDirs are Claude Desktop's data folders. Tests swap it.
 var callDesktopDirs = desktopDataDirs
@@ -124,7 +130,7 @@ func DesktopDataDirs() []string { return callDesktopDirs() }
 func Calls(since time.Time) []Call { return callsFor(since, "") }
 
 func callsFor(since time.Time, session string) []Call {
-	files := callFiles()
+	files := callSources()
 	pruneCalls(files)
 	// Earlier files own messages copied into a resumed Claude session.
 	sort.Slice(files, func(i, j int) bool {
@@ -197,8 +203,13 @@ func callFiles() []file {
 		}
 	}
 	add(codexFiles())
+	add(wslFiles("claude", "codex"))
 	return out
 }
+
+// callSources are callFiles and OpenCode's sessions (#680), whose calls are
+// rows of its database or its JSON files rather than lines.
+func callSources() []file { return append(callFiles(), openCodeCallFiles()...) }
 
 // desktopDataDirs are Claude Desktop's Claude and Claude-3p folders on this
 // computer, found as desktopDirs in internal/agent's claudedesktop.go does
@@ -210,13 +221,13 @@ func desktopDataDirs() []string {
 		d := filepath.Join(home, "Library", "Application Support")
 		return []string{filepath.Join(d, "Claude"), filepath.Join(d, "Claude-3p")}
 	case "windows":
-		d := os.Getenv("LOCALAPPDATA")
+		d := appdir.Getenv("LOCALAPPDATA")
 		if d == "" {
 			d = filepath.Join(home, "AppData", "Local")
 		}
 		return []string{windowsClaudeDir(d, false), windowsClaudeDir(d, true)}
 	}
-	d := os.Getenv("XDG_CONFIG_HOME")
+	d := appdir.Getenv("XDG_CONFIG_HOME")
 	if d == "" || !filepath.IsAbs(d) {
 		d = filepath.Join(home, ".config")
 	}
@@ -265,6 +276,17 @@ func headOf(path string) string {
 
 // prepareCalls clones the continuation so a published index is never changed.
 func prepareCalls(f file, old *callFile) *callFile {
+	// The disk shard stores final calls, not a second copy of every usage
+	// observation. Rebuild continuation only when a cold source grows.
+	if f.agent == "codex" && old != nil && (old.CX == nil || old.CX.Usage == nil) {
+		old = nil
+	}
+	// Disk shards keep final calls, not message block/tool maps. A changed
+	// Claude source reconstructs its transient revision index after restart.
+	if (f.agent == "claude" || f.agent == "claude-desktop") && old != nil && old.Claude == nil {
+		old = nil
+	}
+
 	head := headOf(f.path)
 	var st *callFile
 	if old != nil && !packed(f.path) && f.size >= old.Size && old.Off <= f.size && sameHead(head, old.Head, old.HeadSize) && old.ContentHash != "" && prefixHash(f.path, old.Size) == old.ContentHash {
@@ -289,30 +311,31 @@ func prepareCalls(f file, old *callFile) *callFile {
 func (st *callFile) clone() *callFile {
 	c := *st
 	c.Calls = append([]Call(nil), st.Calls...)
+	c.Claude = st.Claude.clone()
 	c.Msgs, c.Began, c.Strs = maps.Clone(st.Msgs), maps.Clone(st.Began), maps.Clone(st.Strs)
 	if st.CX != nil {
 		r := *st.CX
 		r.Turns = maps.Clone(r.Turns)
-		if r.Total != nil {
-			t := *r.Total
-			r.Total = &t
-		}
+		r.Usage = r.Usage.clone()
+		r.Contexts = maps.Clone(r.Contexts)
+		r.Timings = append([]cxCallTiming(nil), r.Timings...)
 		c.CX = &r
 	}
 	return &c
 }
 
-// Codex tool results need only their timestamp, so long output/compaction
-// lines can still be skipped by the session index's head reader.
+// Codex tool results need only their timestamp. Compaction metadata must reach
+// the usage reader even when its replacement history contains user messages.
 func callHead(st *callFile, b []byte) bool {
 	if st.Agent != "codex" {
 		return true
 	}
-	if bytes.Contains(b, cxUserMsg) || bytes.Contains(b, cxUserRole) || bytes.Contains(b, cxToolOut) || bytes.Contains(b, cxCustomOut) {
+	compacted := typeAfter(b[:min(len(b), 1024)], cxType) == "compacted"
+	if !compacted && (bytes.Contains(b, cxUserMsg) || bytes.Contains(b, cxUserRole) || bytes.Contains(b, cxToolOut) || bytes.Contains(b, cxCustomOut)) {
 		codexCallLine(st, b)
 		return false
 	}
-	return bytes.Contains(b, cxMeta) || bytes.Contains(b, cxTurn) || bytes.Contains(b, cxCount) || bytes.Contains(b, cxSettings) || bytes.Contains(b, cxStarted) || bytes.Contains(b, cxDone)
+	return bytes.Contains(b, cxMeta) || bytes.Contains(b, cxTurn) || bytes.Contains(b, cxRecord) || bytes.Contains(b, cxCompacted) || bytes.Contains(b, cxCount) || bytes.Contains(b, cxSettings) || bytes.Contains(b, cxStarted) || bytes.Contains(b, cxDone)
 }
 
 // sessionOfPath is the session a Claude Code file belongs to by its name:
@@ -352,6 +375,7 @@ func (s *ccStr) UnmarshalJSON(b []byte) error {
 
 // ccCall is an assistant line of Claude Code's, less its content.
 type ccCall struct {
+	UUID       string `json:"uuid"`
 	Type       string `json:"type"`
 	Time       string `json:"timestamp"`
 	SessionID  ccStr  `json:"sessionId"`
@@ -368,10 +392,11 @@ type ccCall struct {
 		ID    string `json:"id"`
 		Model string `json:"model"`
 		Usage *struct {
-			Input      int `json:"input_tokens"`
-			Output     int `json:"output_tokens"`
-			CacheRead  int `json:"cache_read_input_tokens"`
-			CacheWrite int `json:"cache_creation_input_tokens"`
+			Input      int              `json:"input_tokens"`
+			Output     int              `json:"output_tokens"`
+			CacheRead  int              `json:"cache_read_input_tokens"`
+			CacheWrite int              `json:"cache_creation_input_tokens"`
+			Creation   *ccCacheCreation `json:"cache_creation"`
 		} `json:"usage"`
 	} `json:"message"`
 }
@@ -413,12 +438,46 @@ func claudeCallLine(st *callFile, b []byte) {
 	}
 	c := Call{Time: at, Agent: st.Agent, Session: st.str(string(l.SessionID)), Cwd: st.str(string(l.Cwd)), RequestID: string(l.RequestID)}
 	c.Requested = st.Requested
+	m := ccUsageState(&st.Claude).message(l.Message.ID, string(l.RequestID))
+	defer st.Claude.finish(m)
+	// Materialized rows already carry the last known usage beyond the recent
+	// replay window. Reuse the original row lookup when that history expires.
+	if m.Call < 0 && l.Message.ID != "" && len(st.Claude.Messages[m.key]) == 1 {
+		if i, ok := st.Msgs[l.Message.ID]; ok {
+			old := st.Calls[i]
+			if m.Request == "" || old.RequestID == "" || m.Request == old.RequestID {
+				if m.Request == "" && old.RequestID != "" {
+					m = st.Claude.message(l.Message.ID, old.RequestID)
+				}
+				m.Call, m.Began = i, st.Began[l.Message.ID]
+				m.Usage = &claudeUsageVersion{At: old.Time, Model: old.Model, Tokens: old.Tokens}
+				m.Updated = old.Time
+			}
+		}
+	}
+	c.RequestID = m.Request
+	blockID := "uuid:" + l.UUID
+	if l.UUID == "" {
+		// Older writers lack a block UUID. Content distinguishes a new
+		// text/tool block from a replay without treating its timestamp as ID.
+		var content struct {
+			Message struct{ Content json.RawMessage }
+		}
+		if json.Unmarshal(b, &content) == nil {
+			blockID = fmt.Sprintf("content:%x", sha256.Sum256(content.Message.Content))
+		}
+	}
+	newBlock := !m.Blocks[blockID]
+	if blockID != "" {
+		if m.Blocks == nil {
+			m.Blocks = map[string]bool{}
+		}
+		m.Blocks[blockID] = true
+	}
 	// it was asked when the last user line or, with none since, the last reply ended
 	asked, seen := st.LastUser, false
-	if id := l.Message.ID; id != "" {
-		if t, ok := st.Began[id]; ok {
-			asked, seen = t, true
-		}
+	if m.Call >= 0 {
+		asked, seen = m.Began, true
 	}
 	if !seen && st.LastAsst.After(asked) {
 		asked = st.LastAsst
@@ -426,7 +485,7 @@ func claudeCallLine(st *callFile, b []byte) {
 	// where its asking began: after the last reply's line, its own if it goes on
 	c.File, c.From, c.To, c.Msg = st.Path, st.AsstEnd, st.End, l.Message.ID
 	defer func() {
-		if !at.IsZero() {
+		if at.After(st.LastAsst) {
 			st.LastAsst = at
 		}
 		st.AsstEnd = st.End
@@ -458,30 +517,50 @@ func claudeCallLine(st *callFile, b []byte) {
 			return
 		}
 		c.Model = st.str(model)
-		c.Tokens = Tokens{Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite}
-		if c.Tokens.zero() {
+		c.Tokens = ccTokens(u.Input, u.Output, u.CacheRead, u.CacheWrite, u.Creation)
+		if c.Tokens.zero() && m.Usage == nil {
 			return
 		}
 		if !asked.IsZero() && at.After(asked) {
 			c.Millis = at.Sub(asked).Milliseconds()
 		}
-		if id := l.Message.ID; id != "" && !seen && !asked.IsZero() {
-			if st.Began == nil {
-				st.Began = map[string]time.Time{}
-			}
-			st.Began[id] = asked
-		}
 	}
-	if id := l.Message.ID; id != "" {
-		if i, ok := st.Msgs[id]; ok {
-			c.From = st.Calls[i].From // its asking began with its first line
-			st.Calls[i] = c
-			if st.dirty != nil {
+	if _, changed := m.accept(at, c.Model, c.Tokens); !changed {
+		// A missing request ID can become known without changing usage.
+		if i := m.Call; i >= 0 {
+			previous := &st.Calls[i]
+			changed := previous.RequestID != m.Request
+			previous.RequestID = m.Request
+			// A new block can finish a reply with unchanged usage. Retain
+			// its duration/content boundary without moving usage across days.
+			if newBlock && m.Usage.Model == c.Model && m.Usage.Tokens == c.Tokens &&
+				at.After(previous.Time) && dateOf(at) == dateOf(previous.Time) {
+				previous.Time, previous.Millis, previous.To = at, c.Millis, c.To
+				changed = true
+			}
+			if changed && st.dirty != nil {
 				st.dirty[i] = true
 			}
-			return
 		}
-		st.Msgs[id] = len(st.Calls)
+		return
+	}
+	if i := m.Call; i >= 0 {
+		c.From = st.Calls[i].From // its asking began with its first line
+		st.Calls[i] = c
+		if st.dirty != nil {
+			st.dirty[i] = true
+		}
+		return
+	}
+	m.Call, m.Began = len(st.Calls), asked
+	if c.Msg != "" {
+		if st.Msgs == nil {
+			st.Msgs = map[string]int{}
+		}
+		if st.Began == nil {
+			st.Began = map[string]time.Time{}
+		}
+		st.Msgs[c.Msg], st.Began[c.Msg] = m.Call, asked
 	}
 	st.Calls = append(st.Calls, c)
 }
@@ -507,19 +586,24 @@ var (
 type cxCall struct {
 	Type    string `json:"type"`
 	Payload struct {
-		Type       string `json:"type"`
-		ID         string `json:"id"`
-		SessionID  string `json:"session_id"`
-		Upstream   string `json:"model_provider"`
-		AccountID  string `json:"creator_account_id"`
-		UserID     string `json:"creator_user_id"`
-		Cwd        string `json:"cwd"`
-		Model      string `json:"model"`
-		Effort     ccStr  `json:"effort"`
-		TurnID     string `json:"turn_id"`
-		Duration   int64  `json:"duration_ms"`
-		FirstToken int64  `json:"time_to_first_token_ms"`
-		Settings   struct {
+		cxCompaction
+		cxHistorySnapshot
+		Type        string   `json:"type"`
+		ID          string   `json:"id"`
+		SessionID   string   `json:"session_id"`
+		Upstream    string   `json:"model_provider"`
+		AccountID   string   `json:"creator_account_id"`
+		UserID      string   `json:"creator_user_id"`
+		Cwd         string   `json:"cwd"`
+		Model       string   `json:"model"`
+		Effort      ccStr    `json:"effort"`
+		TurnID      string   `json:"turn_id"`
+		ResponseID  string   `json:"response_id"`
+		Usage       *cxUsage `json:"usage"`
+		ThreadUsage *cxUsage `json:"thread_token_usage"`
+		Duration    int64    `json:"duration_ms"`
+		FirstToken  int64    `json:"time_to_first_token_ms"`
+		Settings    struct {
 			Model    string `json:"model"`
 			Upstream string `json:"model_provider"`
 		} `json:"thread_settings"`
@@ -534,14 +618,26 @@ type cxCall struct {
 // a call wherever the running total grew.
 func codexCallLine(st *callFile, b []byte) {
 	r := st.CX
+	if r.Usage == nil {
+		r.Usage = &codexUsageState{}
+	}
 	// what the model is given: the prompt, a tool's output
+	compacted := typeAfter(b[:min(len(b), 1024)], cxType) == "compacted"
+	if compacted {
+		st.codexChanged(r.Usage.compacted(tsAt(b, false), r.Model, cxCompactionIn(b)))
+		return
+	}
 	if bytes.Contains(b, cxUserMsg) || bytes.Contains(b, cxUserRole) || bytes.Contains(b, cxToolOut) || bytes.Contains(b, cxCustomOut) {
 		if at := tsAt(b, false); !at.IsZero() {
 			r.LastIn = at
+			if bytes.Contains(b, cxUserMsg) || bytes.Contains(b, cxUserRole) {
+				r.Usage.Pending = 0
+			}
+			r.saveContext()
 		}
 		return
 	}
-	if !(!r.Meta && bytes.Contains(b, cxMeta) || bytes.Contains(b, cxTurn) || bytes.Contains(b, cxCount) ||
+	if !(!r.Meta && bytes.Contains(b, cxMeta) || bytes.Contains(b, cxTurn) || bytes.Contains(b, cxRecord) || bytes.Contains(b, cxCompacted) || bytes.Contains(b, cxCount) ||
 		bytes.Contains(b, cxSettings) || bytes.Contains(b, cxStarted) || bytes.Contains(b, cxDone)) {
 		return
 	}
@@ -563,6 +659,8 @@ func codexCallLine(st *callFile, b []byte) {
 		}
 		r.Session, r.Cwd = st.str(r.Session), st.str(p.Cwd)
 		r.Upstream, r.AccountID, r.UserID = st.str(p.Upstream), st.str(p.AccountID), st.str(p.UserID)
+		r.Usage.context(r.Session, "", "")
+		r.Usage.beginSnapshot(tsAt(b, false), p.ID, p.cxHistorySnapshot)
 	case l.Type == "turn_context":
 		if p.Upstream != "" {
 			r.Upstream = st.str(p.Upstream)
@@ -577,6 +675,7 @@ func codexCallLine(st *callFile, b []byte) {
 		if p.TurnID != "" {
 			r.Turn = p.TurnID
 		}
+		r.saveContext()
 	case l.Type == "event_msg" && p.Type == "task_started":
 		if p.TurnID != "" {
 			r.Turn = p.TurnID
@@ -585,6 +684,7 @@ func codexCallLine(st *callFile, b []byte) {
 		if at := tsAt(b, false); !at.IsZero() {
 			r.LastIn = at
 		}
+		r.saveContext()
 	case l.Type == "event_msg" && p.Type == "thread_settings_applied":
 		if p.Settings.Upstream != "" {
 			r.Upstream = st.str(p.Settings.Upstream)
@@ -592,66 +692,129 @@ func codexCallLine(st *callFile, b []byte) {
 		if p.Settings.Model != "" {
 			r.Model = st.str(p.Settings.Model)
 		}
+		r.saveContext()
 	case l.Type == "event_msg" && p.Type == "task_complete":
-		if t, ok := r.Turns[p.TurnID]; ok && t.N == 1 {
-			st.Calls[t.First].TTFT, st.Calls[t.First].Millis = p.FirstToken, p.Duration
-			if st.dirty != nil {
-				st.dirty[t.First] = true
-			}
+		if r.Turns == nil {
+			r.Turns = map[string]cxOpen{}
 		}
-		delete(r.Turns, p.TurnID)
+		turn := r.Turns[p.TurnID]
+		turn.Complete, turn.Duration, turn.FirstToken = true, p.Duration, p.FirstToken
+		r.Turns[p.TurnID] = turn
+		if turn.N == 1 {
+			st.Calls[turn.First].TTFT, st.Calls[turn.First].Millis = p.FirstToken, p.Duration
+			st.markCall(turn.First)
+		}
+	case l.Type == "compacted":
+		st.codexChanged(r.Usage.compacted(tsAt(b, false), r.Model, p.cxCompaction))
+	case l.Type == "token_usage_record":
+		if p.Usage != nil {
+			st.codexChanged(r.Usage.record(codexContribution{ResponseID: p.ResponseID, Session: p.SessionID, Turn: p.TurnID, Model: r.Model, At: tsAt(b, false), Usage: *p.Usage, Total: p.ThreadUsage}))
+		}
 	case l.Type == "event_msg" && p.Type == "token_count":
-		if p.Info == nil || p.Info.Total == nil {
-			return
+		if p.Info != nil {
+			st.codexChanged(r.Usage.count(tsAt(b, false), r.Model, p.Info.Total, p.Info.Last))
 		}
-		// the same totals as codexLine tells a call by
-		total := *p.Info.Total
-		var d Tokens
-		var reasoning int
-		switch prev := r.Total; {
-		case prev != nil && total.Input >= prev.Input && total.Output >= prev.Output && total.Cached >= prev.Cached:
-			// the same total told again adds nothing
-			d = total.raw()
-			d.sub(prev.raw())
-			d.CacheWrite = max(0, d.CacheWrite)
-			reasoning = max(0, total.Reasoning-prev.Reasoning)
-		case p.Info.Last != nil:
-			// the first count in the file, or a total that started over
-			d, reasoning = p.Info.Last.raw(), p.Info.Last.Reasoning
-		default:
-			d, reasoning = total.raw(), total.Reasoning
-		}
-		r.Total = &total
-		t := spent(d)
-		at := tsAt(b, false)
-		if at.IsZero() || t.zero() && reasoning == 0 {
-			return
-		}
-		if r.Turn != "" {
-			if r.Turns == nil {
-				r.Turns = map[string]cxOpen{}
-			}
-			turn := r.Turns[r.Turn]
-			if turn.N++; turn.N == 1 {
-				turn.First = len(st.Calls)
-			}
-			r.Turns[r.Turn] = turn
-		}
-		// it took from what asked for it, or the call before it, to here
-		asked := r.LastIn
-		if r.LastCall.After(asked) {
-			asked = r.LastCall
-		}
-		var took int64
-		if !asked.IsZero() && at.After(asked) && at.Sub(asked) < 2*time.Hour {
-			took = at.Sub(asked).Milliseconds()
-		}
-		r.LastCall = at
-		st.Calls = append(st.Calls, Call{Time: at, Agent: "codex", Session: r.Session, Model: r.Model, Tokens: t,
-			Upstream: r.Upstream, AccountID: r.AccountID, UserID: r.UserID,
-			Reasoning: reasoning, Effort: r.Effort, Cwd: r.Cwd, Millis: took, File: st.Path, From: r.LastEnd, To: st.End})
-		r.LastEnd = st.End
 	}
+
+}
+
+func (r *cxRun) saveContext() {
+	if r.Contexts == nil {
+		r.Contexts = map[string]cxContext{}
+	}
+	r.Contexts[r.Turn] = cxContext{r.Model, r.Effort, r.Cwd, r.Upstream, r.LastIn}
+	r.Usage.context(r.Session, r.Turn, r.Model)
+}
+
+func (st *callFile) markCall(i int) {
+	if st.dirty != nil {
+		st.dirty[i] = true
+	}
+}
+
+func (st *callFile) codexChanged(change *codexChange) {
+	if change == nil {
+		return
+	}
+	r, v, i := st.CX, change.Value, change.Index
+	context, ok := r.Contexts[v.Turn]
+	if !ok {
+		context = cxContext{r.Model, r.Effort, r.Cwd, r.Upstream, r.LastIn}
+	}
+	c := Call{Time: v.At, Agent: "codex", Session: r.Session, Model: v.Model, Tokens: spent(v.Usage.raw()), ResponseID: v.ResponseID,
+		Upstream: context.Upstream, AccountID: r.AccountID, UserID: r.UserID, Reasoning: v.Usage.Reasoning, Effort: context.Effort, Cwd: context.Cwd, File: st.Path, From: r.LastEnd, To: st.End}
+	if c.Session == "" {
+		c.Session = r.Session
+	}
+
+	if change.Old != nil {
+		// The response may arrive after the next call's content. Upgrading its
+		// identity/time must not expand its physical content range into that call.
+		c.From, c.To = st.Calls[i].From, min(st.Calls[i].To, st.End)
+		st.Calls[i] = c
+	} else {
+		prev := -1
+		if i > 0 && !r.LastCall.After(v.At) {
+			prev = r.LastIndex
+		} else {
+			for j, old := range st.Calls {
+				if old.Time.Before(v.At) && (prev < 0 || old.Time.After(st.Calls[prev].Time)) {
+					prev = j
+				}
+			}
+		}
+		input := context.LastIn
+		if input.After(v.At) {
+			input = time.Time{}
+		}
+		r.Timings = append(r.Timings, cxCallTiming{input, prev})
+		st.Calls = append(st.Calls, c)
+		if r.Turns == nil {
+			r.Turns = map[string]cxOpen{}
+		}
+		turn := r.Turns[v.Turn]
+		if turn.N == 0 {
+			turn.First = i
+		}
+		turn.N++
+		r.Turns[v.Turn] = turn
+		if turn.N == 2 {
+			st.codexTiming(turn.First)
+		}
+		if st.End > r.LastEnd {
+			r.LastEnd = st.End
+		}
+	}
+	if i == r.LastIndex || v.At.After(r.LastCall) {
+		r.LastCall, r.LastIndex = v.At, i
+	}
+	st.codexTiming(i)
+	if change.Old != nil && !change.Old.At.Equal(v.At) {
+		for j, timing := range r.Timings {
+			if timing.Previous == i {
+				st.codexTiming(j)
+			}
+		}
+	}
+}
+
+func (st *callFile) codexTiming(i int) {
+	r := st.CX
+	c, timing := &st.Calls[i], r.Timings[i]
+	asked := timing.Input
+	if timing.Previous >= 0 && st.Calls[timing.Previous].Time.After(asked) {
+		asked = st.Calls[timing.Previous].Time
+	}
+	c.Millis, c.TTFT = 0, 0
+	if !asked.IsZero() && c.Time.After(asked) && c.Time.Sub(asked) < 2*time.Hour {
+		c.Millis = c.Time.Sub(asked).Milliseconds()
+	}
+	turn := r.Turns[r.Usage.Entries[i].Turn]
+	if turn.N == 1 && turn.Complete {
+		c.Millis, c.TTFT = turn.Duration, turn.FirstToken
+	}
+	st.markCall(i)
+
 }
 
 func hashHead(head string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(head))) }
@@ -694,7 +857,7 @@ type CallSource struct {
 }
 
 func CallSources() []CallSource {
-	fs := callFiles()
+	fs := callSources()
 	pruneCalls(fs)
 	out := make([]CallSource, 0, len(fs))
 	for _, f := range fs {
@@ -711,7 +874,11 @@ func ReadCallSource(s CallSource) []Call {
 	// calls as well doubles residency, especially for long active sessions. The
 	// append-frame shard still carries the continuation for the next read.
 	callsMu.Lock()
-	if callCache[s.Path] == st {
+	keepCallContinuation(st)
+	// Index eviction can replace the cached snapshot with a shallow copy.
+	// Release its rows too, but never evict a newer parse from another reader.
+	cached := callCache[s.Path]
+	if cached != nil && cached.Size == st.Size && cached.Mod == st.Mod && cached.Off == st.Off && cached.ContentHash == st.ContentHash {
 		delete(callCache, s.Path)
 		for i, p := range callOrder {
 			if p == s.Path {

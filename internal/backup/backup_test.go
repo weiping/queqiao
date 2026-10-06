@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -16,6 +17,32 @@ import (
 	"github.com/yetone/magpie/internal/provider"
 	"github.com/yetone/magpie/internal/settings"
 )
+
+func TestRestoreKeepsCorruptSettings(t *testing.T) {
+	for _, tc := range []struct{ name, body string }{
+		{"truncated", `{"theme":"dark","proxy":"direct","githubToken":"SYNTHETIC_PRIVATE_TOKEN"`},
+		{"theme type", `{"theme":7,"proxy":"direct","githubToken":"SYNTHETIC_PRIVATE_TOKEN"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home(t)
+			if err := os.MkdirAll(settings.Dir(), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			original := []byte(tc.body)
+			if err := os.WriteFile(settings.Path(), original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			b := Bundle{Version: 1, Settings: &settings.Settings{Theme: "light"}}
+			result, err := Restore(b, Parts{Settings: true})
+			if err == nil || result.Settings {
+				t.Errorf("restore accepted corrupt local settings: %+v, %v", result, err)
+			}
+			if after, err := os.ReadFile(settings.Path()); err != nil || !bytes.Equal(after, original) {
+				t.Errorf("restore overwrote the corrupt settings: %v", err)
+			}
+		})
+	}
+}
 
 // home gives the test a machine of its own: no agents, no magpie files.
 func home(t *testing.T) {

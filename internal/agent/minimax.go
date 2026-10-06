@@ -16,13 +16,12 @@ package agent
 // stays.
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/edit"
-	"github.com/yetone/magpie/internal/gateway"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,7 +38,7 @@ const mcodeUA = "minimax-code"
 
 // MiniMaxDir is the folder MiniMax Code keeps its config.yaml in.
 func MiniMaxDir(home string) string {
-	if d := strings.TrimSpace(os.Getenv("MINIMAX_DATA_DIR")); d != "" {
+	if d := strings.TrimSpace(appdir.Getenv("MINIMAX_DATA_DIR")); d != "" {
 		return d
 	}
 	return filepath.Join(home, ".minimax")
@@ -76,7 +75,7 @@ func miniMaxAt(at place, dir string) *Agent {
 		return edit.SetYAML(path, kvs...)
 	}
 	return atomic(&Agent{
-		ID: "minimax-code", Name: "MiniMax Code", Icon: "minimax-color", Aliases: []string{"mcode"},
+		ID: "minimax-code", Name: "MiniMax Code", Icon: "minimax-color", Aliases: []string{"mcode"}, Spelled: prefixed,
 		UA:  []string{mcodeUA},
 		Bin: "mcode", Dir: dir, Path: path,
 		Sync: func() error {
@@ -102,7 +101,7 @@ func miniMaxAt(at place, dir string) *Agent {
 				return "MiniMax Code's " + mcodeEntry + " (config.yaml) is turned off, so it no longer reaches magpie"
 			}
 			return wiringOff("MiniMax Code", path, func(k string) (string, bool) { return edit.GetYAML(path, mcodeEntry+".options."+k) },
-				"baseURL", at.gw(), "apiKey", gateway.Token)
+				"baseURL", at.gw(), "apiKey", at.gwKey())
 		},
 		Fields: []Field{{
 			Key: "model", Label: "model",
@@ -159,14 +158,11 @@ func miniMaxAt(at place, dir string) *Agent {
 	}, path)
 }
 
-// writeMiniMaxEntry puts magpie's entry in MiniMax Code's config.yaml as the
-// catalog is now, over the one there: what magpie sets is set, a model gone
-// from the catalog goes, and every other key — the user's, MiniMax Code's —
-// stays with its comments. The file is written only when this changes it.
-func writeMiniMaxEntry(path string) error { return writeMiniMaxEntryAt(path, gateway.URL()) }
-
-// writeMiniMaxEntryAt is writeMiniMaxEntry for a MiniMax Code reaching the
-// gateway at gw.
+// writeMiniMaxEntryAt puts magpie's entry in MiniMax Code's config.yaml,
+// for a MiniMax Code reaching the gateway at gw, as the catalog is now, over
+// the one there: what magpie sets is set, a model gone from the catalog
+// goes, and every other key — the user's, MiniMax Code's — stays with its
+// comments. The file is written only when this changes it.
 func writeMiniMaxEntryAt(path, gw string) error {
 	cur, _ := edit.GetYAMLText(path, mcodeEntry)
 	entry := &yaml.Node{Kind: yaml.MappingNode}
@@ -183,7 +179,7 @@ func writeMiniMaxEntryAt(path, gw string) error {
 	// sends them; MiniMax Code's own API is that too
 	yamlSet(entry, "api", "anthropic-messages")
 	opts := yamlMap(entry, "options")
-	yamlSet(opts, "apiKey", gateway.Token)
+	yamlSet(opts, "apiKey", keyAt(gw))
 	yamlSet(opts, "baseURL", gw)
 	yamlSet(opts, "authMode", "api-key")
 	yamlSet(yamlMap(opts, "headers"), "User-Agent", mcodeUA)

@@ -81,28 +81,47 @@ func usageTo(out io.Writer, args []string) error {
 	}
 	loadCostCurrency()
 	s := stats.Summarize(period)
+	// the calls the agents made on their own, read from their session files:
+	// the window's Requests tab counts them too (Kumo31 on Discord)
+	d := stats.Direct(period)
 	title := map[stats.Period]string{stats.Today: "today", stats.Week: "last 7 days", stats.Month: "last 30 days", stats.All: "all time"}[s.Period]
-	if s.Calls == 0 {
-		fmt.Println(muted.Render("no calls "+title+" ·"), "route an agent through magpie and its usage shows up here")
-		fmt.Println(faint.Render("  " + stats.Path()))
+	if s.Calls == 0 && d.Calls == 0 {
+		fmt.Fprintln(out, muted.Render("no calls "+title+" ·"), "route an agent through magpie and its usage shows up here")
+		fmt.Fprintln(out, faint.Render("  "+stats.Path()))
 		return nil
 	}
-	fmt.Println(bold.Render(fmtTokens(s.Tokens())+" tokens"), muted.Render(title+" ·"), plural(s.Calls, "call"), muted.Render("·"), cost(s.Totals))
-	fmt.Println(muted.Render("  in "+fmtTokens(s.Input)+"  out "+fmtTokens(s.Output)+"  cache read "+fmtTokens(s.CacheRead)+"  cache write "+fmtTokens(s.CacheWrite)+"  reasoning "+fmtTokens(s.Reasoning)),
+	names := map[string]string{}
+	for _, a := range agent.All() {
+		names[a.ID] = a.Name
+	}
+	if s.Calls == 0 {
+		fmt.Fprintln(out, muted.Render("no calls through magpie "+title))
+	} else {
+		printUsage(out, s, title, names)
+	}
+	if d.Calls > 0 {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, muted.Render("not through magpie · the agents' own requests, read from their session files"))
+		printUsage(out, d, title, names)
+	}
+	fmt.Fprintln(out, faint.Render("  "+stats.Path()))
+	return nil
+}
+
+// printUsage is a summary's totals and its tables: agents, models,
+// upstream keys, accounts, gateway keys and the top sessions.
+func printUsage(out io.Writer, s stats.Summary, title string, names map[string]string) {
+	fmt.Fprintln(out, bold.Render(fmtTokens(s.Tokens())+" tokens"), muted.Render(title+" ·"), plural(s.Calls, "call"), muted.Render("·"), cost(s.Totals))
+	fmt.Fprintln(out, muted.Render("  in "+fmtTokens(s.Input)+"  out "+fmtTokens(s.Output)+"  cache read "+fmtTokens(s.CacheRead)+"  cache write "+fmtTokens(s.CacheWrite)+"  reasoning "+fmtTokens(s.Reasoning)),
 		func() string {
 			if s.Errors > 0 {
 				return muted.Render(" · ") + plural(s.Errors, "error")
 			}
 			return ""
 		}())
-
-	names := map[string]string{}
-	for _, a := range agent.All() {
-		names[a.ID] = a.Name
-	}
 	table := func(head string, gs []stats.Group, name func(stats.Group) string) {
-		fmt.Println()
-		fmt.Println(faint.Render("  " + head))
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, faint.Render("  "+head))
 		w := 0
 		for _, g := range gs {
 			w = max(w, len(name(g)))
@@ -112,8 +131,14 @@ func usageTo(out io.Writer, args []string) error {
 			if s.Tokens() > 0 {
 				share = fmt.Sprintf("%3.0f%%", 100*float64(g.Tokens())/float64(s.Tokens()))
 			}
-			fmt.Println("  "+pad(name(g), w), muted.Render(share), pad(fmtTokens(g.Tokens()), 7), faint.Render(pad(plural(g.Calls, "call"), 10)), cost(g.Totals), faint.Render(speed(g.Totals)))
+			fmt.Fprintln(out, "  "+pad(name(g), w), muted.Render(share), pad(fmtTokens(g.Tokens()), 7), faint.Render(pad(plural(g.Calls, "call"), 10)), cost(g.Totals), faint.Render(speed(g.Totals)))
 		}
+	}
+	provider := func(id string) string {
+		if id == stats.UnknownProvider {
+			return "local session"
+		}
+		return id
 	}
 	table("agents", s.Agents, func(g stats.Group) string {
 		if n := names[g.ID]; n != "" {
@@ -121,7 +146,12 @@ func usageTo(out io.Writer, args []string) error {
 		}
 		return g.ID
 	})
-	table("models", s.Models, func(g stats.Group) string { return g.ID })
+	table("models", s.Models, func(g stats.Group) string {
+		if g.Provider == stats.UnknownProvider {
+			return provider(g.Provider) + "/" + g.Model
+		}
+		return g.ID
+	})
 	if len(s.ProviderKeys) > 0 {
 		table("upstream provider keys", s.ProviderKeys, func(g stats.Group) string {
 			name := g.ProviderKeyName
@@ -140,7 +170,7 @@ func usageTo(out io.Writer, args []string) error {
 			if who == "" {
 				who = "account not recorded"
 			}
-			return g.Provider + " / " + who
+			return provider(g.Provider) + " / " + who
 		})
 	}
 	if len(s.CallerKeys) > 0 {
@@ -165,8 +195,6 @@ func usageTo(out io.Writer, args []string) error {
 			return n + "  " + g.ID
 		})
 	}
-	fmt.Println(faint.Render("  " + stats.Path()))
-	return nil
 }
 
 // speed is how long the timed calls took to their first token, and how

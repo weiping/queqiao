@@ -131,9 +131,16 @@ func (h *host) Import(link string) {
 }
 
 // dock puts magpie in the Dock or takes it out as s says, with the window
-// shown or not: always, never, or while the window is.
+// shown or not, full screen or not.
 func (h *host) dock(s settings.Settings, shown bool) {
-	setDock(s.Dock || s.DockWindow && shown, shown)
+	full := application.InvokeSyncWithResult(func() bool { return h.main != nil && h.main.IsFullscreen() })
+	setDock(inDock(s, shown, full), shown)
+}
+
+// inDock: always, never, or while the window is shown, as s says, and while
+// it is full screen whatever s says (dockOnFullscreen).
+func inDock(s settings.Settings, shown, fullscreen bool) bool {
+	return s.Dock || s.DockWindow && shown || fullscreen
 }
 
 func (h *host) Quit()                        { h.app.Quit() }
@@ -269,6 +276,7 @@ const panelStart = 520
 // link is a magpie:// link the app was started with, to confirm and import.
 func Run(version string, showMain bool, link string) error {
 	Version = version
+	webkitDefaults()
 	// `make dev` runs the backend on its own, so a Go change restarts only
 	// that, behind windows that stay up.
 	if devRole() == "backend" {
@@ -277,6 +285,10 @@ func Run(version string, showMain bool, link string) error {
 	// After an update off the Mac, the old process starts this one and then
 	// quits; let it go before looking for the gateway.
 	update.AwaitPredecessor()
+	// the Mac's second launch hands over to the magpie already running
+	if runningAlready(showMain || OpenPanel, link) {
+		return nil
+	}
 	go func() {
 		if err := registerScheme(); err != nil {
 			log.Println("magpie:// links:", err)
@@ -329,11 +341,23 @@ func Run(version string, showMain bool, link string) error {
 		// Wails exits on some webview errors; say why before it does.
 		ErrorHandler: func(err error) { log.Println("magpie:", err) },
 	})
+	// Wails' default Learn More replaces the current window with wails.io.
+	// Keep the native menus, but open magpie's help in the system browser.
+	// macOS only: it is the one that shows a menu bar unasked; on Linux a
+	// set menu becomes a menu bar in every window, the panel's too.
+	if runtime.GOOS == "darwin" {
+		appMenu := application.DefaultApplicationMenu()
+		help := appMenu.FindByRole(application.HelpMenu).GetSubmenu()
+		help.Clear()
+		help.Add("Learn More").OnClick(func(*application.Context) { h.OpenURL("https://usemagpie.ai") })
+		h.app.Menu.Set(appMenu)
+	}
 	if Started != nil {
 		h.app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) { Started() })
 	}
 
 	onDock = func(s settings.Settings) { h.dock(s, h.MainShown()) }
+	dockOnFullscreen()
 	// The Dock icon opens the window. Wails would show every hidden window
 	// on it, the panel too, so the hook answers first and stops it.
 	h.app.Event.RegisterApplicationEventHook(events.Mac.ApplicationShouldHandleReopen, func(e *application.ApplicationEvent) {
@@ -426,6 +450,9 @@ func Run(version string, showMain bool, link string) error {
 	// the quick panel by the icon, or the main window if the user would
 	// rather (Settings → Tray icon)
 	h.tray.OnClick(func() {
+		if cmdClick() {
+			return // Command-drag moves the icon; the system handles it
+		}
 		if runtime.GOOS == "darwin" {
 			go h.flap()
 		}

@@ -34,7 +34,7 @@ const words = {
     rulesWait: "The rules wait while you pick the model by hand.", group: "Model every request goes to",
     saved: "Hand: every request to luna" },
   zh: { edit: "编辑", save: "保存", routing: "路由", manual: "手动", smart: "智能",
-    hint: "手动：所有请求都发给你在路由组卡片上点选的模型（在它自己的账号或 Key 之间路由）；其他模型和规则暂不生效，直到你改选别的模型——它失败时也不会切到其他模型。",
+    hint: "手动：所有请求发给在路由组卡片上选中的模型（在其账号或 Key 间路由）；改选前其他模型和规则不生效，失败时也不切换。",
     rulesWait: "手动选择模型时，规则暂不生效。", group: "所有请求发往的模型",
     saved: "Hand：所有请求改发给 luna" },
 };
@@ -136,11 +136,12 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.waitForTimeout(400);
       };
       await wheelTo(row);
-      assert.equal(await row.locator(".hint").textContent(), w.hint);
+      // the routing's own hint is the first; a group-in-group note follows it
+      assert.equal(await row.locator(".hint").first().textContent(), w.hint);
       await row.locator(".segs .opt", { hasText: w.smart }).click();
-      assert.notEqual(await row.locator(".hint").textContent(), w.hint);
+      assert.notEqual(await row.locator(".hint").first().textContent(), w.hint);
       await row.locator(".segs .opt", { hasText: w.manual }).click();
-      assert.equal(await row.locator(".hint").textContent(), w.hint);
+      assert.equal(await row.locator(".hint").first().textContent(), w.hint);
       assert.ok((await ed.innerText()).includes(w.rulesWait));
       const b = ed.locator("button.primary", { hasText: w.save });
       await wheelTo(b);

@@ -33,6 +33,10 @@ type fakeGoogle struct {
 	flags     string // listExperiments' reply
 	models    string // fetchAvailableModels' reply
 	summary   string // retrieveUserQuotaSummary's reply
+	// fetchAvailableModels' status and reply for the body asked, in place
+	// of models
+	modelsFor func(body map[string]any) (int, string)
+	fetches   []map[string]any
 	exps      []map[string]any
 	heads     map[string]http.Header
 }
@@ -66,6 +70,11 @@ func (f *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, f.quota)
 	case strings.HasSuffix(r.URL.Path, ":retrieveUserQuotaSummary") && f.summary != "":
 		io.WriteString(w, f.summary)
+	case strings.HasSuffix(r.URL.Path, ":fetchAvailableModels") && f.modelsFor != nil:
+		f.fetches = append(f.fetches, body)
+		code, reply := f.modelsFor(body)
+		w.WriteHeader(code)
+		io.WriteString(w, reply)
 	case strings.HasSuffix(r.URL.Path, ":fetchAvailableModels") && f.models != "":
 		io.WriteString(w, f.models)
 	case strings.HasSuffix(r.URL.Path, ":listExperiments") && f.flags != "":
@@ -530,5 +539,115 @@ func TestAntigravityQuotaPools(t *testing.T) {
 	q = googleLogins("antigravity")[0].acct.quota(context.Background(), "")
 	if len(q.Windows) != 4 || q.Windows[0].Pool != "" || len(PooledWindows(q.Windows)) != 4 {
 		t.Errorf("without a summary: %+v", q.Windows)
+	}
+
+	// a summary with a group's week and not its 5 hours (#745): the
+	// group's models aren't put in it, so their 5 hours stay beside its week
+	f.mu.Lock()
+	f.summary = `{"groups":[
+		{"displayName":"Gemini Models","description":"Models within this group: Gemini Flash, Gemini Pro","buckets":[
+			{"bucketId":"gemini-weekly","window":"weekly","remainingFraction":0.75,"resetTime":"2099-01-07T00:00:00Z"},
+			{"bucketId":"gemini-5h","window":"5h","remainingFraction":1,"disabled":true}]}]}`
+	f.mu.Unlock()
+	q = googleLogins("antigravity")[0].acct.quota(context.Background(), "")
+	got = nil
+	for _, w := range PooledWindows(q.Windows) {
+		got = append(got, w.Name+"|"+w.Pool)
+	}
+	if strings.Join(got, ",") != "Claude Opus 4.6 (Thinking)|,Gemini 3 Flash|,Gemini 3.1 Pro (High)|,GPT-OSS 120B (Medium)|,Gemini · 7 days|Gemini" {
+		t.Errorf("week alone: pooled = %v", got)
+	}
+}
+
+// #745 (werldl517-cyber): a pool's windows stand in for its models' only
+// for the spans the pool has; with only its week, a model's 5 hours stay.
+func TestPooledWindowsPartialAggregateKeepsModelFallback(t *testing.T) {
+	ws := []QuotaWindow{
+		{Name: "Gemini 3 Flash", Model: "gemini-3-flash", Pool: "Gemini", Span: 5 * time.Hour, Used: 40},
+		{Name: "7 days", Pool: "Gemini", Span: 7 * 24 * time.Hour, Aside: true, Used: 80},
+	}
+	got := PooledWindows(ws)
+	for _, w := range got {
+		t.Logf("name=%q model=%q pool=%q span=%s used=%.0f aside=%v", w.Name, w.Model, w.Pool, w.Span, w.Used, w.Aside)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d windows, want the 5h model fallback plus the 7d pool aggregate", len(got))
+	}
+
+	model := func(id string, span time.Duration) QuotaWindow {
+		return QuotaWindow{Name: id, Model: id, Pool: "Gemini", Span: span}
+	}
+	five := QuotaWindow{Name: "5 hours", Pool: "Gemini", Span: 5 * time.Hour, Aside: true}
+	week := QuotaWindow{Name: "7 days", Pool: "Gemini", Span: 7 * 24 * time.Hour, Aside: true}
+	for _, c := range []struct {
+		name string
+		ws   []QuotaWindow
+		want string
+	}{
+		{"5 hours and week", []QuotaWindow{model("a", 0), model("b", 0), week, five}, "Gemini · 7 days,Gemini · 5 hours"},
+		{"week alone", []QuotaWindow{model("a", 0), model("b", 5*time.Hour), week}, "a,b,Gemini · 7 days"},
+		{"5 hours alone", []QuotaWindow{model("a", 0), model("b", 0), five}, "Gemini · 5 hours"},
+		{"no pool windows", []QuotaWindow{model("a", 0), model("b", 0)}, "a,b"},
+	} {
+		var names []string
+		for _, w := range PooledWindows(c.ws) {
+			names = append(names, w.Name)
+		}
+		if strings.Join(names, ",") != c.want {
+			t.Errorf("%s: %v, want %s", c.name, names, c.want)
+		}
+	}
+}
+
+// Antigravity's list is taken as Antigravity gives it (0000FF on Discord:
+// Claude Opus 5.5 and Sonnet 5.5 in Antigravity, not in magpie): in its
+// picker's order, so a model it adds comes where it puts it, not after
+// older ones by id; with the context, output and images it says, so a
+// model it adds isn't given those of a model of that name elsewhere
+// (Anthropic's 1M for Claude), nor said to see when it doesn't.
+func TestAntigravityModelsAsItListsThem(t *testing.T) {
+	f := &fakeGoogle{
+		load:    `{"allowedTiers":[{"id":"free-tier","name":"Antigravity","isDefault":true}]}`,
+		onboard: `{"done":true,"response":{"cloudaicompanionProject":"ag-proj"}}`,
+		models: `{"models":{
+			"claude-opus-4-6-thinking":{"displayName":"Claude Opus 4.6 (Thinking)","maxTokens":250000,"maxOutputTokens":64000,"supportsImages":true,"quotaInfo":{"remainingFraction":1}},
+			"claude-opus-5-5":{"displayName":"Claude Opus 5.5","maxTokens":250000,"maxOutputTokens":64000,"supportsImages":true,"quotaInfo":{"remainingFraction":1}},
+			"gemini-3.8-flash-high":{"displayName":"Gemini 3.8 Flash (High)","maxTokens":1048576,"maxOutputTokens":65536,"supportsImages":true,"quotaInfo":{"remainingFraction":1}},
+			"gemini-3.8-flash-low":{"displayName":"Gemini 3.8 Flash (Low)","maxTokens":1048576,"maxOutputTokens":65536,"supportsImages":true,"quotaInfo":{"remainingFraction":1}},
+			"gemini-3.1-flash-lite":{"displayName":"Gemini 3.1 Flash Lite","maxTokens":1048576,"maxOutputTokens":65535,"quotaInfo":{"remainingFraction":1}},
+			"text-only-x":{"displayName":"Text Only","maxTokens":131072,"supportsImages":false,"quotaInfo":{"remainingFraction":1}}},
+			"agentModelSorts":[{"displayName":"Recommended","groups":[{"modelIds":["gemini-3.8-flash-high","gemini-3.8-flash-low","claude-opus-5-5","claude-opus-4-6-thinking","text-only-x"]}]}]}`,
+	}
+	googleSandbox(t, f)
+	auth := googleAuth{AccessToken: "tok", RefreshToken: "rt-ag", Expiry: time.Now().Add(time.Hour).UnixMilli()}
+	if err := addGoogleLogin("antigravity", "ag@example.com", "", auth); err != nil {
+		t.Fatal(err)
+	}
+	ms, err := googleLogins("antigravity")[0].acct.models(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, m := range ms {
+		got = append(got, fmt.Sprintf("%s|%d|%d|%v", m.ID, m.Context, m.Output, m.Images))
+	}
+	want := []string{
+		"gemini-3.8-flash-high|1048576|65536|true",
+		"gemini-3.8-flash-low|1048576|65536|true",
+		"claude-opus-5-5|250000|64000|true",
+		"claude-opus-4-6-thinking|250000|64000|true",
+		"text-only-x|131072|0|false",
+		"gemini-3.1-flash-lite|1048576|65535|true", // not in the picker: after, and it says nothing of images
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("models\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	// what magpie offers: the family first, Claude 5.5 before 4.6, Antigravity's 250k kept
+	var offered []string
+	for _, m := range collapseAntigravityModels(catalog.Decorate(ms, []catalog.Model{{ID: "claude-opus-5-5", Context: 1000000, Output: 128000}})) {
+		offered = append(offered, fmt.Sprintf("%s|%d", m.ID, m.Context))
+	}
+	if w := "gemini-3.8-flash|1048576 claude-opus-5-5|250000 claude-opus-4-6-thinking|250000 text-only-x|131072 gemini-3.1-flash-lite|1048576"; strings.Join(offered, " ") != w {
+		t.Errorf("offered %v\nwant %s", offered, w)
 	}
 }

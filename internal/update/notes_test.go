@@ -48,6 +48,16 @@ func TestStripInstall(t *testing.T) {
 	if got := StripInstall("- Install the CLI faster. (#2)"); got != "- Install the CLI faster. (#2)" {
 		t.Errorf("a bullet naming Install was taken: %q", got)
 	}
+	// the Chinese notes' section is 安装 (#649), Japanese ones' インストール
+	for _, h := range []string{"安装", "インストール"} {
+		md = "## Bug Fixes\n\n- 修复了一件事。\n\n### " + h + "\n\n从 [usemagpie.ai](https://usemagpie.ai) 下载。"
+		if got, want := StripInstall(md), "## Bug Fixes\n\n- 修复了一件事。"; got != want {
+			t.Errorf("%s: got %q, want %q", h, got, want)
+		}
+	}
+	if got := StripInstall("- 安装更快了。"); got != "- 安装更快了。" {
+		t.Errorf("a bullet naming 安装 was taken: %q", got)
+	}
 }
 
 func TestBetween(t *testing.T) {

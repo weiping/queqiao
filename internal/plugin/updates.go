@@ -2,8 +2,7 @@ package plugin
 
 // Plugin updates, as magpie keeps itself up to date: the community's
 // plugins (@magpie-community/*, the ones the built-in subscriptions move
-// onto) update by themselves, a little after magpie starts and every few
-// hours; anyone else's new version waits for the reader, who sees a dot
+// onto) update by themselves, a little after magpie starts and every hour; anyone else's new version waits for the reader, who sees a dot
 // on Plugins and updates it with a click. A plugin pinned to a version
 // stays on it. Updating never cuts a reply streaming through a plugin:
 // the host it runs on finishes it (see Restart).
@@ -55,8 +54,13 @@ type Updated struct {
 }
 
 const (
-	// updateEvery is how often magpie looks for plugin updates
-	updateEvery = 6 * time.Hour
+	// updateEvery is how often magpie looks for plugin updates: a fix to a
+	// community plugin reaches its users within the hour (one look at npm's
+	// metadata for the plugins installed; six hours left someone told of a
+	// fix installing it by hand, #681)
+	updateEvery = time.Hour
+	// bunEvery is how often magpie looks for a newer Bun
+	bunEvery = 6 * time.Hour
 	// keepUpdated is how many updates magpie remembers making
 	keepUpdated = 20
 )

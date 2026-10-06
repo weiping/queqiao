@@ -26,6 +26,7 @@ package gateway
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -40,6 +41,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -277,6 +279,10 @@ func (s *Server) cursorRun(ctx context.Context, req *Request, model, id, tok, ba
 	tools := bridgeTools(req)
 	msgs := cursorMessages(req, tools)
 	conv, _ := ctx.Value(cursorConvKey{}).(string)
+	if conv == "" { // a new one: the Run's usage event is found by it
+		conv = cursorUUID()
+	}
+	since := time.Now()
 	run, blobs := buildCursorRun(msgs, cursorLastUser(req), tools, id, conv, maxMode)
 
 	// the Run ends with the turn, or once the calls are made
@@ -314,6 +320,13 @@ func (s *Server) cursorRun(ctx context.Context, req *Request, model, id, tok, ba
 		return nil, status, "Cursor: " + msg
 	}
 	raw := make(chan Event, 16)
+	st.done = func() {
+		res.Body.Close()
+		pw.Close()
+	}
+	st.step = func(ctx context.Context) (Usage, bool) {
+		return s.cursorStepUsage(ctx, tok, conv, since)
+	}
 	go func() {
 		defer res.Body.Close()
 		defer pw.Close()
@@ -349,7 +362,9 @@ func (s *Server) cursorRun(ctx context.Context, req *Request, model, id, tok, ba
 			return
 		}
 		for ev := range raw {
-			if ev.Kind == KUsage && ev.Usage.Input == 0 {
+			// a guess only when Cursor counted nothing: a prompt read whole
+			// from the cache leaves no uncached rest
+			if u := ev.Usage; ev.Kind == KUsage && u.Input == 0 && u.CacheRead == 0 && u.CacheWrite == 0 {
 				ev.Usage.Input = estimate(req)
 			}
 			if !send(ev) {
@@ -693,6 +708,130 @@ func cursorUsage(uf []pbField) Usage {
 	return Usage{Input: max(in-cr-cw, 0), Output: int(pbNum(uf, 2)), CacheRead: cr, CacheWrite: cw, Reasoning: int(pbNum(uf, 5))}
 }
 
+// A step that calls the caller's tools has no TurnEndedUpdate: Cursor ends
+// the turn, and tells what it used, only once the client has run the tools
+// and sent their results in the same Run, and the caller runs them after
+// the Run is closed (#676). Before that it sends nothing more than the
+// conversation's checkpoint and heartbeats, and a cancelled Run ends with
+// an error and no usage either. The dashboard's usage events count every
+// Run, by its conversation_id, the uncached input apart from what was read
+// from the cache and written to it, as TurnEndedUpdate does; one shows
+// about 2.5 s after the Run is closed. cursorStepWait is how long a step's
+// is looked for: first after that long, then every so often until the
+// end, after which it is guessed as before.
+var cursorStepWait = struct{ first, every, until time.Duration }{1500 * time.Millisecond, 500 * time.Millisecond, 6 * time.Second}
+
+// cursorClaimed are the usage events already counted, by conversation and
+// time, so that two steps of one conversation never count the same one.
+var cursorClaimed = struct {
+	sync.Mutex
+	at map[string]time.Time
+}{at: map[string]time.Time{}}
+
+// cursorStepUsage is the usage of the Run of conversation conv started at
+// since, as the dashboard's usage events count it; false when none shows
+// in time.
+func (s *Server) cursorStepUsage(ctx context.Context, tok, conv string, since time.Time) (Usage, bool) {
+	end := time.Now().Add(cursorStepWait.until)
+	cursorClaimed.Lock()
+	for k, at := range cursorClaimed.at {
+		if time.Since(at) > 10*time.Minute {
+			delete(cursorClaimed.at, k)
+		}
+	}
+	cursorClaimed.Unlock()
+	wait := func(d time.Duration) bool {
+		t := time.NewTimer(d)
+		defer t.Stop()
+		select {
+		case <-t.C:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+	if !wait(cursorStepWait.first) {
+		return Usage{}, false
+	}
+	for {
+		u, ok, stop := s.cursorUsageEvent(ctx, tok, conv, since)
+		if ok {
+			return u, true
+		}
+		if stop || time.Now().Add(cursorStepWait.every).After(end) || !wait(cursorStepWait.every) {
+			return Usage{}, false
+		}
+	}
+}
+
+// cursorUsageEvent is one look for the Run's usage event: the earliest of
+// conv's not counted yet since the Run began; stop when the account can't
+// read them.
+func (s *Server) cursorUsageEvent(ctx context.Context, tok, conv string, since time.Time) (u Usage, ok, stop bool) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	q, _ := json.Marshal(map[string]any{
+		"teamId": 0, "page": 1, "pageSize": 50,
+		"startDate": strconv.FormatInt(since.Add(-time.Minute).UnixMilli(), 10),
+		"endDate":   strconv.FormatInt(time.Now().Add(time.Minute).UnixMilli(), 10),
+	})
+	hr, err := http.NewRequestWithContext(ctx, http.MethodPost, cursorAPI+"/aiserver.v1.DashboardService/GetFilteredUsageEvents", bytes.NewReader(q))
+	if err != nil {
+		return Usage{}, false, true
+	}
+	hr.Header.Set("Content-Type", "application/json")
+	hr.Header.Set("Connect-Protocol-Version", "1")
+	hr.Header.Set("Authorization", "Bearer "+tok)
+	hr.Header.Set("x-cursor-client-version", cursorVersion())
+	hr.Header.Set("x-cursor-client-type", "cli")
+	hr.Header.Set("x-ghost-mode", "true")
+	res, err := s.client.Do(hr)
+	if err != nil {
+		return Usage{}, false, false
+	}
+	defer res.Body.Close()
+	if res.StatusCode/100 == 4 && res.StatusCode != http.StatusTooManyRequests {
+		return Usage{}, false, true // not this account's to read
+	}
+	var out struct {
+		Events []struct {
+			Timestamp      string `json:"timestamp"`
+			ConversationID string `json:"conversationId"`
+			TokenUsage     *struct {
+				Input      float64 `json:"inputTokens"`
+				Output     float64 `json:"outputTokens"`
+				CacheRead  float64 `json:"cacheReadTokens"`
+				CacheWrite float64 `json:"cacheWriteTokens"`
+			} `json:"tokenUsage"`
+		} `json:"usageEventsDisplay"`
+	}
+	if res.StatusCode/100 != 2 || json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(&out) != nil {
+		return Usage{}, false, false
+	}
+	cursorClaimed.Lock()
+	defer cursorClaimed.Unlock()
+	best, bestAt := -1, int64(0)
+	for i, e := range out.Events {
+		at, err := strconv.ParseInt(e.Timestamp, 10, 64)
+		if err != nil || e.ConversationID != conv || e.TokenUsage == nil || at < since.UnixMilli()-1000 {
+			continue
+		}
+		if _, taken := cursorClaimed.at[conv+"\x00"+e.Timestamp]; taken {
+			continue
+		}
+		if best < 0 || at < bestAt {
+			best, bestAt = i, at
+		}
+	}
+	if best < 0 {
+		return Usage{}, false, false
+	}
+	e := out.Events[best]
+	cursorClaimed.at[conv+"\x00"+e.Timestamp] = time.Now()
+	t := e.TokenUsage
+	return Usage{Input: int(t.Input), Output: int(t.Output), CacheRead: int(t.CacheRead), CacheWrite: int(t.CacheWrite)}, true, false
+}
+
 // cursorToolDef is an McpToolDefinition.
 func cursorToolDef(t bridgeTool) pb {
 	d := pb{}.str(1, t.Name)
@@ -795,6 +934,10 @@ type cursorStream struct {
 	pw     *io.PipeWriter
 	blobs  map[string][]byte
 	status int // the status an error at the head is answered with
+	// done closes the Run; step is the usage of a step that called tools,
+	// which Cursor never tells the Run (cursorStepUsage)
+	done func()
+	step func(context.Context) (Usage, bool)
 }
 
 func (st *cursorStream) send(msg []byte) {
@@ -840,7 +983,22 @@ func (st *cursorStream) decode(ctx context.Context, br *bufio.Reader, out chan<-
 	}
 	var calls, listed, said int
 	var usage Usage
-	finish := func() {
+	ended := false // Cursor said what the turn used
+	var finish func()
+	// settle is finish once a step that called tools has its usage: the
+	// dashboard's count, the Run closed first, when the turn didn't end
+	settle := func() {
+		if calls > 0 && !ended && st.step != nil {
+			if st.done != nil {
+				st.done()
+			}
+			if u, ok := st.step(ctx); ok {
+				usage = u
+			}
+		}
+		finish()
+	}
+	finish = func() {
 		if usage.Output == 0 {
 			usage.Output = (said + 3) / 4
 		}
@@ -856,7 +1014,7 @@ func (st *cursorStream) decode(ctx context.Context, br *bufio.Reader, out chan<-
 		if err != nil {
 			if ctx.Err() == nil {
 				if errors.Is(err, io.EOF) && calls > 0 {
-					finish()
+					settle()
 					return
 				}
 				fail(502, "the reply broke off: "+err.Error())
@@ -869,7 +1027,7 @@ func (st *cursorStream) decode(ctx context.Context, br *bufio.Reader, out chan<-
 			} else if said == 0 && calls == 0 {
 				fail(502, "an empty reply")
 			} else {
-				finish()
+				settle()
 			}
 			return
 		}
@@ -894,14 +1052,14 @@ func (st *cursorStream) decode(ctx context.Context, br *bufio.Reader, out chan<-
 							}
 						}
 					case 14: // turn ended, with what it used
-						usage = cursorUsage(uf)
+						usage, ended = cursorUsage(uf), true
 						if calls == 0 {
 							finish()
 							return
 						}
 					case 27: // how many tool calls the step makes, sent before them
 						if listed = int(pbNum(uf, 1)); listed > 0 && calls >= listed {
-							finish()
+							settle()
 							return
 						}
 					}
@@ -915,7 +1073,7 @@ func (st *cursorStream) decode(ctx context.Context, br *bufio.Reader, out chan<-
 					return
 				}
 				if listed > 0 && calls >= listed { // every call made: the caller runs them
-					finish()
+					settle()
 					return
 				}
 			case 4: // kv_server_message: a blob wanted, or one to keep

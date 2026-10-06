@@ -31,8 +31,8 @@ func (e Entry) Names() []string {
 
 // VisibleTo is what agent's lists are narrowed to, and whether they are.
 func VisibleTo(agent string) ([]string, bool) {
-	names, ok := settings.Load().Visible[strings.ToLower(agent)]
-	return names, ok
+	names, ok := heldSettings().Visible[strings.ToLower(agent)]
+	return slices.Clone(names), ok
 }
 
 // Shows reports whether a visibility shows e.
@@ -44,6 +44,16 @@ func Shows(names []string, e Entry) bool {
 	}
 	return false
 }
+
+// Described is set by the gateway: whether an image sent to a model that
+// can't see is described to it by one that can (Settings › Vision). Agents
+// are then told every model takes images; told a model is text-only, they
+// turn the user's image away before magpie is asked (Codex: "does not
+// support image input").
+var Described func() bool
+
+// described is Described, false before the gateway sets it.
+func described() bool { return Described != nil && Described() }
 
 // CatalogFor is the catalog as agent is shown it, and what is kept from it
 // (none when its lists aren't narrowed): its visibility's, less the models
@@ -67,7 +77,7 @@ func ListedFor(agent string) (listed, kept []Entry) {
 	all := Catalog()
 	names, ok := VisibleTo(agent)
 	if !ok {
-		return all, nil
+		return InOrder(agent, all), nil
 	}
 	for _, e := range all {
 		if Shows(names, e) {
@@ -76,12 +86,12 @@ func ListedFor(agent string) (listed, kept []Entry) {
 			kept = append(kept, e)
 		}
 	}
-	return listed, kept
+	return InOrder(agent, listed), kept
 }
 
 // HiddenModels are the ids of the entries taken out of agent's lists.
 func HiddenModels(agent string) map[string]bool {
-	ids := settings.Load().HiddenModels[strings.ToLower(agent)]
+	ids := heldSettings().HiddenModels[strings.ToLower(agent)]
 	out := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		out[id] = true
@@ -139,4 +149,76 @@ func Families() []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// ModelOrder is the order the user put agent's models in (OrderedModels),
+// by entry id; none when they never did.
+func ModelOrder(agent string) []string {
+	return slices.Clone(heldSettings().OrderedModels[strings.ToLower(agent)])
+}
+
+// SetModelOrder lists agent's models in this order, by entry id: the ones
+// it names first, as it names them, then every other as before; none puts
+// them back in magpie's own order. Only agent's lists follow it.
+func SetModelOrder(agent string, ids []string) error {
+	agent = strings.ToLower(strings.TrimSpace(agent))
+	if agent == "" {
+		return errors.New("no agent")
+	}
+	var keep []string
+	for _, id := range ids {
+		if id = strings.TrimSpace(id); id != "" && !slices.Contains(keep, id) {
+			keep = append(keep, id)
+		}
+	}
+	s := settings.Load()
+	if slices.Equal(s.OrderedModels[agent], keep) {
+		return nil
+	}
+	if len(keep) == 0 {
+		delete(s.OrderedModels, agent)
+	} else {
+		if s.OrderedModels == nil {
+			s.OrderedModels = map[string][]string{}
+		}
+		s.OrderedModels[agent] = keep
+	}
+	if err := settings.Save(s); err != nil {
+		return err
+	}
+	catalog.Touched()
+	return nil
+}
+
+// InOrder is es in agent's order: the entries ModelOrder names first, as it
+// names them, then the rest as they come — a model added since goes after.
+// Codex's own, a ChatGPT account's models, lead the rest, as Codex's list
+// has them before magpie's.
+func InOrder(agent string, es []Entry) []Entry {
+	order := ModelOrder(agent)
+	if len(order) == 0 {
+		return es
+	}
+	at := make(map[string]int, len(order))
+	for i, id := range order {
+		at[id] = i
+	}
+	out := slices.Clone(es)
+	rank := func(e Entry) int {
+		if i, ok := at[e.ID]; ok {
+			return i
+		}
+		if strings.EqualFold(agent, "codex") && !CodexOwn(e) {
+			return len(order) + 1
+		}
+		return len(order)
+	}
+	slices.SortStableFunc(out, func(a, b Entry) int { return rank(a) - rank(b) })
+	return out
+}
+
+// CodexOwn reports whether e is one of a ChatGPT account's own models,
+// which the ChatGPT backend lists to Codex by its bare slug (e.Model).
+func CodexOwn(e Entry) bool {
+	return e.Group == "" && e.Provider.Account != nil && e.Provider.Account.Agent == "codex"
 }

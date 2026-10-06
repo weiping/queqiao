@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,68 @@ import (
 	"github.com/yetone/magpie/internal/sessions"
 	"github.com/yetone/magpie/internal/usage"
 )
+
+func TestUsageLedgerDayRoutes(t *testing.T) {
+	home := sandboxHome(t)
+	if err := os.MkdirAll(filepath.Join(home, "Downloads"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	start := usage.Today.Since(time.Now()).AddDate(0, 0, -1)
+	for i, at := range []time.Time{start.Add(-time.Second), start, start.Add(12 * time.Hour), start.AddDate(0, 0, 1)} {
+		usage.Append(usage.Record{Time: at, Agent: "codex", Provider: "relay", Model: "m", Input: 10 + i, Output: 1, Status: 200})
+	}
+	mux := http.NewServeMux()
+	usageRoutes(mux, folderOnly{})
+	q := url.Values{"period": {"7d"}, "day": {start.Format(time.DateOnly)}, "limit": {"1"}, "offset": {"1"}, "provider": {"relay"}}
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/api/usage/requests?"+q.Encode(), nil))
+	var l ledgerJSON
+	if err := json.Unmarshal(w.Body.Bytes(), &l); w.Code != 200 || err != nil {
+		t.Fatalf("day: %d %s", w.Code, w.Body)
+	}
+	if l.Day != q.Get("day") || l.Total != 2 || l.Calls != 2 || l.Input != 23 || len(l.Rows) != 1 || l.Rows[0].Input != 11 {
+		t.Fatalf("day's page: %+v", l)
+	}
+	var calls int
+	for _, p := range l.Series {
+		calls += p.Calls
+	}
+	if l.Bucket != "day" || len(l.Series) != 7 || calls != 4 || len(l.ChartBy["provider"]) != 1 || l.ChartBy["provider"][0].Calls != 4 {
+		t.Fatalf("the whole chart: %+v", l)
+	}
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/api/usage/requests.csv?"+q.Encode(), nil))
+	csvData := w.Body.String()
+	rows, err := csv.NewReader(w.Body).ReadAll()
+	if w.Code != 200 || err != nil || len(rows) != 3 {
+		t.Fatalf("day's CSV: %d %s (%v)", w.Code, w.Body, err)
+	}
+	want := "magpie-requests-day-" + l.Day
+	if got := w.Header().Get("Content-Disposition"); got != `attachment; filename="`+want+`.csv"` {
+		t.Fatalf("day's CSV filename: %s", got)
+	}
+	for _, suffix := range []string{"", "-2"} {
+		w = httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest("POST", "/api/usage/requests/export?"+q.Encode(), nil))
+		var out struct {
+			Path string
+			Rows int
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &out); w.Code != 200 || err != nil || out.Rows != 2 || out.Path != filepath.Join("~", "Downloads", want+suffix+".csv") {
+			t.Fatalf("day's export: %d %s", w.Code, w.Body)
+		}
+		b, err := os.ReadFile(filepath.Join(home, "Downloads", want+suffix+".csv"))
+		if err != nil || string(b) != csvData {
+			t.Fatalf("saved CSV differs from the download: %v", err)
+		}
+	}
+	for _, row := range rows[1:] {
+		at, err := time.Parse(time.RFC3339Nano, row[0])
+		if err != nil || at.In(time.Local).Format(time.DateOnly) != l.Day {
+			t.Fatalf("CSV included another day: %v", row)
+		}
+	}
+}
 
 // The Usage page's Requests: a page of the ledger at a time, newest first,
 // with the filters' rows counted on every page, and Export CSV writing all
@@ -222,5 +285,30 @@ func TestLedgerSingleSnapshotAndLocalSession(t *testing.T) {
 	}
 	if l.Rows[0].Provider != usage.UnknownProvider || l.Rows[0].Host != "" {
 		t.Fatalf("model must not establish route/account: %+v", l.Rows[0])
+	}
+}
+
+// A model at a provider is named by both, with the provider's icon, so
+// one model's speed at each provider reads apart (inaction on Discord).
+func TestLedgerNamesModelAtProvider(t *testing.T) {
+	sandboxHome(t)
+	before := usage.LogCalls
+	usage.LogCalls = func(time.Time) []sessions.Call {
+		return []sessions.Call{{Time: time.Now(), Agent: "claude", Session: "s", Model: "claude-sonnet-5", Tokens: sessions.Tokens{Input: 10, Output: 2}}}
+	}
+	t.Cleanup(func() { usage.LogCalls = before })
+	l := ledgerPage(usage.Today, usage.Filter{}, 0, 1)
+	at := l.By["modelAt"]
+	if len(at) != 1 || at[0].ID != usage.ModelAtKey(usage.UnknownProvider, "claude-sonnet-5") || at[0].Name != "claude-sonnet-5 · Local session" {
+		t.Fatalf("model at provider %+v", at)
+	}
+}
+
+func TestCSVStamp(t *testing.T) {
+	for _, day := range []string{"", "2026-02-30", "../../other", "2026-09-30\""} {
+		want := "magpie-requests-7d-" + time.Now().Format(time.DateOnly)
+		if got := csvStamp(usage.Period("7d"), day); got != want {
+			t.Fatalf("%q: %s", day, got)
+		}
 	}
 }

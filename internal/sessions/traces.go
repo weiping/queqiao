@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -25,6 +24,7 @@ type TraceSpan struct {
 	Reasoning                                                             int
 	Error, Inferred                                                       bool
 	Update                                                                bool
+	Pending                                                               bool // ancestry only; export the root when the interaction finishes
 }
 
 type traceTurn struct {
@@ -32,13 +32,20 @@ type traceTurn struct {
 	start, last          time.Time
 	input, output, model string
 	failed, completed    bool
+	finishAfter          time.Time
 }
+
+// Allow a timing extension to append its final event across reader polls.
+// Plain Pi still finishes on the next regular (two-second) poll.
+const piTimingGrace = time.Second
+
 type traceCursor struct {
 	info                     os.FileInfo
 	offset                   int64
 	size                     int64
 	mod                      time.Time
 	agent, session, provider string
+	scope                    string
 	turns                    map[string]*traceTurn
 	current                  string
 	tools                    map[string]TraceSpan
@@ -50,17 +57,19 @@ type traceCursor struct {
 // Existing lines establish ancestry, but events older than Since aren't emitted.
 // Deterministic IDs make resumed rollouts and copied session branches idempotent.
 type TraceReader struct {
-	Since     time.Time
-	files     map[string]*traceCursor
-	snapshots map[string]*traceSnapshot
-	ocStamp   [4]int64
-	ocPending bool
-	ocInfo    os.FileInfo
-	ocNext    int
+	visible    []TraceSession
+	identities *TraceSessionIndex
+	Since      time.Time
+	files      map[string]*traceCursor
+	snapshots  map[string]*traceSnapshot
+	ocStamp    [4]int64
+	ocPending  bool
+	ocInfo     os.FileInfo
+	ocNext     int
 }
 
 func NewTraceReader(since time.Time) *TraceReader {
-	return &TraceReader{Since: since, files: map[string]*traceCursor{}, snapshots: map[string]*traceSnapshot{}}
+	return &TraceReader{Since: since, identities: new(TraceSessionIndex), files: map[string]*traceCursor{}, snapshots: map[string]*traceSnapshot{}}
 }
 
 // TraceAgent lists formats with an interaction and tool-aware trace adapter.
@@ -72,28 +81,10 @@ func TraceAgent(agent string) bool {
 	return false
 }
 
-// Trace discovery omits nested transcripts rather than statting every child
-// agent's artifacts every two seconds. They need an explicit parent link first.
+// Claude child transcripts are discovered alongside their parent stores.
 func traceLineFiles() []file {
 	files := append(codexFiles(), piFiles()...)
-	claude := func(agent, dir string) {
-		projects := filepath.Join(dir, "projects")
-		for _, project := range readDirectory(projects) {
-			if !project.IsDir() && project.Type()&os.ModeSymlink == 0 {
-				continue
-			}
-			root := filepath.Join(projects, project.Name())
-			for _, entry := range readDirectory(root) {
-				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
-					continue
-				}
-				f := file{agent: agent, path: filepath.Join(root, entry.Name()), main: true}
-				if stat(&f) {
-					files = append(files, f)
-				}
-			}
-		}
-	}
+	claude := func(agent, dir string) { files = append(files, ccFiles(agent, dir)...) }
 	claude("claude", ClaudeDir())
 	for _, dir := range callDesktopDirs() {
 		homes, _ := SessionGlob(filepath.Join(dir, "local-agent-mode-sessions", "*", "*", "local_*", ".claude"))
@@ -171,11 +162,8 @@ func (c *traceCursor) turn(id string, at time.Time) *traceTurn {
 // Poll reads appended complete lines only. It limits watched files to the most
 // recent sessions; a partial last line remains for the following poll.
 func (r *TraceReader) Poll(bodies bool) []TraceSpan {
-	files := traceLineFiles()
-	sort.Slice(files, func(i, j int) bool { return files[i].mod.After(files[j].mod) })
-	if len(files) > Limit {
-		files = files[:Limit]
-	}
+	files := traceRecentFiles(traceLineFiles())
+	r.visible = r.identities.poll(files)
 	var result []TraceSpan
 	budget := int64(8 << 20)
 	seen := map[string]bool{}
@@ -189,10 +177,15 @@ func (r *TraceReader) Poll(bodies bool) []TraceSpan {
 		}
 		c := r.files[f.path]
 		if c == nil || f.size < c.offset {
-			c = &traceCursor{agent: f.agent, turns: map[string]*traceTurn{}, tools: map[string]TraceSpan{}, parents: map[string]string{}}
+			c = newTraceCursor(f)
 			r.files[f.path] = c
 		}
 		if c.size == f.size && c.mod.Equal(f.mod) {
+			for _, s := range c.finishPi(time.Now()) {
+				if !s.End.Before(r.Since) {
+					result = append(result, s)
+				}
+			}
 			if f.mod.Before(time.Now().Add(-2 * time.Second)) {
 				if f.agent == "gemini" {
 					snap := r.snapshot(f.path)
@@ -223,7 +216,7 @@ func (r *TraceReader) Poll(bodies bool) []TraceSpan {
 			continue
 		}
 		if c.info != nil && !os.SameFile(c.info, info) {
-			c = &traceCursor{agent: f.agent, turns: map[string]*traceTurn{}, tools: map[string]TraceSpan{}, parents: map[string]string{}}
+			c = newTraceCursor(f)
 			r.files[f.path] = c
 		}
 		c.info = info
@@ -251,6 +244,13 @@ func (r *TraceReader) Poll(bodies bool) []TraceSpan {
 		h.Close()
 		budget -= read
 		if c.offset == f.size {
+			// Prefer timing-final, allowing a bounded wait across polls when
+			// the extension has not appended it yet.
+			for _, s := range c.finishPi(time.Now()) {
+				if !s.End.Before(r.Since) {
+					result = append(result, s)
+				}
+			}
 			c.size, c.mod = f.size, f.mod
 		}
 	}
@@ -267,6 +267,17 @@ func (r *TraceReader) Poll(bodies bool) []TraceSpan {
 	}
 	return result
 }
+func newTraceCursor(f file) *traceCursor {
+	c := &traceCursor{agent: f.agent, turns: map[string]*traceTurn{}, tools: map[string]TraceSpan{}, parents: map[string]string{}}
+	if f.agent == "claude" || f.agent == "claude-desktop" {
+		c.session = sessionOfPath(f.path)
+		if !f.main {
+			c.scope = strings.TrimSuffix(filepath.Base(f.path), ".jsonl")
+		}
+	}
+	return c
+}
+
 func (c *traceCursor) line(line []byte, bodies bool) []TraceSpan {
 	if c.agent == "pi" || c.agent == "omp" {
 		return c.pi(line, bodies)
@@ -275,6 +286,32 @@ func (c *traceCursor) line(line []byte, bodies bool) []TraceSpan {
 		return c.claude(line, bodies)
 	}
 	return c.codex(line, bodies)
+}
+
+// A new turn is evidence that the previous one stopped, even if Codex was
+// killed before recording task_complete or turn_aborted. Do not infer this
+// from inactivity: a model or tool can legitimately take a long time.
+func (c *traceCursor) interruptCodexTurn(next string, at time.Time) []TraceSpan {
+	t := c.turns[c.current]
+	if t == nil || c.current == next {
+		return nil
+	}
+	end := at
+	if t.last.After(end) {
+		end = t.last
+	}
+	root := c.root(t, end, true)
+	root.Inferred = true
+	spans := []TraceSpan{root}
+	for key, call := range c.tools {
+		if call.Turn == t.id {
+			call.End, call.Error = end, true
+			spans = append(spans, call)
+			delete(c.tools, key)
+		}
+	}
+	delete(c.turns, t.id)
+	return spans
 }
 
 func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
@@ -333,10 +370,11 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 		if p.TurnID == "" {
 			return nil
 		}
+		interrupted := c.interruptCodexTurn(p.TurnID, o.Timestamp)
 		c.current = p.TurnID
 		t := c.turn(p.TurnID, o.Timestamp)
 		t.model = p.Model
-		return nil
+		return interrupted
 	}
 	id := p.TurnID
 	if id == "" {
@@ -378,12 +416,15 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 			return []TraceSpan{s}
 		}
 	case o.Type == "event_msg" && p.Type == "task_started":
+		interrupted := c.interruptCodexTurn(id, o.Timestamp)
 		c.current = id
 		at := traceTime(p.StartedAt, false)
 		if !at.IsZero() {
 			t.start, t.last = at, at
 		}
-		return []TraceSpan{c.root(t, t.start, false)}
+		root := c.root(t, t.start, false)
+		root.Pending = true
+		return append(interrupted, root)
 	case o.Type == "event_msg" && p.Type == "item_completed":
 		start, end := traceTime(p.StartedAtMS, true), traceTime(p.CompletedAtMS, true)
 		if start.IsZero() {
@@ -524,6 +565,9 @@ func (c *traceCursor) pi(line []byte, bodies bool) []TraceSpan {
 		}
 		if t := c.turns[id]; t != nil {
 			end := time.UnixMilli(o.Data.EndAt).UTC()
+			if o.Data.EndAt <= 0 || end.Before(t.last) || o.Data.TotalMS < 0 {
+				return nil
+			}
 			if o.Data.TotalMS > 0 {
 				t.start = end.Add(-time.Duration(o.Data.TotalMS) * time.Millisecond)
 			}
@@ -544,7 +588,7 @@ func (c *traceCursor) pi(line []byte, bodies bool) []TraceSpan {
 				if json.Unmarshal(line, &usage) == nil {
 					s := c.span(id, o.ID, "model "+usage.Model+" ("+usage.Purpose+")", "generation", o.Timestamp, o.Timestamp)
 					s.Model, s.Provider, s.Inferred = usage.Model, usage.Provider, true
-					s.Tokens = Tokens{usage.Usage.Input, usage.Usage.Output, usage.Usage.CacheRead, usage.Usage.CacheWrite}
+					s.Tokens = Tokens{Input: usage.Usage.Input, Output: usage.Usage.Output, CacheRead: usage.Usage.CacheRead, CacheWrite: usage.Usage.CacheWrite}
 					return []TraceSpan{s}
 				}
 			}
@@ -567,6 +611,9 @@ func (c *traceCursor) pi(line []byte, bodies bool) []TraceSpan {
 					}
 				}
 			}
+			if previous.completed {
+				interrupted = append(interrupted, c.root(previous, previous.last, previous.failed))
+			}
 			delete(c.turns, c.current)
 		}
 		c.current = o.ID
@@ -575,7 +622,9 @@ func (c *traceCursor) pi(line []byte, bodies bool) []TraceSpan {
 		if bodies {
 			t.input = string(m.Content)
 		}
-		return append(interrupted, c.root(t, t.start, false))
+		root := c.root(t, t.start, false)
+		root.Pending = true
+		return append(interrupted, root)
 	}
 	id := c.parents[o.ParentID]
 	if id == "" {
@@ -650,10 +699,24 @@ func (c *traceCursor) pi(line []byte, bodies bool) []TraceSpan {
 	spans := []TraceSpan{s}
 	if toolCalls == 0 && m.StopReason != "toolUse" {
 		t.completed = true
+		t.finishAfter = time.Now().Add(piTimingGrace)
 		if bodies {
 			t.output = string(m.Content)
 		}
-		spans = append(spans, c.root(t, o.Timestamp, s.Error))
+	}
+	return spans
+}
+
+func (c *traceCursor) finishPi(now time.Time) []TraceSpan {
+	if c.agent != "pi" && c.agent != "omp" {
+		return nil
+	}
+	var spans []TraceSpan
+	for id, t := range c.turns {
+		if t.completed && !now.Before(t.finishAfter) {
+			spans = append(spans, c.root(t, t.last, t.failed))
+			delete(c.turns, id)
+		}
 	}
 	return spans
 }

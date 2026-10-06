@@ -10,6 +10,7 @@ import (
 
 	"github.com/yetone/magpie/internal/fx"
 	"github.com/yetone/magpie/internal/provider"
+	"github.com/yetone/magpie/internal/sessions"
 	"github.com/yetone/magpie/internal/settings"
 	"github.com/yetone/magpie/internal/usage"
 )
@@ -107,5 +108,29 @@ func TestUnlimitedQuotaCell(t *testing.T) {
 		if !strings.Contains(got, "Unlimited") || strings.Contains(got, "%") || strings.Contains(got, "░") {
 			t.Fatalf("unlimited: %q", got)
 		}
+	}
+}
+
+// The Usage page shows, under the gateway's calls, those the agents made
+// on their own, read from their session files, as the app's Usage page
+// counts them (Kumo31 on Discord: Codex used outside magpie wasn't in the
+// TUI).
+func TestUsagePageShowsCallsNotThroughMagpie(t *testing.T) {
+	home(t)
+	now := time.Now()
+	usage.Append(usage.Record{Time: now.Add(-time.Minute), Agent: "claude", Provider: "relay", Model: "m", Input: 5, Status: 200})
+	old := usage.LogCalls
+	usage.LogCalls = func(time.Time) []sessions.Call {
+		return []sessions.Call{{Time: now.Add(-2 * time.Minute), Agent: "codex", Session: "c1", Model: "gpt-6-luna", Tokens: sessions.Tokens{Input: 1200, Output: 300}}}
+	}
+	t.Cleanup(func() { usage.LogCalls = old })
+	m := press(t, model{w: 160, h: 60, page: pageUsage}, "t")
+	v := m.viewUsage()
+	gw, own, ok := strings.Cut(v, "not through magpie")
+	if !ok || !strings.Contains(gw, "relay/m") || strings.Contains(gw, "gpt-6-luna") || !strings.Contains(own, "gpt-6-luna") {
+		t.Fatal(v)
+	}
+	if strings.Contains(own, usage.UnknownProvider) {
+		t.Fatalf("the unknown provider's id is shown:\n%s", own)
 	}
 }

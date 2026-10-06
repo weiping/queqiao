@@ -10,3 +10,7 @@ func trayImageShow([]trayCell, []byte) bool { return false }
 func trayImageFrame([]byte) bool { return false }
 
 func trayImageHide() {}
+
+func trayHighlight(bool) {}
+
+func trayOwnClicks() {}

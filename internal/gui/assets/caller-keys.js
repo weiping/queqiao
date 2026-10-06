@@ -154,7 +154,7 @@ function renderGatewayKeys() {
     rm.onclick = () => askGatewayKey(k, false);
     const rotate = el("button", "text quiet", t("Rotate key"));
     rotate.onclick = () => askGatewayKey(k, true);
-    row.append(tick, gatewayRename(k), el("span", "plan mono", k.masked), el("span", "grow"), gatewayLimitBadge(k), copyCallerKeyBtn(k), rotate, rm);
+    row.append(tick, gatewayRename(k), el("span", "plan mono", k.masked), el("span", "grow"), gatewayModelsBadge(k), gatewayLimitBadge(k), copyCallerKeyBtn(k), rotate, rm);
     const under = gatewayLimit?.id === k.id ? gatewayLimitEditor(k) : k.used ? gatewayLimitLine(k) : null;
     if (under) row.classList.add("with-limit"), row.append(under);
     list.append(row);
@@ -190,6 +190,57 @@ function askGatewayKey(k, rotate) {
   openModal(ed);
   $("#modal").classList.add("lib");
   cancel.focus({ preventScroll: true });
+}
+
+// ---- the models a gateway key may use (#882) ----
+
+// gatewayModelsBadge picks the models a key may use, in the app's menu:
+// "All models" on hover when it may use any, else which it may, always
+// shown. A pick is sent when the menu closes.
+function gatewayModelsBadge(k) {
+  const ms = k.models || [];
+  const b = el("button", "amodels key-models" + (ms.length ? " set" : ""));
+  b.type = "button";
+  b.textContent = !ms.length ? t("All models") : ms.length === 1 ? ms[0] : t("{n} models", { n: ms.length });
+  b.title = ms.length ? t("Only these models: {list}", { list: ms.join(", ") }) : t("Pick the models this key may use");
+  b.setAttribute("aria-label", t("Models this key may use"));
+  b.setAttribute("aria-haspopup", "menu");
+  b.setAttribute("aria-expanded", "false");
+  b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (b.classList.contains("open")) return closeProtoMenu();
+    let models = [];
+    try { ({ models } = await api("caller-keys/models")); } catch (err) { status(t(err.message), "err"); return; }
+    if (!b.isConnected) return;
+    const opts = [{ v: "", name: "All models", note: "Any model, now and later" }];
+    const seen = new Set();
+    for (const m of models || []) {
+      // a routing group the key names is its with every member in it
+      // (Magic_zero on Discord); the groups come first
+      if (m.group) {
+        if (!seen.has("group")) {
+          seen.add("group");
+          opts.push({ v: "group/*", name: "Every routing group", note: "group/*" });
+        }
+        opts.push({ v: m.id, name: m.name, note: m.id, literalName: true });
+        continue;
+      }
+      if (!seen.has(m.provider)) {
+        seen.add(m.provider);
+        opts.push({ v: m.provider + "/*", name: t("Every {provider} model", { provider: m.providerName }), note: m.provider + "/*", literalName: true });
+      }
+      opts.push({ v: m.id, name: m.name, note: m.id, literalName: true });
+    }
+    // what the CLI kept that the list hasn't, a pattern or a model gone
+    for (const v of ms) if (!opts.some((o) => o.v === v)) opts.push({ v, name: v, note: "Not served now", literalName: true });
+    openProtoMenu(b, opts, ms, (picked) => {
+      gatewayKeyAction("models-key", { key: k.id, models: picked }).then((out) => {
+        if (out) status(t(picked.length ? "{name} may use only the models picked" : "{name} may use every model", { name: k.name }), "ok");
+      });
+    }, "Models this key may use", "sess-menu", "right");
+  };
+  return b;
 }
 
 // ---- a gateway key's own limit (#585) ----

@@ -90,9 +90,12 @@ func Resolve(exe string) string {
 
 // Beside is the folder a portable magpie run from exe keeps its data folder
 // in: the executable's own, the one holding the .app on a Mac, the one
-// holding the .AppImage on Linux.
+// holding the .AppImage on Linux. APPIMAGE counts only for the AppImage
+// magpie runs from (exe under its mount, APPDIR): every program an
+// AppImage starts inherits both, a magpie started from an AppImage
+// terminal too.
 func Beside(exe string) string {
-	if img := os.Getenv("APPIMAGE"); img != "" && runtime.GOOS == "linux" {
+	if img := os.Getenv("APPIMAGE"); img != "" && runtime.GOOS == "linux" && within(exe, os.Getenv("APPDIR")) {
 		return filepath.Dir(img)
 	}
 	dir := filepath.Dir(exe)
@@ -103,6 +106,15 @@ func Beside(exe string) string {
 		}
 	}
 	return dir
+}
+
+// within says whether path lies in the absolute folder dir.
+func within(path, dir string) bool {
+	if !filepath.IsAbs(dir) {
+		return false
+	}
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func absolute(p string) string {
@@ -118,11 +130,30 @@ func Config() string {
 	if p := Portable(); p != "" {
 		return p
 	}
-	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
+	if x := os.Getenv("XDG_CONFIG_HOME"); rooted(x) {
 		return filepath.Join(x, appName())
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", appName())
+	return filepath.Join(mustHome(), ".config", appName())
+}
+
+// Redirected is the folder magpie keeps its files in when it is opened
+// from the Dock, the Start menu or a desktop launcher (~/.config/magpie),
+// while this magpie reads them from another that XDG_CONFIG_HOME, set in
+// the shell it was run from, names; "" when they are the same, or magpie
+// is portable. A magpie run in such a shell sees none of what the app's
+// window shows.
+func Redirected() string {
+	if Portable() != "" || os.Getenv("XDG_CONFIG_HOME") == "" {
+		return ""
+	}
+	h, err := Home()
+	if err != nil {
+		return ""
+	}
+	if def := filepath.Join(h, ".config", appName()); filepath.Clean(def) != filepath.Clean(Config()) {
+		return def
+	}
+	return ""
 }
 
 // Cache is the folder for what magpie can fetch again (the models.dev
@@ -131,11 +162,10 @@ func Cache() string {
 	if p := Portable(); p != "" {
 		return filepath.Join(p, "cache")
 	}
-	if x := os.Getenv("XDG_CACHE_HOME"); x != "" {
+	if x := os.Getenv("XDG_CACHE_HOME"); rooted(x) {
 		return filepath.Join(x, appName())
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".cache", appName())
+	return filepath.Join(mustHome(), ".cache", appName())
 }
 
 // WebView is the folder the Windows webview (WebView2) keeps its profile

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/proc"
 )
 
@@ -108,7 +109,7 @@ func StopClicks() error {
 // WatchClicks calls click on each click ReportClicks announces, for as long
 // as magpie runs, reconnecting when Hyprland restarts.
 func WatchClicks(click func()) {
-	sock := filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "hypr", os.Getenv("HYPRLAND_INSTANCE_SIGNATURE"), ".socket2.sock")
+	sock := filepath.Join(appdir.Getenv("XDG_RUNTIME_DIR"), "hypr", os.Getenv("HYPRLAND_INSTANCE_SIGNATURE"), ".socket2.sock")
 	for {
 		if c, err := net.Dial("unix", sock); err == nil {
 			sc := bufio.NewScanner(c)

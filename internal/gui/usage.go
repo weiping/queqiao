@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/yetone/magpie/internal/access"
@@ -114,9 +115,17 @@ func periodOf(s string) usage.Period {
 	return usage.Month
 }
 
+// csvStamp names the selected day, or the period when no day is selected.
+func csvStamp(p usage.Period, day string) string {
+	if _, err := time.Parse(time.DateOnly, day); err == nil {
+		return "magpie-requests-day-" + day
+	}
+	return "magpie-requests-" + string(p) + "-" + time.Now().Format(time.DateOnly)
+}
+
 func ledgerFilter(q url.Values) usage.Filter {
 	id, _ := strconv.ParseInt(q.Get("route"), 10, 64)
-	return usage.Filter{RouteID: id, Model: q.Get("model"), Agent: q.Get("agent"), Provider: q.Get("provider"), Account: q.Get("account"), CallerKey: q.Get("callerKey"), Failed: q.Get("failed") == "1", Query: q.Get("q"), Computer: q.Get("computer")}
+	return usage.Filter{Day: q.Get("day"), RouteID: id, Model: q.Get("model"), Agent: q.Get("agent"), Provider: q.Get("provider"), Purpose: q.Get("purpose"), Account: q.Get("account"), CallerKey: q.Get("callerKey"), Failed: q.Get("failed") == "1", Query: q.Get("q"), Computer: q.Get("computer")}
 }
 
 // ledgerRow is a usage.Row with the names the page shows it by.
@@ -138,17 +147,21 @@ type ledgerJSON struct {
 	Rows       []ledgerRow  `json:"rows"`
 	Offset     int          `json:"offset"`
 	Total      int          `json:"total"` // the rows the filter keeps, on every page
-	// Series: those rows by hour, day or week (Bucket), for the chart
+	// Series: the period by hour, day or week (Bucket), before the day filter
 	Bucket string              `json:"bucket"`
 	Series []usage.SeriesPoint `json:"series"`
-	// By: the rows told apart by provider, agent and model, the most tokens
+	// By: the rows told apart by provider, agent, model and model at each
+	// provider ("modelAt", named "model · provider"), the most tokens
 	// first. The one by a dimension the filter has picked is of the rows
 	// without that pick, so the others are still there to switch to.
-	By map[string][]ledgerShare `json:"by"`
+	By      map[string][]ledgerShare `json:"by"`
+	ChartBy map[string][]ledgerShare `json:"chartBy,omitempty"`
+	Day     string                   `json:"day,omitempty"`
 	usage.Totals
-	// Agents and Providers: those with calls in the period, for the filters
+	// Agents, Providers and Purposes: those with calls in the period, for the filters
 	Agents    []ledgerAgent `json:"agents"`
 	Providers []ledgerAgent `json:"providers"`
+	Purposes  []string      `json:"purposes"`
 	// Accounts: the subscription accounts that answered calls in the
 	// period, for the Account filter (#557)
 	Accounts []ledgerAccount `json:"accounts"`
@@ -217,6 +230,8 @@ func ledgerPage(p usage.Period, f usage.Filter, offset, limit int) ledgerJSON {
 	}
 	out := ledgerJSON{Period: p, Rows: make([]ledgerRow, 0, len(page)), Offset: offset, Total: l.Total, Totals: l.Sum, Agents: []ledgerAgent{}, Providers: []ledgerAgent{}, Accounts: []ledgerAccount{}}
 	out.Bucket, out.Series = l.Bucket, l.Series
+	out.Purposes = l.Purposes
+	out.Day = f.Day
 	out.CallerKeys = callerUsageGroups(usage.Summary{CallerKeys: l.CallerKeys})
 	callerLabels := map[string]string{}
 	for _, g := range out.CallerKeys {
@@ -267,22 +282,34 @@ func ledgerPage(p usage.Period, f usage.Filter, offset, limit int) ledgerJSON {
 	}
 	// what each is of: the rows of the filter, or, for the dimension the
 	// filter has picked, of the rows without that pick
-	out.By = map[string][]ledgerShare{}
-	for _, d := range usage.Dimensions {
-		shares := []ledgerShare{}
-		for _, s := range l.By[d] {
-			ls := ledgerShare{Share: s, Name: s.ID}
-			switch d {
-			case "provider":
-				a := which(s.ID)
-				ls.Name, ls.Icon = a.Name, a.Icon
-			case "agent":
-				a := who(s.ID)
-				ls.Name, ls.Icon = a.Name, a.Icon
+	sharesJSON := func(by map[string][]usage.Share) map[string][]ledgerShare {
+		out := map[string][]ledgerShare{}
+		for _, d := range usage.Dimensions {
+			shares := []ledgerShare{}
+			for _, s := range by[d] {
+				ls := ledgerShare{Share: s, Name: s.ID}
+				switch d {
+				case "provider":
+					a := which(s.ID)
+					ls.Name, ls.Icon = a.Name, a.Icon
+				case "agent":
+					a := who(s.ID)
+					ls.Name, ls.Icon = a.Name, a.Icon
+				case "modelAt":
+					// the model, and the provider it went to
+					prov, model, _ := strings.Cut(s.ID, "/")
+					a := which(prov)
+					ls.Name, ls.Icon = model+" · "+a.Name, a.Icon
+				}
+				shares = append(shares, ls)
 			}
-			shares = append(shares, ls)
+			out[d] = shares
 		}
-		out.By[d] = shares
+		return out
+	}
+	out.By = sharesJSON(l.By)
+	if l.ChartBy != nil {
+		out.ChartBy = sharesJSON(l.ChartBy)
 	}
 	for _, s := range l.Computers {
 		ls := ledgerShare{Share: s, Name: l.Names[s.ID]}
@@ -371,7 +398,7 @@ func usageRoutes(mux *http.ServeMux, w Windows) {
 		p := periodOf(q.Get("period"))
 		rows, _, _ := usage.Ledger(p, ledgerFilter(q))
 		rw.Header().Set("Content-Type", "text/csv; charset=utf-8")
-		rw.Header().Set("Content-Disposition", `attachment; filename="magpie-requests-`+string(p)+"-"+time.Now().Format("2006-01-02")+`.csv"`)
+		rw.Header().Set("Content-Disposition", `attachment; filename="`+csvStamp(p, q.Get("day"))+`.csv"`)
 		usage.WriteCSV(rw, rows)
 	})
 	// the rows the ledger shows, all its pages, as a CSV in Downloads
@@ -385,7 +412,7 @@ func usageRoutes(mux *http.ServeMux, w Windows) {
 			return
 		}
 		dir := downloads()
-		stamp := "magpie-requests-" + string(p) + "-" + time.Now().Format("2006-01-02")
+		stamp := csvStamp(p, q.Get("day"))
 		name := filepath.Join(dir, stamp+".csv")
 		for i := 2; ; i++ { // never over an earlier one
 			if _, err := os.Stat(name); err != nil {
@@ -412,7 +439,60 @@ func usageRoutes(mux *http.ServeMux, w Windows) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 		defer cancel()
-		writeJSON(rw, provider.Quotas(ctx))
+		// a WorkBuddy (China) account's card says how its daily check-in
+		// went (#694)
+		writeJSON(rw, provider.WithCheckins(provider.Quotas(ctx)))
+	})
+	// One card read again, from its refresh button (#840): ?provider= and,
+	// of a card with several accounts, &user=; the others are left as they
+	// were read. The answer is every card, as GET's.
+	mux.HandleFunc("POST /api/usage/quotas/refresh", func(rw http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("provider")
+		if id == "" {
+			http.Error(rw, "provider is required", http.StatusBadRequest)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		provider.RefreshUsage(ctx, id, r.URL.Query().Get("user"))
+		writeJSON(rw, provider.WithCheckins(provider.Quotas(ctx)))
+	})
+	// WorkBuddy's daily check-in pressed now, from the Usage card, for
+	// each account not in yet today, as `magpie accounts checkin` does; the
+	// card is read again after
+	mux.HandleFunc("POST /api/usage/workbuddy-checkin", func(rw http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+		defer cancel()
+		rs := provider.CheckInWorkBuddy(ctx)
+		if rs == nil {
+			rs = []provider.WorkBuddyCheckin{}
+		}
+		writeJSON(rw, rs)
+	})
+	// and Trae CN's, for each Trae CN account (#694)
+	mux.HandleFunc("POST /api/usage/trae-checkin", func(rw http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+		defer cancel()
+		rs := provider.CheckInTrae(ctx)
+		if rs == nil {
+			rs = []provider.WorkBuddyCheckin{}
+		}
+		writeJSON(rw, rs)
+	})
+	// and MiniMax Code's, for each MiniMax Code (China) account (#811)
+	mux.HandleFunc("POST /api/usage/minimax-checkin", func(rw http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+		defer cancel()
+		rs := provider.CheckInMiniMax(ctx)
+		if rs == nil {
+			rs = []provider.WorkBuddyCheckin{}
+		}
+		writeJSON(rw, rs)
+	})
+	// what was left of each window over time, for the quota cards' curves
+	// (#651); ?days= back
+	mux.HandleFunc("GET /api/usage/quotas/history", func(rw http.ResponseWriter, r *http.Request) {
+		writeJSON(rw, provider.QuotaHistories(provider.QuotaHistorySince(r.URL.Query().Get("days"), time.Now()), "", ""))
 	})
 	// spends one of a Codex account's rate-limit resets, which the page
 	// has asked the user about first; what it did comes back

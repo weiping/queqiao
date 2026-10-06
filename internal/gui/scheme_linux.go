@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/proc"
 )
 
@@ -12,11 +13,15 @@ import (
 // entry that claims the scheme, then the desktop's default for it. An
 // entry that already runs this executable and claims it is left alone.
 func registerScheme() error {
+	// The package supplies the host entry; this executable is inside the sandbox.
+	if os.Getenv("FLATPAK_ID") != "" {
+		return nil
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	data := os.Getenv("XDG_DATA_HOME")
+	data := appdir.Getenv("XDG_DATA_HOME")
 	if data == "" {
 		home, _ := os.UserHomeDir()
 		data = filepath.Join(home, ".local", "share")

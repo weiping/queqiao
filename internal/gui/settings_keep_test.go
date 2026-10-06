@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,9 +11,49 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yetone/magpie/internal/agentenv"
 	"github.com/yetone/magpie/internal/redact"
 	"github.com/yetone/magpie/internal/settings"
 )
+
+func TestSettingsSaveKeepsCorruptFile(t *testing.T) {
+	for _, tc := range []struct{ path, body string }{
+		{"/api/settings", `{"theme":"light"}`},
+		{"/api/settings/quota-left", `{"on":true}`},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			h := t.TempDir()
+			t.Setenv("HOME", h)
+			t.Setenv("USERPROFILE", h)
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(h, ".config"))
+			t.Setenv("XDG_CACHE_HOME", filepath.Join(h, ".cache"))
+			t.Setenv("APPDATA", filepath.Join(h, "AppData", "Roaming"))
+			t.Setenv("LOCALAPPDATA", filepath.Join(h, "AppData", "Local"))
+			for _, v := range agentenv.Vars {
+				t.Setenv(v, "")
+			}
+			if err := os.MkdirAll(settings.Dir(), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			const token = "SYNTHETIC_PRIVATE_TOKEN"
+			original := []byte(`{"theme":"dark","githubToken":"` + token + `"`)
+			if err := os.WriteFile(settings.Path(), original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			rec := httptest.NewRecorder()
+			Handler(nil, nil).ServeHTTP(rec, httptest.NewRequest("POST", tc.path, strings.NewReader(tc.body)))
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("save returned %d, want a settings error", rec.Code)
+			}
+			if strings.Contains(rec.Body.String(), token) {
+				t.Error("the error response exposed the settings contents")
+			}
+			if after, err := os.ReadFile(settings.Path()); err != nil || !bytes.Equal(after, original) {
+				t.Errorf("the request overwrote the corrupt settings: %v", err)
+			}
+		})
+	}
+}
 
 // What the models' page keeps in settings — names, levels, whether a model
 // takes images — outlives a save of the Settings page, which never sends it.
@@ -71,10 +112,13 @@ func TestSettingsSaveKeepsWhatItDoesNotSend(t *testing.T) {
 		AgentsShown:         []string{"pi"},
 		Visible:             map[string][]string{"claude": {"anthropic"}},
 		HiddenModels:        map[string][]string{"claude": {"p/m"}, "codex": {"p/n", "group/g"}},
+		OrderedModels:       map[string][]string{"codex": {"group/g", "p/n"}},
 		ModelNames:          map[string]string{"p/m": "Mine"},
 		ModelEfforts:        map[string][]string{"p/m": {"low"}},
 		ModelImages:         map[string]bool{"p/m": true},
 		ModelOutputs:        map[string]int{"p/m": 131072},
+		ModelCompacts:       map[string]int{"p/*": 500000},
+		CompactAt:           400000,
 		ModelPrices:         map[string]settings.ModelPrice{"p/m": {Input: &one, Output: &two}},
 		ModelWires:          map[string]string{"p/m": "vendor-c/m"},
 		ModelAPIs:           map[string]string{"p/m": "anthropic"},
@@ -83,16 +127,25 @@ func TestSettingsSaveKeepsWhatItDoesNotSend(t *testing.T) {
 		LAN:                 true,
 		LANKey:              "sk-lan",
 		LANKeyID:            "lan-key-id",
+		Port:                3591,
 		GitHubToken:         "ghp_kept",
 		RequestArchive:      true,
 		RequestArchiveMaxMB: 64,
 		QuotaLeft:           true,
+		UsageOrder:          []string{"kimi", "codex"},
 		PlainNames:          true,
 		PlainOwnNames:       true,
+		CodexAgentsV1:       true,
+		CodexTitles:         "off",
+		CodexAutoReview:     "fake/m1",
+		ChinaMirror:         true,
 		CodexAutoReset:      []string{"me@example.com"},
 		TextSize:            125,
 		UpdateSkip:          "0.1.500",
+		UpdateMirror:        "https://mirror.example/",
 		Window:              []int{900, 700},
+		FullContext:         true,
+		GatewayMode:         "off",
 	}
 	if err := settings.Save(was); err != nil {
 		t.Fatal(err)

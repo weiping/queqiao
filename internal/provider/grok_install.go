@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/proc"
 )
 
@@ -78,7 +79,7 @@ func installGrokBuild(ctx context.Context) error {
 		return err
 	}
 	downloads := filepath.Join(home, ".grok", "downloads")
-	bin := os.Getenv("GROK_BIN_DIR")
+	bin := appdir.Getenv("GROK_BIN_DIR")
 	if bin == "" {
 		bin = filepath.Join(home, ".grok", "bin")
 	}

@@ -66,6 +66,12 @@ var ErrNotSignedIn = errors.New("magpie isn't signed in to this server")
 // ErrExpired is a sign-in the server no longer takes: it has to be done again.
 var ErrExpired = errors.New("magpie's sign-in to this server has run out: sign in again in the Library")
 
+// ErrNoSignIn is a server that answered an agent's first request without
+// asking for a sign-in: it works as it is. One that takes a key as a header
+// takes it in Headers; one that signs in only at another address (Exa's
+// mcp.exa.ai/mcp?login) is signed in to there. The GUI has it in Chinese.
+var ErrNoSignIn = errors.New("this server already works without signing in, so there is nothing to sign in to: the agents given it can use it as it is. A key it takes goes in Headers; a server that signs in at another address (as Exa's ?login) needs that URL")
+
 // Record is magpie's sign-in to one server.
 type Record struct {
 	URL      string `json:"url"`                // the server's, as the library has it
@@ -497,7 +503,7 @@ func discover(ctx context.Context, serverURL string) (meta, error) {
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 	resp.Body.Close()
 	if resp.StatusCode/100 == 2 {
-		return meta{}, errors.New("this server answers without a sign-in: there is nothing to sign in to")
+		return meta{}, ErrNoSignIn
 	}
 	metadataURL, scope := challenge(resp.Header)
 
@@ -565,6 +571,7 @@ func discover(ctx context.Context, serverURL string) (meta, error) {
 			return meta{}, errors.New("the server's sign-in doesn't offer PKCE (S256), which magpie needs")
 		}
 		m.Issuer, m.AuthorizeURL, m.TokenURL, m.RegisterURL, m.AuthMethods = as.Issuer, as.Authorize, as.Token, as.Register, as.AuthMethods
+		m.Scope = withOffline(m.Scope, as.ScopesSupport)
 	case !found:
 		// the older spec: the server's origin is its authorization server,
 		// at these paths when it has no metadata
@@ -577,6 +584,19 @@ func discover(ctx context.Context, serverURL string) (meta, error) {
 		return meta{}, fmt.Errorf("the server answered %d and says nothing of a sign-in", resp.StatusCode)
 	}
 	return m, nil
+}
+
+// withOffline asks for offline_access too when the authorization server
+// offers it. An OpenID provider gives a refresh token only to a sign-in that
+// asks for it (Vercel's: the server names only "openid", and without
+// offline_access its access token runs out in an hour with nothing to renew
+// it by, #615); the MCP spec lets a client add it. A sign-in that names no
+// scope is left as the server's default.
+func withOffline(scope string, supported []string) string {
+	if scope == "" || !contains(supported, "offline_access") || contains(strings.Fields(scope), "offline_access") {
+		return scope
+	}
+	return scope + " offline_access"
 }
 
 func contains(l []string, s string) bool {

@@ -44,6 +44,10 @@ type Option struct {
 	// sign-in or key, with magpie not in the way ("Anthropic"): its config
 	// then names no magpie endpoint, which is right, not a failed setup
 	Direct string `json:"direct,omitempty"`
+	// Via is a model of the agent's own it asks through magpie's gateway,
+	// on its own sign-in all the same (Codex's while routed by its base
+	// URL): the picker says via magpie by it, as by a catalog model's
+	Via bool `json:"via,omitempty"`
 	// Same is a model magpie serves on the very account the agent is
 	// signed in to itself, so the agent reaches it on its own too: the
 	// picker folds these into one row a click opens (Claude Code, #496)
@@ -55,6 +59,9 @@ type Option struct {
 
 	// own: served on the agent's own sign-in (viaMagpie), for Same
 	own bool
+	// sub: served on a subscription signed in in magpie, not a key; a
+	// Claude account only for Claude Code, which alone may use it safely
+	sub bool
 }
 
 // Field is one tunable setting of an agent. Set with an empty value puts
@@ -84,12 +91,18 @@ type Agent struct {
 	Dir     string // config directory, used for detection
 	Path    string // config file magpie edits
 	Fields  []Field
+	Native  *NativeConnection
 	// Notice, if set, is advice worth showing after a change: agents that
 	// read their config once at start-up need a restart to see it.
 	Notice func() string
 	// UA is what the agent's User-Agent begins with, lower-case: how the
 	// gateway tells its requests from others'
 	UA []string
+	// ListsModels: the agent's own model menu is the gateway's /v1/models
+	// as asked with its key, so the models picked on the Agents page for it
+	// (settings.HiddenModels) are its menu, though no field of its picks
+	// among the catalog (Cursor Private Inference)
+	ListsModels bool
 	// Sync, for an agent that reads magpie's models from a file of its own
 	// rather than asking the gateway, rewrites that list as the catalog is
 	// now — where magpie wrote one; nothing else changes (see SyncCatalog).
@@ -100,6 +113,35 @@ type Agent struct {
 	// kept: the endpoint, provider and model the user had. Disconnect runs
 	// it before the fields' defaults.
 	Unwire func() error
+	// Join, for an agent that can have magpie's models in its own list
+	// while it stays on the model it was on (Codex signed in with ChatGPT),
+	// connects it so, its model left as its own last pick; false where it
+	// can't, and Connect then picks one of magpie's.
+	Join func() (bool, error)
+	// Joined reports an agent Join connected: magpie is in its config
+	// though no field is on one of magpie's models.
+	Joined func() bool
+	// Beside reports an agent set on one of magpie's models beside its own
+	// (Codex by the base URL beside its ChatGPT sign-in), now on one of its
+	// own written in by the agent: still connected, as joined, though the
+	// change is told as drift (#940).
+	Beside func() bool
+	// OwnVia is the catalog id magpie serves one of the agent's own models
+	// by on a sign-in of the user's, which its model field lists as its
+	// own rather than as magpie's ("codex/gpt-5.5" for Codex's gpt-5.5),
+	// "" for none: Connect keeps the agent on that model through magpie
+	// where it can't Join (#940: Codex went to an unrelated model).
+	OwnVia func(model string) string
+	// Routed reports that the agent's config sends whatever model it
+	// names to magpie's gateway (Codex's openai_base_url or magpie as its
+	// provider), so a model's name the gateway takes as a routing group
+	// is that group's (#750).
+	Routed func() bool
+	// Follow, for an agent whose own picker moves its main model where
+	// magpie keeps other settings following it (Claude Code's /model and
+	// its tiers), brings those along to the model picked there. Run as the
+	// Agents page is drawn.
+	Follow func() error
 	// RenameRefs, for an agent whose config names magpie's models beyond
 	// its fields (omp's other roles and fallback chains), moves those names
 	// off provider from onto to, the rest of each kept; it answers whether
@@ -150,16 +192,29 @@ type Agent struct {
 	// names, never taken for one of magpie's models nor moved by what
 	// matches the picker (RenameRefs moves the names in it).
 	SplitSuffix func(v string) (model, suffix string, one bool)
+	// Spelled, when set, says whether a value of the agent's fields is
+	// spelled as one of magpie's there (prefixed: it starts with
+	// "magpie/", its provider in the agent): one that isn't is a model of
+	// one of the agent's own providers, never magpie's, even when magpie
+	// has a provider of the same name (OpenHanako's own
+	// deepseek/deepseek-v4-pro read as magpie's deepseek, #835).
+	Spelled func(v string) bool
 	// detect, when set, says whether the agent is here in place of looking
 	// for its files and binary: a distro's, probed once.
 	detect func() bool
 }
 
 // Running reports whether a process whose command line matches any pattern
-// (an extended regexp, as for pgrep -f) is alive. Unknown on Windows.
+// (an extended regexp, as for pgrep -f) is alive. Windows can't be asked
+// what runs, so anything may be: every caller is the advice an agent's own
+// lists need after magpie changed what it reads at start ("restart Codex",
+// "open a new dsh session"), and a Windows that answered no here dropped
+// that advice silently — a model picked in magpie looked like it had done
+// nothing at all. claudeRunning and Pencil's own check already say they
+// can't be told, and say yes for the same reason.
 func Running(patterns ...string) bool {
 	if runtime.GOOS == "windows" {
-		return false
+		return len(patterns) > 0
 	}
 	for _, pat := range patterns {
 		if err := proc.Command("pgrep", "-f", pat).Run(); err == nil {
@@ -380,6 +435,9 @@ func atomic(a *Agent, paths ...string) *Agent {
 	}
 	if sync := a.Sync; sync != nil {
 		a.Sync = func() error { return edit.Atomically(sync, paths...) }
+	}
+	if follow := a.Follow; follow != nil {
+		a.Follow = func() error { return edit.Atomically(follow, paths...) }
 	}
 	if unwire := a.Unwire; unwire != nil {
 		a.Unwire = func() error { return edit.Atomically(unwire, paths...) }

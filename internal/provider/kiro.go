@@ -39,6 +39,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/catalog"
 	"github.com/yetone/magpie/internal/edit"
 	"github.com/yetone/magpie/internal/proc"
@@ -68,7 +69,7 @@ var kiroCLIDB = func() string {
 	home, _ := os.UserHomeDir()
 	switch runtime.GOOS {
 	case "windows":
-		dir := os.Getenv("APPDATA")
+		dir := appdir.Getenv("APPDATA")
 		if dir == "" {
 			dir = filepath.Join(home, "AppData", "Roaming")
 		}
@@ -243,13 +244,6 @@ func readKiroAt(key, home string) (kiroCred, bool) {
 		return c, true
 	}
 	return readKiroIDE()
-}
-
-// kiroSignedIn is whether there is a Kiro sign-in to use, without asking
-// anyone.
-func kiroSignedIn(key string) bool {
-	_, ok := readKiro(key)
-	return ok
 }
 
 // KiroAuth is what a call to Kiro's API is made with.
@@ -831,8 +825,9 @@ func kiroIdentity(key, home string) (user, plan string) {
 	}
 	if time.Since(s.at) > 5*time.Minute && !s.refreshing {
 		s.refreshing = true
+		ask := askKiroIdentity // read here: a test puts its own back meanwhile
 		go func() {
-			u, p := askKiroIdentity(key, home)
+			u, p := ask(key, home)
 			kiroStatus.Lock()
 			if u != "" || p != "" {
 				s.user, s.plan = u, p

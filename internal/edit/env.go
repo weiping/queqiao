@@ -15,8 +15,11 @@ func GetEnvFile(path, key string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	for _, l := range splitLines(string(raw)) {
-		if m := envLine.FindStringSubmatch(l); m != nil && m[1] == key {
+	// A key set twice takes its last value: dotenv readers, Gemini CLI's among
+	// them, let a later line override an earlier one.
+	lines := splitLines(string(raw))
+	for i := len(lines) - 1; i >= 0; i-- {
+		if m := envLine.FindStringSubmatch(lines[i]); m != nil && m[1] == key {
 			if v, ok := unquote(m[2]); ok {
 				return v, true
 			}
@@ -55,10 +58,11 @@ func SetEnvFile(path string, kvs ...KV) error {
 			return "", false
 		})
 	}
-	return WriteAtomic(path, []byte(joinLines(lines)))
+	return WriteAtomic(path, []byte(joinLinesLike(lines, string(raw))))
 }
 
-// DelEnvFile removes keys from a dotenv file.
+// DelEnvFile removes keys from a dotenv file, and the file when they were
+// all it held (Gemini CLI's .env, made by magpie for its key).
 func DelEnvFile(path string, keys ...string) error {
 	raw, err := Read(path)
 	if err != nil || len(raw) == 0 {
@@ -79,6 +83,9 @@ func DelEnvFile(path string, keys ...string) error {
 	}
 	if !changed {
 		return nil
+	}
+	if strings.TrimSpace(strings.Join(out, "")) == "" {
+		return Remove(path)
 	}
 	return WriteAtomic(path, []byte(joinLines(out)))
 }

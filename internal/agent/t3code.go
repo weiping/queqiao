@@ -20,7 +20,8 @@ package agent
 // the token Claude Code is routed with, so its requests are Claude Code's
 // to the gateway, tiers and all), every magpie model one of its custom
 // models, a 1M one marked [1m] as magpie marks it for Claude Code, with
-// a Reasoning pick of the levels it takes (t3Capabilities). It is
+// a Reasoning pick of the levels it takes and a Thinking switch
+// (t3Capabilities). It is
 // magpie's alone: the user's own instances, their custom models and T3's
 // other keys stay as they are, and off takes only it out. A binary path or
 // Claude home the user gave T3's own Claude is carried over, so it runs the
@@ -36,8 +37,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
+	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/edit"
 	"github.com/yetone/magpie/internal/gateway"
 )
@@ -47,7 +50,7 @@ import (
 const t3Instance = "providerInstances." + magpieID
 
 func t3code(home string) *Agent {
-	base := os.Getenv("T3CODE_HOME")
+	base := appdir.Getenv("T3CODE_HOME")
 	if base == "" {
 		base = filepath.Join(home, ".t3")
 	} else if rest, ok := strings.CutPrefix(base, "~"); ok {
@@ -141,31 +144,38 @@ func t3InstanceJSON(path, gw string) map[string]any {
 // Claude models show them.
 var t3EffortLabels = map[string]string{"low": "Low", "medium": "Medium", "high": "High", "xhigh": "Extra High", "max": "Max"}
 
-// t3Capabilities is the pick T3 Code shows beside a custom model: without
-// one it shows none and sends no effort, so every magpie model ran at
-// whatever Claude Code took (KevinXC on Discord). It is Reasoning, the
-// levels of Claude Code's the model takes, medium chosen first as on T3's
-// own Claude models (else the lowest); T3 hands the level to Claude Code
-// as it is, which sends it to the gateway. nil for a model with no level
-// Claude Code can send.
+// t3Capabilities is the picks T3 Code shows beside a custom model: without
+// them it shows none and sends no effort, so every magpie model ran at
+// whatever Claude Code took (KevinXC on Discord). Reasoning is the levels
+// of Claude Code's the model takes, medium chosen first as on T3's own
+// Claude models (else the lowest); T3 hands the level to Claude Code as it
+// is, which sends it to the gateway. Thinking, on at first, is the switch
+// T3's own Claude Haiku has, for a model that thinks at some level: T3 sets
+// Claude Code's alwaysThinkingEnabled by it, and Claude Code's requests with
+// thinking off ask the gateway with none. nil for a model with neither.
 func t3Capabilities(id string, efforts []string) map[string]any {
+	var descriptors []map[string]any
 	var options []map[string]any
 	for _, l := range claudeEffortsFor(id) {
 		if contains(efforts, l) {
 			options = append(options, map[string]any{"id": l, "label": t3EffortLabels[l]})
 		}
 	}
-	if len(options) == 0 {
+	if len(options) > 0 {
+		def := options[0]
+		for _, o := range options {
+			if o["id"] == "medium" {
+				def = o
+			}
+		}
+		def["isDefault"] = true
+		descriptors = append(descriptors, map[string]any{"id": "effort", "label": "Reasoning", "type": "select", "options": options})
+	}
+	if slices.ContainsFunc(efforts, func(l string) bool { return l != "none" }) {
+		descriptors = append(descriptors, map[string]any{"id": "thinking", "label": "Thinking", "type": "boolean", "currentValue": true})
+	}
+	if len(descriptors) == 0 {
 		return nil
 	}
-	def := options[0]
-	for _, o := range options {
-		if o["id"] == "medium" {
-			def = o
-		}
-	}
-	def["isDefault"] = true
-	return map[string]any{"optionDescriptors": []map[string]any{
-		{"id": "effort", "label": "Reasoning", "type": "select", "options": options},
-	}}
+	return map[string]any{"optionDescriptors": descriptors}
 }

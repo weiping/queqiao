@@ -51,6 +51,8 @@ func SetLoginOn(agent, user string, on bool) error {
 		return setFactoryLoginOn(user, on)
 	case MiMoID:
 		return setMiMoLoginOn(user, on)
+	case ChatGPTAPIID:
+		return setSIWCLoginOn(user, on)
 	case "gemini", "antigravity":
 		return setGoogleLoginOn(agent, user, on)
 	}
@@ -162,6 +164,9 @@ func (p Provider) AlsoOn() []Provider {
 	if p.Account != nil && p.Account.Agent == MiMoID {
 		return mimoAlsoOn()
 	}
+	if p.Account != nil && p.Account.Agent == ChatGPTAPIID {
+		return siwcAlsoOn()
+	}
 	if p.Account != nil && (p.Account.Agent == "gemini" || p.Account.Agent == "antigravity") {
 		return googleAlsoOn(p.Account.Agent)
 	}
@@ -197,9 +202,19 @@ func (p Provider) AlsoOn() []Provider {
 
 // Token is the access token of a saved account in use beside the agent's
 // own — for a Claude account, the config directory Claude Code runs on it
-// in; ok is false for the agent's own, which the agent signs itself.
+// in; ok is false for the agent's own, which the agent signs itself. A
+// Claude account that can't be used, Anthropic having refused its sign-in,
+// is an error, whichever it is (claude_auth.go).
 func (a *Account) Token(ctx context.Context) (tok string, ok bool, err error) {
-	if a == nil || a.token == nil {
+	if a == nil {
+		return "", false, nil
+	}
+	if a.token == nil {
+		if a.Agent == "claude" {
+			if why := claudeOwnRefused(a.User); why != "" {
+				return "", false, errors.New(why)
+			}
+		}
 		return "", false, nil
 	}
 	tok, err = a.token(ctx)

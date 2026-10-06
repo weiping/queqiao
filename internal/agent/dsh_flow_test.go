@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/yetone/magpie/internal/provider"
+	"github.com/yetone/magpie/internal/testenv"
 )
 
 // A profile's patch list written in flow style, as dsh's own writers leave
@@ -17,7 +18,7 @@ import (
 // can't edit is named in the error, not as config.yaml.
 func TestDshFlowPatchList(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testenv.SetHome(t, home)
 	t.Setenv("DSH_HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
@@ -51,7 +52,7 @@ func TestDshFlowPatchList(t *testing.T) {
 		t.Fatalf("the user's row or comments lost:\n%s", s)
 	}
 	var rows []map[string]any
-	if err := yaml.Unmarshal([]byte(s), &rows); err != nil || len(rows) != 3 || rows[0]["id"] != "some-plugin" || rows[0]["disabled"] != false {
+	if err := yaml.Unmarshal([]byte(s), &rows); err != nil || len(rows) != 4 || rows[0]["id"] != "some-plugin" || rows[0]["disabled"] != false {
 		t.Fatalf("%v %v\n%s", err, rows, s)
 	}
 	if f.Get() != "magpie/deepseek/pro" {

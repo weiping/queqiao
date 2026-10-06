@@ -22,7 +22,9 @@ import (
 //
 // Only the agents whose sessions are files of their own can be deleted:
 // Claude Code's (and Qoder's and WorkBuddy's, kept the same way), Codex's,
-// Pi's, omp's and Cursor CLI's (a chat's folder, its store and meta.json). The agents' indexes are left as they are: Codex's
+// Pi's, omp's and Cursor CLI's (a chat's folder, its store and meta.json).
+// Hermes's and Alma's are rows in a database the agent keeps open and
+// writes, so they are only listed. The agents' indexes are left as they are: Codex's
 // session_index.jsonl (names by thread id) and its state database, and
 // Claude Code's history.jsonl (the prompts typed, for the up arrow), are
 // written by the agent while it runs, and a name or a prompt left for a
@@ -37,6 +39,10 @@ type Managed struct {
 	Messages  int   `json:"messages"`
 	Files     int   `json:"files"`
 	Deletable bool  `json:"deletable"`
+	// Codex: the provider the session was made with, and the one its Codex
+	// uses now, whose sessions alone its history lists (#887)
+	Provider     string `json:"provider,omitempty"`
+	UsesProvider string `json:"uses_provider,omitempty"`
 }
 
 // AgentCount is an agent with sessions on this computer, and how many.
@@ -114,8 +120,13 @@ func ListAgent(agent string) []Managed {
 	for _, fs := range groups {
 		s, _ := assemble(fs, price)
 		if s.Resume == "" && !s.ReadOnly {
-			s.Resume = ResumeCommand(s.Agent, s.ID, s.Cwd)
+			s.Resume = resumeCommand(s.WSL, s.Agent, s.ID, s.Cwd)
 		}
+		if s.Carry == nil {
+			s.Carry = carries(s)
+		}
+		s.Transcript = HasTranscript(s.Agent)
+		// a WSL distro's too (TJHHHH): moved out over \\wsl.localhost
 		m := Managed{Session: s, Files: len(fs), Deletable: Deletable(agent) && !s.ReadOnly}
 		for _, f := range fs {
 			m.Size += f.size
@@ -126,6 +137,9 @@ func ListAgent(agent string) []Managed {
 			}
 		}
 		out = append(out, m)
+	}
+	if agent == "codex" {
+		codexProviders(out, groups)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if !out[i].Last.Equal(out[j].Last) {
@@ -167,7 +181,9 @@ const manifest = "session.json"
 // Codex session's later segments, its subagents' elsewhere) and, for Claude
 // Code, the file history, todos and environment it keeps by the session's
 // id. A session any file of which was written in the last minute is not
-// touched (ErrActive).
+// touched (ErrActive). One in a WSL distro is moved out of it over
+// \\wsl.localhost the same way, its Claude Code files from the distro's
+// ~/.claude, and Restore puts it back there.
 func Delete(agent, id string) (Trashed, error) {
 	if !Deletable(agent) {
 		return Trashed{}, fmt.Errorf("magpie can't delete %s sessions", agent)
@@ -205,6 +221,11 @@ func Delete(agent, id string) (Trashed, error) {
 		return Trashed{}, errors.New("no such session")
 	}
 	paths := sessionPaths(agent, id, fs)
+	if len(paths) == 0 {
+		// a stopped distro's listing, of files since gone
+		wslForget(fs)
+		return Trashed{}, errors.New("no such session")
+	}
 	now := time.Now()
 	for _, p := range paths {
 		if recent(p, now) {
@@ -241,6 +262,7 @@ func Delete(agent, id string) (Trashed, error) {
 		delete(cache, f.path)
 	}
 	saveCache()
+	wslForget(fs)
 	return t, nil
 }
 
@@ -293,6 +315,13 @@ func sessionPaths(agent, id string, fs []file) []string {
 	}
 	if agent == "claude" {
 		dir := ClaudeDir()
+		if fs[0].wsl != "" {
+			// the distro's own ~/.claude
+			if dir = wslHomeOf(fs[0].wsl); dir == "" {
+				return out
+			}
+			dir = filepath.Join(dir, ".claude")
+		}
 		add(filepath.Join(dir, "file-history", id))
 		add(filepath.Join(dir, "session-env", id))
 		todos, _ := filepath.Glob(filepath.Join(dir, "todos", id+"-*.json"))
@@ -362,8 +391,10 @@ func move(from, to string) error {
 	if _, err := os.Lstat(to); err == nil {
 		return fmt.Errorf("%s is already there", to)
 	}
-	if os.Rename(from, to) == nil {
+	if err := os.Rename(from, to); err == nil {
 		return nil
+	} else if !errors.Is(err, crossDeviceErr) {
+		return err
 	}
 	if err := copyAll(from, to); err != nil {
 		os.RemoveAll(to)
@@ -391,7 +422,7 @@ func copyAll(from, to string) error {
 			if err != nil {
 				return err
 			}
-			return os.Symlink(target, dst)
+			return copySymlink(target, dst, fi)
 		}
 		if !fi.Mode().IsRegular() {
 			return nil
@@ -498,5 +529,6 @@ func Restore(key string) (Trashed, error) {
 		}
 	}
 	os.RemoveAll(dir)
+	wslRelistNow(t.Items)
 	return t, nil
 }

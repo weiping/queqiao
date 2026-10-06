@@ -15,6 +15,7 @@ import (
 	"github.com/yetone/magpie/internal/access"
 	"github.com/yetone/magpie/internal/budget"
 	"github.com/yetone/magpie/internal/provider"
+	"github.com/yetone/magpie/internal/settings"
 	"github.com/yetone/magpie/internal/usage"
 )
 
@@ -225,4 +226,71 @@ func TestKeyLimitWindowResets(t *testing.T) {
 		t.Fatal("tomorrow's window still spent", refused)
 	}
 	release()
+}
+
+// An unfinished call belongs to the window it started in, including its
+// reservation. A late check or release of it cannot spend the new window.
+func TestKeyLimitReservationsStayInTheirWindow(t *testing.T) {
+	for _, period := range access.Periods {
+		for _, cap := range []struct {
+			name   string
+			tokens int64
+			cost   float64
+		}{{"tokens", 100, 0}, {"cost", 0, 1}} {
+			t.Run(period+"/"+cap.name, func(t *testing.T) {
+				fresh(t)
+				budget.Forget()
+				t.Cleanup(budget.Forget)
+				input, zero := 10_000.0, 0.0 // 100 input tokens reserve $1 with a cost cap.
+				if err := settings.Save(settings.Settings{ModelPrices: map[string]settings.ModelPrice{
+					"test/m": {Input: &input, Output: &zero, CacheRead: &zero, CacheWrite: &zero},
+				}}); err != nil {
+					t.Fatal(err)
+				}
+				lim := &access.Limit{Period: period, Tokens: cap.tokens, Cost: cap.cost}
+				who := access.Identity{KeyID: "key", KeyName: "Key", Limit: lim}
+				at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.FixedZone("UTC+8", 8*3600))
+				_, after := access.Window(period, at)
+				before := after.Add(-time.Second)
+				reserve := func(at time.Time) func() {
+					t.Helper()
+					release, refused := budget.Reserve(who, 400, "test/m", at)
+					if refused != nil {
+						t.Fatal(refused)
+					}
+					t.Cleanup(release)
+					return release
+				}
+				checkHeld := func(at time.Time, n int) {
+					t.Helper()
+					st := budget.Of(access.Key{ID: who.KeyID, Limit: lim}, at)
+					if st.InFlight != n || st.Reserved != int64(n)*100 || st.ReservedCost != float64(n)*cap.cost || st.Tokens != 0 || st.Cost != 0 {
+						t.Errorf("at %s: want %d reservations and no settled usage, got %+v", at, n, st)
+					}
+				}
+				checkRefused := func(at time.Time) {
+					t.Helper()
+					if release, refused := budget.Reserve(who, 4, "test/m", at); refused == nil {
+						release()
+						t.Fatalf("at %s: let another call in while the window's budget was reserved", at)
+					}
+				}
+
+				old := reserve(before)
+				checkRefused(before)
+				checkHeld(after, 0) // status is right even before a new call arrives
+				current := reserve(after)
+				checkHeld(after, 1)
+				// A request timed before the boundary may acquire the lock last.
+				checkRefused(before)
+				budget.Append(usage.Record{Time: before, Provider: "test", Model: "m", Input: 100, Status: 200, CallerKeyID: who.KeyID})
+				old()
+				checkHeld(after, 1)
+				checkRefused(after)
+				current()
+				checkHeld(after, 0)
+				reserve(after)()
+			})
+		}
+	}
 }

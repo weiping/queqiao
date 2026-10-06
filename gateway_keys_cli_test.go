@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -129,5 +130,47 @@ func TestGatewayKeyLimitCLI(t *testing.T) {
 	}
 	if keys, _ = access.List(); keys[0].Limit != nil {
 		t.Fatal("off kept", keys[0].Limit)
+	}
+}
+
+func TestGatewayKeyModelsCLI(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", os.Getenv("HOME"))
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := settings.Save(settings.Settings{LAN: true}); err != nil {
+		t.Fatal(err)
+	}
+	call := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		err := gatewayKeysTo(&out, append([]string{"gateway-key"}, args...))
+		return out.String(), err
+	}
+	if _, err := call("add", "Phone"); err != nil {
+		t.Fatal(err)
+	}
+	keys, _ := access.List()
+	id := keys[0].ID
+	if got, err := call("models", id); err != nil || got != "Phone: every model\n" {
+		t.Fatal(got, err)
+	}
+	if got, err := call("models", id, "openai/gpt-5", "anthropic/*"); err != nil || got != "Phone: only openai/gpt-5, anthropic/*\n" {
+		t.Fatal(got, err)
+	}
+	if keys, _ = access.List(); !slices.Equal(keys[0].Models, []string{"openai/gpt-5", "anthropic/*"}) {
+		t.Fatal("kept", keys[0].Models)
+	}
+	if got, _ := call("list"); !strings.Contains(got, "MODELS") || !strings.Contains(got, "openai/gpt-5,anthropic/*") {
+		t.Fatal(got)
+	}
+	for _, args := range [][]string{{"models"}, {"models", id, "gpt-5"}, {"models", "missing", "a/b"}, {"models", "missing"}} {
+		if _, err := call(args...); err == nil {
+			t.Error("accepted", args)
+		}
+	}
+	if got, err := call("models", id, "all"); err != nil || got != "Phone: every model\n" {
+		t.Fatal(got, err)
+	}
+	if keys, _ = access.List(); keys[0].Models != nil {
+		t.Fatal("all kept", keys[0].Models)
 	}
 }

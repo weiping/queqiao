@@ -48,7 +48,7 @@ func TestTakeBalanceToken(t *testing.T) {
 			if c.serverKeys && !c.incomingKeys {
 				wantKey = server.Key
 			}
-			if got.Key != wantKey || to.Keys != (c.serverKeys || c.incomingKeys) {
+			if got.Key != wantKey || to.Keys != (c.serverKeys || c.incomingKeys) || (to.Keys || (to.ProvidersKeys != nil && *to.ProvidersKeys)) != (c.serverKeys || c.incomingKeys) {
 				t.Fatalf("keys after merge: %+v", to)
 			}
 			if !reflect.DeepEqual(from.Providers, []provider.Provider{incoming}) {

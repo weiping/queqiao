@@ -60,12 +60,20 @@ func (l *Library) sync() *Result {
 		l.syncInstructions(t, b, res)
 		l.syncMCP(t, b, res)
 	}
+	// an edit made in an agent's copy of a skill goes to the library first,
+	// for the others to get rather than be undone (takeEdits)
+	l.takeEdits(all, res)
 	// ~/.agents/skills first: an agent that reads it too gets no second
 	// link to what is there already
 	shared := realDir(sharedSkillsDir())
 	for _, first := range []bool{true, false} {
 		for _, t := range all {
-			if (t.Skills != "" && realDir(t.Skills) == shared) == first {
+			switch {
+			case t.Desktop != nil:
+				if !first {
+					l.syncDesktopSkills(t, res)
+				}
+			case (t.Skills != "" && realDir(t.Skills) == shared) == first:
 				l.syncSkills(t, res, all)
 			}
 		}
@@ -133,6 +141,7 @@ func (l *Library) syncMCP(t *Target, b *backups, res *Result) {
 			res.fail(id, "mcp:"+s.Name, err)
 			continue
 		}
+		s, _ = t.MCP.side(s)
 		old := entries[s.Name]
 		if old != nil {
 			if cur, ok := t.MCP.decode(s.Name, old); ok && cur.same(s) && t.MCP.has(s) && !t.MCP.behind(s, old) {
@@ -168,6 +177,12 @@ type AgentView struct {
 	NoSSE        bool     `json:"noSSE,omitempty"`
 	NoRemote     bool     `json:"noRemote,omitempty"`
 	MCPVia       string   `json:"mcpVia,omitempty"`
+	// How is the way it is given its skills, link or copy, and HowOwn its
+	// own over the library's; MustCopy is one that can only take copies
+	// (in WSL)
+	How      string `json:"how,omitempty"`
+	HowOwn   bool   `json:"howOwn,omitempty"`
+	MustCopy bool   `json:"mustCopy,omitempty"`
 }
 
 // ServerView is a library server, and what each agent it's on made of it.
@@ -188,6 +203,7 @@ type SkillView struct {
 	Source      string            `json:"source,omitempty"`
 	Kind        string            `json:"kind"`             // github, folder, or "" for one kept in the library
 	Origin      string            `json:"origin,omitempty"` // on GitHub, as CC Switch installed it: it can be updated from there
+	Repo        string            `json:"repo,omitempty"`   // the repository it came from, however it came in, for the page to group by
 	Icon        string            `json:"icon,omitempty"`
 	Agents      []string          `json:"agents"`
 	Missing     bool              `json:"missing,omitempty"` // its folder is gone
@@ -196,6 +212,9 @@ type SkillView struct {
 	// Always are the agents that have it whatever the library gives them:
 	// it is kept in ~/.agents/skills, which they read themselves (#595)
 	Always []string `json:"always,omitempty"`
+	// Behind are the agents given it as a copy whose copy differs from it,
+	// till the next sync makes it again
+	Behind []string `json:"behind,omitempty"`
 }
 
 // View is the Library page.
@@ -209,6 +228,8 @@ type View struct {
 	Instructions *InstructionsView `json:"instructions"`
 	Dir          string            `json:"dir"`
 	Backups      string            `json:"backups"`
+	SkillGroups  []SkillGroup      `json:"skillGroups"`
+	CopySkills   bool              `json:"copySkills"` // the library gives skills as copies (#896)
 }
 
 // Read is the whole page: the library, and what's found in the agents.
@@ -224,12 +245,20 @@ func Read(problems []Problem) (*View, error) {
 	if err != nil {
 		return nil, err
 	}
-	v := &View{Agents: []AgentView{}, Servers: []ServerView{}, Skills: []SkillView{}, Instructions: iv, Dir: Dir(), Backups: BackupDir()}
+	v := &View{Agents: []AgentView{}, Servers: []ServerView{}, Skills: []SkillView{}, Instructions: iv, Dir: Dir(), Backups: BackupDir(), CopySkills: l.CopySkills}
 	targets := Targets()
+	behind := l.behind(targets)
 	for _, t := range targets {
 		av := AgentView{ID: t.Agent.ID, Name: t.Agent.Name, Icon: t.Agent.Icon, Instructions: t.Instructions, Skills: t.Skills,
 			SkillsAlso: t.SkillsAlso, Note: t.Note, MCPVia: t.MCPVia, ProjectSkills: ProjectSkillsDir(t.Agent.ID), ProjectMCP: ProjectMCPFile(t.Agent.ID),
 			ProjectNoSSE: ProjectNoSSE(t.Agent.ID)}
+		if t.Skills != "" {
+			_, av.HowOwn = l.SkillHow[t.Agent.ID]
+			av.How, av.MustCopy = l.howOf(t.Agent.ID), t.Copy || t.Desktop != nil
+			if av.MustCopy {
+				av.How = HowCopy
+			}
+		}
 		if t.MCP != nil {
 			av.MCP = t.MCP.Path
 			av.NoSSE = t.MCP.supports(&Server{Transport: "sse"}) != nil
@@ -273,8 +302,9 @@ func Read(problems []Problem) (*View, error) {
 		}
 		v.Servers = append(v.Servers, sv)
 	}
+	tr := &tracer{}
 	for _, s := range l.Skills {
-		sv := SkillView{Name: s.Name, Agents: append([]string{}, s.Agents...), Icon: skillIcon(s), Problems: of("skill:" + s.Name)}
+		sv := SkillView{Name: s.Name, Agents: append([]string{}, s.Agents...), Icon: skillIcon(s), Problems: of("skill:" + s.Name), Repo: tr.repoOf(s)}
 		if s.Source != nil {
 			sv.Source, sv.Kind = s.Source.String(), s.Source.Kind
 		}
@@ -306,6 +336,7 @@ func Read(problems []Problem) (*View, error) {
 			sv.Missing = true
 		}
 		sv.Check = lastCheck(s.Name)
+		sv.Behind = behind[s.Name]
 		v.Skills = append(v.Skills, sv)
 	}
 	v.FoundServers = foundServers(l)
@@ -314,6 +345,7 @@ func Read(problems []Problem) (*View, error) {
 	}
 	v.FoundSkills = foundSkills(l)
 	v.Projects = projectViews(l, problems)
+	v.SkillGroups = l.skillGroups()
 	return v, nil
 }
 
@@ -324,11 +356,6 @@ func SaveServer(old string, s Server) (*Result, error) {
 	if err := s.check(); err != nil {
 		return nil, err
 	}
-	// magpie's sign-in goes with a renamed server, before the agents are
-	// given it under its new name
-	if old != "" && old != s.Name {
-		_ = mcpauth.Rename(old, s.Name)
-	}
 	return change(func(l *Library) error {
 		if s.Name != old && l.server(s.Name) != nil {
 			return fmt.Errorf("the library already has a server called %s", s.Name)
@@ -337,6 +364,13 @@ func SaveServer(old string, s Server) (*Result, error) {
 			i := slices.IndexFunc(l.MCP, func(x *Server) bool { return x.Name == old })
 			if i < 0 {
 				return fmt.Errorf("no server called %s", old)
+			}
+			// magpie's sign-in goes with a renamed server, before the agents
+			// are given it under its new name
+			if old != s.Name {
+				if err := mcpauth.Rename(old, s.Name); err != nil {
+					return err
+				}
 			}
 			l.MCP = slices.Delete(l.MCP, i, i+1)
 			if old != s.Name {

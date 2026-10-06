@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/yetone/magpie/internal/agent"
+	"github.com/yetone/magpie/internal/appdir"
 )
 
 // Target is where one agent keeps each of the three: an empty path is
@@ -32,12 +33,16 @@ type Target struct {
 	// the library's changes, rather than a link: one in a WSL distro,
 	// which can't follow a link to a Windows folder.
 	Copy bool
+	// Desktop are Claude Desktop's skills-plugin folders, one for each
+	// account (desktop_skills.go): each gets a copy of the skills and their
+	// entries in its manifest.json. Skills is the first one's skills.
+	Desktop []string
 }
 
 func home() string { h, _ := os.UserHomeDir(); return h }
 
 func claudeDir() string {
-	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+	if d := appdir.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
 		return d
 	}
 	return filepath.Join(home(), ".claude")
@@ -46,14 +51,14 @@ func claudeDir() string {
 // claudeJSON is where Claude Code keeps its user-wide MCP servers: beside
 // its folder, or in it when CLAUDE_CONFIG_DIR moves it.
 func claudeJSON() string {
-	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+	if d := appdir.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
 		return filepath.Join(d, ".claude.json")
 	}
 	return filepath.Join(home(), ".claude.json")
 }
 
 func codexDir() string {
-	if d := os.Getenv("CODEX_HOME"); d != "" {
+	if d := appdir.Getenv("CODEX_HOME"); d != "" {
 		return d
 	}
 	return filepath.Join(home(), ".codex")
@@ -155,7 +160,7 @@ func targetOf(a *agent.Agent) *Target {
 		t.MCP = &mcpFile{Path: filepath.Join(d, "mcp.json"), Format: fmtCursor}
 		t.Skills = filepath.Join(d, "skills")
 	case "copilot":
-		d := os.Getenv("COPILOT_HOME")
+		d := appdir.Getenv("COPILOT_HOME")
 		if d == "" {
 			d = filepath.Join(h, ".copilot")
 		}
@@ -167,7 +172,7 @@ func targetOf(a *agent.Agent) *Target {
 		// Windows too since Crush 0.14; the crush.json magpie edits there is
 		// %LOCALAPPDATA%\crush's, where Crush keeps its own picks and reads
 		// skills but no CRUSH.md
-		cfg := os.Getenv("XDG_CONFIG_HOME")
+		cfg := appdir.Getenv("XDG_CONFIG_HOME")
 		if cfg == "" {
 			cfg = filepath.Join(h, ".config")
 		}
@@ -200,6 +205,14 @@ func targetOf(a *agent.Agent) *Target {
 		} else {
 			t.Skills = sharedSkillsDir()
 		}
+	case "alma":
+		// Alma reads personal skills from ~/.config/alma/skills, on every
+		// system (its home, not its data folder), and Claude Code's, Codex's
+		// and ~/.agents/skills besides (its skills service, #824); it has
+		// no user-wide instructions file or MCP file of the kind magpie
+		// writes, its prompts being its settings' own
+		t.Skills = filepath.Join(h, ".config", "alma", "skills")
+		t.SkillsAlso = []string{"claude", "codex"}
 	case "cindy":
 		// Cindy keeps its user-wide skills in ~/.agents/skills
 		t.Skills = sharedSkillsDir()
@@ -220,14 +233,18 @@ func targetOf(a *agent.Agent) *Target {
 		t.Skills = filepath.Join(a.Dir, "skills")
 	case "grok":
 		// Grok Build reads [mcp_servers.<name>] from its config.toml, as
-		// `grok mcp add` writes them
+		// `grok mcp add` writes them; its user-wide instructions are
+		// $GROK_HOME/AGENTS.md, loaded before a project's own
 		t.MCP = &mcpFile{Path: a.Path, Format: fmtGrok}
+		t.Instructions = filepath.Join(a.Dir, "AGENTS.md")
 		t.Skills = filepath.Join(a.Dir, "skills")
 	case "droid":
 		// Droid's user-wide servers are ~/.factory/mcp.json's mcpServers,
 		// type stdio, http or sse as Claude Code's (docs.factory.ai/cli/
-		// configuration/mcp)
+		// configuration/mcp); its personal instructions are ~/.factory/
+		// AGENTS.md, which project files override (cli/configuration/agents-md)
 		t.MCP = &mcpFile{Path: filepath.Join(a.Dir, "mcp.json"), Format: fmtClaude}
+		t.Instructions = filepath.Join(a.Dir, "AGENTS.md")
 		t.Skills = filepath.Join(a.Dir, "skills")
 	case "qoder", "qoder-cn":
 		// Qoder's user-wide servers are its settings.json's mcpServers
@@ -238,7 +255,7 @@ func targetOf(a *agent.Agent) *Target {
 		// Cline's CLI reads its MCP servers from settings/
 		// cline_mcp_settings.json beside providers.json, or
 		// $CLINE_MCP_SETTINGS_PATH (@cline/shared's storage)
-		p := os.Getenv("CLINE_MCP_SETTINGS_PATH")
+		p := appdir.Getenv("CLINE_MCP_SETTINGS_PATH")
 		if p == "" {
 			p = filepath.Join(filepath.Dir(a.Path), "cline_mcp_settings.json")
 		}
@@ -256,6 +273,14 @@ func targetOf(a *agent.Agent) *Target {
 		// on for each agent and tool, and fx's mcp.json, which one entry it
 		// refuses makes it read none of, isn't one magpie could try.
 		t.Skills = filepath.Join(a.Dir, "skills")
+	case "atomcode":
+		// AtomCode reads ~/.atomcode/ATOMCODE.md before every conversation
+		// (its ATOMCODE.md, beside AGENTS.md and CLAUDE.md), its MCP servers
+		// from mcp.json in its folder (`atomcode mcp add --global`, the same
+		// mcpServers as omp's) and its skills from skills/ there
+		t.Instructions = filepath.Join(a.Dir, "ATOMCODE.md")
+		t.MCP = &mcpFile{Path: filepath.Join(a.Dir, "mcp.json"), Format: fmtOmp}
+		t.Skills = filepath.Join(a.Dir, "skills")
 	case "claude-desktop":
 		// Claude Desktop reads only commands from its file: a remote server
 		// is added in its own Connectors settings. In its 3p mode (magpie's
@@ -265,6 +290,10 @@ func targetOf(a *agent.Agent) *Target {
 		t.MCP = &mcpFile{Path: filepath.Join(filepath.Dir(a.Path), "claude_desktop_config.json"), Format: fmtDesktop}
 		if p := agent.DesktopConfig3p(h); p != t.MCP.Path && isDir(filepath.Dir(p)) {
 			t.MCP.Also = []string{p}
+		}
+		// Cowork's skills, in every account's skills-plugin (#638)
+		if t.Desktop = desktopSkillRoots(a.Dir); len(t.Desktop) > 0 {
+			t.Skills = filepath.Join(t.Desktop[0], "skills")
 		}
 	default:
 		return nil
@@ -289,13 +318,13 @@ func wslTargetOf(a *agent.Agent) *Target {
 	case "claude":
 		d := filepath.Join(h, ".claude")
 		t.Instructions = filepath.Join(d, "CLAUDE.md")
-		t.MCP = &mcpFile{Path: filepath.Join(h, ".claude.json"), Format: fmtClaude, WSL: true}
+		t.MCP = &mcpFile{Path: filepath.Join(h, ".claude.json"), Format: fmtClaude, WSL: true, Distro: a.WSL, Home: linuxHome(h)}
 		t.Skills = filepath.Join(d, "skills")
 	case "codex":
 		d := filepath.Join(h, ".codex")
 		t.Instructions = filepath.Join(d, "AGENTS.md")
 		t.Override = filepath.Join(d, "AGENTS.override.md")
-		t.MCP = &mcpFile{Path: filepath.Join(d, "config.toml"), Format: fmtCodex, WSL: true}
+		t.MCP = &mcpFile{Path: filepath.Join(d, "config.toml"), Format: fmtCodex, WSL: true, Distro: a.WSL, Home: linuxHome(h)}
 		t.Skills = filepath.Join(d, "skills")
 	case "pi":
 		// its MCP servers go where the Pi installed there reads them,
@@ -306,7 +335,7 @@ func wslTargetOf(a *agent.Agent) *Target {
 	case "omo":
 		d := filepath.Join(h, ".omo", "agent")
 		t.Instructions = filepath.Join(d, "AGENTS.md")
-		t.MCP = &mcpFile{Path: filepath.Join(d, "mcp.json"), Format: fmtPiNative, WSL: true}
+		t.MCP = &mcpFile{Path: filepath.Join(d, "mcp.json"), Format: fmtPiNative, WSL: true, Distro: a.WSL, Home: linuxHome(h)}
 		t.Skills = filepath.Join(d, "skills")
 	default:
 		return nil
@@ -364,7 +393,7 @@ func Targets() []*Target {
 
 // readsShared are the agents that read ~/.agents/skills as well as their
 // own folder (each one's docs or source).
-var readsShared = []string{"codex", "gemini", "opencode", "crush", "dsh", "commandcode", "devin", "droid", "cline", "grok", "fx"}
+var readsShared = []string{"codex", "gemini", "opencode", "crush", "dsh", "commandcode", "devin", "droid", "cline", "grok", "fx", "alma"}
 
 // readsWith adds to each agent's SkillsAlso the agents whose folder it
 // reads skills from too: one that is the very same folder (Kimi Code's,

@@ -4,7 +4,8 @@
 // whose chip is greyed out (an SSE server for an agent without SSE), not one
 // hidden on the Agents page, which keeps what it has — in a single write;
 // an agent that couldn't be given it is named in the toast with how many
-// have it; a second click takes it from all. The click moves nothing. In English and Chinese. No
+// have it; a second click takes it from all. A greyed-out chip's click says
+// why it is grey and changes nothing. The click moves nothing. In English and Chinese. No
 // backend: the API is faked here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -34,8 +35,8 @@ const base = () => ({
   skills: [{ name: "pdf", kind: "folder", description: "d", source: `${HOME}/skills/pdf`, agents: ["codex"] }],
 });
 
-function server(lang, posts, fail) {
-  let lib = base();
+function server(lang, posts, fail, fixture = base()) {
+  let lib = fixture;
   return async (route) => {
     const req = route.request(), url = new URL(req.url());
     if (url.pathname === "/boot.js") return route.fulfill({ contentType: "text/javascript", body: `window.bootPrefs = {lang:"${lang}",theme:"light",web:true};` });
@@ -70,33 +71,41 @@ const words = {
     all: "All", on: "files is on for all 4 agents", off: "files is off for every agent",
     partial: "events is on for 1 of 2 agents — ZCode: config.json: permission denied",
     skill: "pdf is on for all 4 agents",
+    why: {
+      "claude-desktop": "Claude Desktop runs only a command from its settings — add a remote server in its Connectors instead",
+      codex: "Codex can't reach a server over SSE — only a command or streamable HTTP",
+    },
   },
   zh: {
     all: "全部", on: "已为全部 4 个 Agent 启用 files", off: "已从所有 Agent 中移除 files",
     partial: "events 已在 2 个 Agent 中的 1 个启用 — ZCode：config.json: permission denied",
     skill: "已为全部 4 个 Agent 启用 pdf",
+    why: {
+      "claude-desktop": "Claude Desktop 的配置文件只支持命令启动的服务器 — 远程服务器请在它的「连接器」里添加",
+      codex: "Codex 不支持 SSE 服务器 — 只支持命令或 Streamable HTTP",
+    },
   },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
   test(engine + ": a server's or skill's All chip", async (t) => {
     assert(["chromium", "webkit"].includes(engine), "BROWSER must be chromium or webkit");
-    const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
+    const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || "chromium" }));
     const errors = [];
     t.after(async () => {
       if (errors.length) console.log(errors);
       await browser.close();
     });
-    const open = async (lang, tab, posts, fail) => {
-      const ctx = await browser.newContext({ viewport: { width: 980, height: 800 } }); // the MCP tab fits, its "In projects" too
+    const open = async (lang, tab, posts, fail, { width = 980, fixture } = {}) => {
+      const ctx = await browser.newContext({ viewport: { width, height: 800 } }); // the MCP tab fits, its "In projects" too
       await ctx.addInitScript((tab) => { try { localStorage.setItem("magpie.libTab", tab); } catch {} }, tab);
       const page = await ctx.newPage();
       page.setDefaultTimeout(5000);
       page.on("pageerror", (e) => errors.push(e.message));
-      await page.route("http://magpie.test/**", server(lang, posts, fail));
+      await page.route("http://magpie.test/**", server(lang, posts, fail, fixture));
       await page.goto("http://magpie.test/");
       await page.locator('button[data-view="library"]').click();
-      await page.locator("#view-library .lib-row").first().waitFor();
+      await page.locator("#view-library .lib-body:not(.lib-skel) .lib-row").first().waitFor();
       return page;
     };
     const row = (page, name) => page.locator("#view-library .lib-row").filter({ has: page.locator(".name", { hasText: new RegExp("^" + name + "$") }) });
@@ -112,6 +121,41 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
     const lit = (r) => r.locator(".lib-ag[data-agent]").evaluateAll((cs) => cs.filter((c) => c.getAttribute("aria-pressed") === "true").map((c) => c.dataset.agent));
 
     for (const lang of ["en", "zh"]) {
+      for (const width of [560, 980]) {
+        await t.test(`${lang}: All stays under a stationary pointer with 14 agents at ${width}px`, async () => {
+          const fixture = base(), posts = [];
+          fixture.agents = Array.from({ length: 14 }, (_, i) => agent("a" + i, "Agent " + i, "codex-color"));
+          fixture.servers = [{ name: "files", transport: "stdio", command: "codex", args: ["mcp-server"], agents: [] }];
+          const page = await open(lang, "mcp", posts, null, { width, fixture });
+          await page.mouse.move(0, 0);
+          const r = row(page, "files"), all = r.locator(".lib-ag.all");
+          await r.evaluate(async (r) => {
+            await Promise.all(r.parentElement.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})));
+          });
+          const before = await all.boundingBox();
+          const point = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
+          await page.mouse.move(point.x, point.y);
+          const samples = await all.evaluate(async (c, point) => {
+            const samples = [];
+            for (let i = 0; i < 60; i++) {
+              await new Promise(requestAnimationFrame);
+              const a = c.getBoundingClientRect(), row = c.closest(".lib-row").getBoundingClientRect();
+              samples.push({ x: a.x, y: a.y, height: row.height, hit: document.elementFromPoint(point.x, point.y)?.closest("button") === c });
+            }
+            return samples;
+          }, point);
+          assert.ok(samples.every((s) => s.hit), "All moved out from under the stationary pointer");
+          assert.ok(samples.every((s) => Math.abs(s.x - before.x) <= 1 && Math.abs(s.y - before.y) <= 1), "All moved as the chips spread: " + JSON.stringify({ before, samples: samples.filter((s) => Math.abs(s.x - before.x) > 1 || Math.abs(s.y - before.y) > 1).slice(0, 3) }));
+          assert.ok(Math.max(...samples.map((s) => s.height)) - Math.min(...samples.map((s) => s.height)) <= 1, "the row kept wrapping and unwrapping");
+          assert.equal(posts.length, 0, "hover must not change agent assignments");
+          await page.mouse.click(point.x, point.y);
+          await page.waitForFunction(() => document.querySelector(".lib-ag.all").getAttribute("aria-pressed") === "true");
+          assert.equal(posts.length, 1);
+          assert.equal(posts[0].agents.length, 14);
+          await page.close();
+        });
+      }
+
       await t.test(lang + ": All gives a server to every agent that can take it, and takes it from all", async () => {
         const posts = [];
         const page = await open(lang, "mcp", posts);
@@ -147,7 +191,37 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await toast(page, words[lang].partial);
         assert.deepEqual([...posts[0].agents].sort(), ["claude", "zcode"]);
         assert.equal(await r.locator('.lib-ag[data-agent="zcode"]').evaluate((c) => c.classList.contains("warn")), true);
-        assert.equal(await r.locator('.lib-ag[data-agent="codex"]').evaluate((c) => c.disabled && c.getAttribute("aria-pressed") === "false"), true);
+        assert.equal(await r.locator('.lib-ag[data-agent="codex"]').evaluate((c) => c.getAttribute("aria-disabled") === "true" && c.getAttribute("aria-pressed") === "false"), true);
+        await page.close();
+      });
+
+      // 蓝猫 on Discord: Claude Desktop's chip for a remote server was grey,
+      // and clicking it did nothing — no tooltip on a disabled button in
+      // WebKit, nothing on a click. Now the click says why, and gives
+      // nothing to the agent.
+      await t.test(lang + ": a greyed-out chip's click says why, and changes nothing", async () => {
+        const posts = [], fixture = base();
+        fixture.agents.push(agent("claude-desktop", "Claude Desktop", "claude-color", { noRemote: true }));
+        fixture.servers.push({ name: "docs", transport: "http", url: "https://example.com/mcp", agents: [] });
+        const page = await open(lang, "mcp", posts, null, { fixture });
+        for (const [name, id] of [["docs", "claude-desktop"], ["events", "codex"]]) {
+          const c = row(page, name).locator(`.lib-ag[data-agent="${id}"]`);
+          assert.equal(await c.getAttribute("aria-disabled"), "true");
+          assert.equal(await c.evaluate((c) => c.disabled), false);
+          // a person's click reaches it; Playwright's own waits for
+          // aria-disabled to go, so it is forced
+          const top = await page.evaluate(() => document.querySelector("#view-library").scrollTop);
+          await c.click({ force: true });
+          assert.equal(await page.evaluate(() => document.querySelector("#view-library").scrollTop), top);
+          await toast(page, words[lang].why[id]);
+          assert.equal(await c.getAttribute("aria-pressed"), "false");
+        }
+        assert.deepEqual(posts, []);
+        // All passes over it: the HTTP server goes to the rest
+        await click(page, row(page, "docs").locator(".lib-ag.all"));
+        await page.waitForFunction(() => document.querySelector("#status").textContent !== "");
+        assert.equal(posts.length, 1);
+        assert.ok(!posts[0].agents.includes("claude-desktop"), JSON.stringify(posts[0].agents));
         await page.close();
       });
 
