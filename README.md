@@ -62,6 +62,22 @@ make cli                                # 构建 ./queqiao（纯终端版，不�
 queqiao router init --preset cn       # 生成 router.json 和四个路由组（还有 frontier/anthropic 预设）
 queqiao serve                         # 启动网关，默认 127.0.0.1:3425
 queqiao router status                 # 检查配置、映射和最近的决策
+queqiao router check                  # 只查配置：成员有没有厂商服务、上下文窗口够不够
+queqiao router check --yes            # 再对每个成员发真实的带工具请求（会计费）
+```
+
+预设里有模型没有任何已配置的厂商提供时，`router init` 不会把它写进组里；某一档一个都解析不了就先借用最近一档的成员（performance 借 balanced），并打印 `queqiao group set qq-perf models=…` 提示你换成自己的模型。
+
+把 Agent 指到网关（写各 Agent 自己的配置文件；`haiku`/`sonnet`/`opus`/`fable` 是 Claude Code 的四个别名，`queqiao claude group/queqiao` 会把 `fable` 也指到路由组，所以单独再设一次）：
+
+```sh
+queqiao claude group/queqiao
+queqiao claude haiku group/qq-fast
+queqiao claude sonnet group/qq-balanced
+queqiao claude opus group/qq-perf
+queqiao claude fable group/qq-perf
+queqiao codex group/queqiao
+queqiao pi group/qq-balanced
 ```
 
 ### 从 magpie 切换
@@ -82,11 +98,11 @@ queqiao serve
 ```sh
 # Claude Code（需要 ≥ v2.1.287，见 clients/claude-code/README.md）
 claude plugin marketplace add weiping/queqiao
-claude plugin install queqiao-router@queqiao
+claude plugin install queqiao-router@queqiao --config gateway_url=http://127.0.0.1:3425
 
 # Codex（需要 queqiao 在 PATH 里，装完要在 /hooks 里信任 hook，见 clients/codex/README.md）
 codex plugin marketplace add weiping/queqiao
-codex plugin install queqiao-router-codex
+codex plugin add queqiao-router-codex@queqiao
 
 # Pi：本地包，在 ~/.pi/agent/settings.json 的 packages 里加上 clients/pi 的路径
 ```
@@ -104,7 +120,7 @@ queqiao web
 # ● queqiao web on http://127.0.0.1:3430/?k=<本次的 key>
 ```
 
-`web` 就是 app 那套界面跑在浏览器里：Providers、订阅登录、路由组、用量、Settings 全能改，**自带网关**（不需要先 `serve`；已有网关在跑则直接用）。每次启动生成新 key，链接里直接带上；要固定 key（比如每天打开不想重新拿链接）设 `MAGPIE_WEB_KEY`（≥16 位，可用字母/数字/`-`、`.`、`_`、`~`，登入 400 天）：
+`web` 就是 app 那套界面跑在浏览器里：Providers、订阅登录、路由组、用量、Settings 全能改，**自带网关**（不需要先 `serve`；已有网关在跑则直接用）。它自己服务的网关和 `serve` 一样带路由层（`/v1/queqiao/*`、按档选组）。路由页的实时请求只在网关由这个界面服务时可见；网关由 `queqiao serve` 服务时，路由页只显示一句「看不到」的提示——想在页面上看路由，就用 `queqiao web` 代替 `queqiao serve` 常驻。每次启动生成新 key，链接里直接带上；要固定 key（比如每天打开不想重新拿链接）设 `MAGPIE_WEB_KEY`（≥16 位，可用字母/数字/`-`、`.`、`_`、`~`，登入 400 天）：
 
 ```sh
 MAGPIE_WEB_KEY=固定的一串字符 queqiao web --addr 0.0.0.0:3430 --lan   # --lan：局域网可访问
@@ -113,7 +129,7 @@ queqiao web --gateway        # 精简模式：只留网关页，无 Agents/Sessi
 ```
 
 ```sh
-queqiao tui                  # 同一套界面的终端版；没有别的网关在跑时，开着它就顺便把网关服务了
+queqiao tui                  # 同一套界面的终端版；没有别的网关在跑时，开着它就顺便把（带路由的）网关服务了
 ```
 
 > magpie 的桌面 App（Magpie.app）改不了 queqiao 的配置——它只读写 `~/.config/magpie`，两个目录互不相干。

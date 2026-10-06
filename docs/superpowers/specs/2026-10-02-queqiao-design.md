@@ -275,7 +275,7 @@ queqiao group add queqiao        models=group/qq-balanced,group/qq-perf,group/qq
 
 ### 4.6 选型的冒烟测试与例行复审
 
-- `queqiao router check`：对三档主成员和失败转移成员逐个检查第 4.2 节第 4 条的门槛。分别用 Anthropic Messages 和 OpenAI Responses 协议发 20 次带工具的请求，并检查窗口大小是否满足要求。任何一项不过，返回非零退出码。
+- `queqiao router check`：对三档主成员和失败转移成员逐个检查第 4.2 节第 4 条的门槛。默认只做不发请求的检查（成员有没有 Provider 服务、窗口大小是否满足要求）；加 `--yes` 才分别用 Anthropic Messages 和 OpenAI Responses 协议发 20 次带工具的请求，这些请求会计费。任何一项不过，返回非零退出码。（2026-10-06 修订：写明 `--yes`，与实现一致。）
 - 每季度或某一档出现新的帕累托点时复审：新模型先作为同档失败转移成员加入，跑一轮 A/B（第 9 节），数据不劣于现任主成员再提升为主成员。
 
 ---
