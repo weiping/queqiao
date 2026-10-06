@@ -80,6 +80,7 @@ jobs:
   # carry the one-line Gatekeeper pass. Like upstream magpie's app, minus
   # its separate releases repo: the secrets live here.
   app:
+    needs: cli   # the cli job creates the release; upload into it after
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
