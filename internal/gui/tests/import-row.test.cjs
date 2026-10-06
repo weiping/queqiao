@@ -14,7 +14,7 @@ const assets = path.resolve(__dirname, "../assets");
 // connected when Cindy has queqiao, so neither is folded under Show more
 const crush = (wired) => ({
   id: "crush", name: "Crush", path: "/test/crush.json", icon: "crush", wired,
-  fields: [{ key: "model", label: "model", value: wired ? "queqiao/deepseek-flash" : "", options: [{ value: "queqiao/deepseek-flash", label: "DeepSeek Flash", ref: "deepseek/deepseek-flash" }] }],
+  fields: [{ key: "model", label: "model", value: wired ? "magpie/deepseek-flash" : "", options: [{ value: "magpie/deepseek-flash", label: "DeepSeek Flash", ref: "deepseek/deepseek-flash" }] }],
 });
 const cindy = (added) => ({ id: "cindy", name: "Cindy", path: "", icon: "cindy", import: "cindy://import?x=1", added, fields: [] });
 

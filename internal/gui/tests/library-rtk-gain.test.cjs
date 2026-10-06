@@ -17,7 +17,7 @@ const HOME = "C:/Users/aimer";
 const WHY = "rtk gain: Error: Failed to initialize tracking database";
 const agent = (id, name) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json` });
 const lib = () => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [agent("codex", "Codex")],
   instructions: { agents: [], sets: [] }, foundServers: [], projects: [], foundSkills: [], skills: [], servers: [],
 });

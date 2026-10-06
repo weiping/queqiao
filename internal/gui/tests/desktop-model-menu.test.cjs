@@ -40,7 +40,7 @@ function fixture(lang) {
     agents: [{
       id: "claude-desktop", name: "Claude Desktop", path: "/test/claude_desktop_config.json", icon: "claude-color", wired: true,
       fields: [
-        { key: "provider", label: "provider", value: "queqiao", options: [{ value: "queqiao", label: "queqiao", icon: "queqiao" }] },
+        { key: "provider", label: "provider", value: "magpie", options: [{ value: "magpie", label: "magpie", icon: "magpie" }] },
         ...tiers.map((tier) => ({ key: tier, label: tier, value: "", options })),
       ],
       models: count(),

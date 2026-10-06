@@ -69,7 +69,7 @@ function fixture(lang, theme, posts, requests) {
       return json(providers);
     }
     if (url.pathname === "/api/usage/quotas") return json([]);
-    if (url.pathname === "/api/usage") return json({ ...totals(rows), callerKeys: callerKeys(), agents: [], models: [], series: [], bucket: "day", path: "~/.config/queqiao/usage.jsonl" });
+    if (url.pathname === "/api/usage") return json({ ...totals(rows), callerKeys: callerKeys(), agents: [], models: [], series: [], bucket: "day", path: "~/.config/magpie/usage.jsonl" });
     if (url.pathname === "/api/usage/requests") { requests.push(url.searchParams); return json(ledger(url.searchParams)); }
     if (url.pathname === "/api/usage/requests/export") {
       requests.push(Object.assign(url.searchParams, { method: req.method() }));

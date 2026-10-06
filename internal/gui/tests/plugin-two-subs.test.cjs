@@ -14,7 +14,7 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 
-const QODER = "@queqiao-community/opencode-qoder-auth", ZED = "@queqiao-community/opencode-zed-auth";
+const QODER = "@magpie-community/opencode-qoder-auth", ZED = "@magpie-community/opencode-zed-auth";
 const listings = [
   { package: QODER, name: "Qoder", icon: "qoder", providers: ["qoder", "qoder-cn"], community: true, summary: { en: "Qoder.", zh: "Qoder。" }, npm: { version: "0.2.0", weekly: 10 } },
   { package: ZED, name: "Zed", icon: "zed", providers: ["zed"], community: true, summary: { en: "Zed.", zh: "Zed。" }, npm: { version: "0.1.0", weekly: 10 } },

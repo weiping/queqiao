@@ -39,7 +39,7 @@ function fixture(lang) {
     agents: [{
       id: "cursor-local", name: "Cursor Private Inference", path: "", icon: "cursor", launch: LAUNCH, wired: true,
       fields: [
-        { key: "provider", label: "provider", value: "queqiao", options: [{ value: "queqiao", label: "queqiao", icon: "queqiao" }] },
+        { key: "provider", label: "provider", value: "magpie", options: [{ value: "magpie", label: "magpie", icon: "magpie" }] },
       ],
       models: count(),
     }],

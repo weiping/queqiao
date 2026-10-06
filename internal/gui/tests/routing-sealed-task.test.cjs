@@ -86,7 +86,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const sealed = lang === "zh" ? /任务已加密.*只能使用 ChatGPT/ : /task is encrypted.*Only ChatGPT/;
       const excluded = lang === "zh" ? /其他供应商（如 Claude）不参与选择/ : /other providers \(such as Claude\) are excluded/;
       const parent = lang === "zh" ? /回答了主代理/ : /answered the parent agent/;
-      const selected = lang === "zh" ? /由 queqiao 在此路由组内选择模型/ : /queqiao selects its model/;
+      const selected = lang === "zh" ? /由 magpie 在此路由组内选择模型/ : /magpie selects its model/;
       const allowance = lang === "zh" ? /剩余额度 ÷ 距重置小时数/ : /remaining allowance per hour/;
 
       const story = () => page.locator(".rt-steps").textContent();
@@ -113,12 +113,12 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.doesNotMatch(await story(), lang === "zh" ? /周剩余额度/ : /its week left/);
 
       await page.locator(".rt-req").nth(3).click();
-      await page.waitForFunction(() => !document.querySelector(".rt-steps li.kind").textContent.includes("queqiao"));
+      await page.waitForFunction(() => !document.querySelector(".rt-steps li.kind").textContent.includes("magpie"));
       assert.doesNotMatch(await story(), selected);
       assert.doesNotMatch(await story(), sealed);
 
       await page.locator(".rt-req").nth(4).click();
-      await page.waitForFunction(() => document.querySelector(".rt-steps li.kind").textContent.includes("queqiao"));
+      await page.waitForFunction(() => document.querySelector(".rt-steps li.kind").textContent.includes("magpie"));
       assert.doesNotMatch(await story(), sealed);
       assert.doesNotMatch(await story(), parent);
       await page.locator(".rt-req").nth(5).click();

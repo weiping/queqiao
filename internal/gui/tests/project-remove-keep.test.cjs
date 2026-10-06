@@ -17,7 +17,7 @@ const HOME = "/Users/emo";
 const APP = HOME + "/code/app", BARE = HOME + "/code/bare";
 const agent = (id, name, more = {}) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json`, ...more });
 const lib = (projects) => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [
     agent("claude", "Claude Code", { projectSkills: ".claude/skills", projectMCP: ".mcp.json" }),
     agent("pi", "Pi", { projectSkills: ".agents/skills", projectMCP: ".pi/mcp.json", projectNoSSE: true }),

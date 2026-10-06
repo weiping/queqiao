@@ -54,7 +54,7 @@ function serve(lang) {
     if (url.pathname === "/api/usage/requests") return json({ period: url.searchParams.get("period"), rows: ROWS, offset: 0, total: 2, calls: 2, errors: 0, input: 600, output: 80, cache_read: 0, cache_write: 0, reasoning: 0, cost: 0, unpriced: 2, agents: [{ id: "codex", name: "Codex", icon: "codex-color" }] });
     if (url.pathname === "/api/usage/requests/content") return json({ found: false, why: "read" });
     if (url.pathname === "/api/usage/quotas") return json([]);
-    if (url.pathname === "/api/usage") return json({ calls: 2, errors: 0, input: 600, output: 80, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 2, cost: 0, bucket: "day", series: [], agents: [], models: [], path: "~/.config/queqiao/usage.jsonl" });
+    if (url.pathname === "/api/usage") return json({ calls: 2, errors: 0, input: 600, output: 80, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 2, cost: 0, bucket: "day", series: [], agents: [], models: [], path: "~/.config/magpie/usage.jsonl" });
     if (url.pathname === "/api/sessions") return json({ sessions: [], dirs: [] });
     if (url.pathname === "/api/sessions/stats") return json({ from: "", to: "", days: [], agents: {} });
     if (url.pathname.startsWith("/api/")) return json({});

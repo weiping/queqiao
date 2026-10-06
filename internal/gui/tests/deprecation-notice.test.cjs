@@ -15,7 +15,7 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const subs = [["devin", "Devin"], ["workbuddy-ai", "WorkBuddy AI"]];
-const pkg = (id) => `@queqiao-community/opencode-${id}-auth`;
+const pkg = (id) => `@magpie-community/opencode-${id}-auth`;
 
 function serve(lang, theme) {
   const providers = subs.map(([id, name]) => ({

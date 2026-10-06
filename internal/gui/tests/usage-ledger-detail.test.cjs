@@ -49,7 +49,7 @@ function server(lang, refreshed) {
     if (url.pathname === "/api/state") return json({ agents: [], profiles: [], settings: { lang, theme: "light" }, fx: { rate: 7.2, at: new Date().toISOString() } });
     if (url.pathname === "/api/usage/requests") { refreshed.n++; return json(page(url.searchParams)); }
     if (url.pathname === "/api/usage/quotas") return json([]);
-    if (url.pathname === "/api/usage") return json({ calls: 4, errors: 2, input: 1300, output: 240, cache_read: 4000, cache_write: 500, reasoning: 0, unpriced: 0, cost: 0.03, bucket: "day", series: [], agents: [], models: [], path: "~/.config/queqiao/usage.jsonl" });
+    if (url.pathname === "/api/usage") return json({ calls: 4, errors: 2, input: 1300, output: 240, cache_read: 4000, cache_write: 500, reasoning: 0, unpriced: 0, cost: 0.03, bucket: "day", series: [], agents: [], models: [], path: "~/.config/magpie/usage.jsonl" });
     if (url.pathname === "/api/sessions") return json({ sessions: [], dirs: [] });
     if (url.pathname === "/api/sessions/stats") return json({ from: "", to: "", days: [], agents: {} });
     if (url.pathname === "/api/groups") return json({ groups: [], models: [] });

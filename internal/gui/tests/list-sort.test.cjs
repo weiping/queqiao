@@ -23,7 +23,7 @@ const skills = [
   { name: "kiwi", kind: "folder", source: `${HOME}/skills/kiwi`, description: "d", agents: ["claude"] },
 ];
 const lib = () => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [agent("claude", "Claude Code", "claudecode-color")],
   instructions: { agents: [], sets: [] }, servers: structuredClone(servers), foundServers: [], projects: [], foundSkills: [], skills: structuredClone(skills), problems: [],
 });

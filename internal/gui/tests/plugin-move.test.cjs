@@ -17,7 +17,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const pkg = "@queqiao-community/opencode-zed-auth";
+const pkg = "@magpie-community/opencode-zed-auth";
 
 function serve(lang, posts) {
   let move = { package: pkg, state: "" };

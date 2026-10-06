@@ -13,10 +13,10 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const HOME = "/Users/loosheng";
-const LIB = `${HOME}/.config/queqiao/library`;
+const LIB = `${HOME}/.config/magpie/library`;
 const agent = (id, name, icon, more = {}) => ({ id, name, icon, skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json`, ...more });
 const base = () => ({
-  dir: LIB, backups: `${HOME}/.config/queqiao/backups`, home: HOME,
+  dir: LIB, backups: `${HOME}/.config/magpie/backups`, home: HOME,
   agents: [
     agent("claude", "Claude Code", "claudecode-color"),
     agent("codex", "Codex", "codex-color"),

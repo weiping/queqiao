@@ -16,7 +16,7 @@ const cursor = (listError) => ({
   models: [{ id: "auto", name: "Auto", on: true }], agents: [], fallback: [], headers: {}, chosen: [],
   key: { set: false, masked: "" }, keyList: [], ready: true, exposed: 1, fetched: new Date().toISOString(),
   account: { agent: "cursor", agentName: "Cursor", agentIcon: "cursor", user: "me@example.com", builtin: "cursor" },
-  move: { package: "@queqiao-community/opencode-cursor-auth", state: "plugin" },
+  move: { package: "@magpie-community/opencode-cursor-auth", state: "plugin" },
   ...(listError ? { listError } : {}),
 });
 

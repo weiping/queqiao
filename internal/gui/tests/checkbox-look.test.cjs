@@ -47,7 +47,7 @@ function serve(lang, calls, theme) {
           { agent: "codex", count: store.codex.length, deletable: true, name: "Codex", icon: "codex" },
           { agent: "opencode", count: store.opencode.length, deletable: false, name: "OpenCode", icon: "opencode" },
         ],
-        agent, sessions: store[agent], terminal: false, trash: store.trash, trashDir: "~/Library/Application Support/queqiao/trash/sessions",
+        agent, sessions: store[agent], terminal: false, trash: store.trash, trashDir: "~/Library/Application Support/magpie/trash/sessions",
       });
     }
     if (url.pathname === "/api/sessions/delete") {

@@ -22,7 +22,7 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const own = (value, note, alias) => ({ value, note, icon: "claude-color", group: "Claude Code", direct: "Anthropic", ...(alias ? { alias } : {}) });
-const via = (value, label, alias) => ({ value, label, note: "me@example.com · via queqiao", icon: "claudecode-color", group: "Claude Code",
+const via = (value, label, alias) => ({ value, label, note: "me@example.com · via magpie", icon: "claudecode-color", group: "Claude Code",
   ref: value.replace("[1m]", ""), same: true, ...(alias ? { alias } : {}) });
 // in the backend's order: Claude Code's own, the providers the user added,
 // then the signed-in accounts (provider.All)
@@ -32,7 +32,7 @@ const options = [
   own("claude-opus-4-5-20251101", "Claude Opus 4.5", "claude-opus-4-5"),
   own("claude-sonnet-4-5", "Claude Sonnet 4.5 (latest)"),
   own("claude-sonnet-4-5-20250929", "Claude Sonnet 4.5", "claude-sonnet-4-5"),
-  { value: "deepseek/deepseek-v4", label: "DeepSeek V4", note: "DeepSeek · via queqiao", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/deepseek-v4" },
+  { value: "deepseek/deepseek-v4", label: "DeepSeek V4", note: "DeepSeek · via magpie", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/deepseek-v4" },
   via("claude/claude-opus-5-5[1m]", "Claude Opus 5.5"),
   via("claude/claude-opus-4-5", "Claude Opus 4.5 (latest)"),
   via("claude/claude-opus-4-5-20251101", "Claude Opus 4.5", "claude/claude-opus-4-5"),
@@ -69,7 +69,7 @@ function server(lang, value, sets) {
 
 const row = '.row.agent[data-id="claude"]';
 const words = {
-  en: { two: "2 models via queqiao", one: "1 model via queqiao", whose: "me@example.com · the account Claude Code is signed in to" },
+  en: { two: "2 models via magpie", one: "1 model via magpie", whose: "me@example.com · the account Claude Code is signed in to" },
   zh: { two: "2 个模型经 queqiao", one: "1 个模型经 queqiao", whose: "me@example.com · 即 Claude Code 自己登录的账号" },
 };
 
@@ -150,8 +150,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         list = await rows(page);
         // after Default and, connected, the way back
         assert.deepEqual(list[2], { v: "Claude Opus 5.5", n: "me@example.com", cur: true, fold: false }, JSON.stringify(list));
-        // "via queqiao" is said once, as its tag, beside Claude Code's own marked direct (#726)
-        assert.equal(await page.locator("#list li.cur .badge.path.via").textContent(), lang === "en" ? "via queqiao" : "经 queqiao");
+        // "via magpie" is said once, as its tag, beside Claude Code's own marked direct (#726)
+        assert.equal(await page.locator("#list li.cur .badge.path.via").textContent(), lang === "en" ? "via magpie" : "经 magpie");
         assert.equal(await page.locator("#list li:not(.cur)", { hasText: "claude-opus-5-5" }).first().locator(".badge.path.direct").count(), 1);
         assert.equal(list.filter((r) => r.fold).map((r) => r.v).join(), w.one);
         await page.context().close();

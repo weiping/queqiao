@@ -20,7 +20,7 @@ function fixture(lang) {
   const state = () => ({
     agents: [{
       id: "claude@wsl:Ubuntu", name: "Claude Code · WSL Ubuntu", path: "/test/settings.json", icon: "claude-color", wired: true,
-      fields: [{ key: "model", label: "model", value: "relay/m1", options: list.map((m) => ({ value: m.id, label: m.name, ref: m.id, group: "Relay", note: "Relay · via queqiao" })) }],
+      fields: [{ key: "model", label: "model", value: "relay/m1", options: list.map((m) => ({ value: m.id, label: m.name, ref: m.id, group: "Relay", note: "Relay · via magpie" })) }],
       models: count(),
     }],
     profiles: [], settings: { lang, theme: "light" },

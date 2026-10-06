@@ -26,15 +26,15 @@ const work = {
   library: { servers: 1, skills: 1, instructions: true },
   agents: [
     { id: "claude", name: "Claude Code", fields: [
-      { key: "model", label: "model", value: "queqiao/a/main" },
+      { key: "model", label: "model", value: "magpie/a/main" },
       { key: "opus", label: "opus", value: "", follows: "model" },
-      { key: "sonnet", label: "sonnet", value: "queqiao/a/s" },
+      { key: "sonnet", label: "sonnet", value: "magpie/a/s" },
       { key: "haiku", label: "haiku", value: "", follows: "model" },
       { key: "fable", label: "fable", value: "", follows: "model" },
       { key: "subagent", label: "subagents", value: "" },
     ], servers: ["github"], skills: ["review"] },
     { id: "codex", name: "Codex", fields: [
-      { key: "model", label: "model", value: "queqiao/openai/gpt-5" },
+      { key: "model", label: "model", value: "magpie/openai/gpt-5" },
       { key: "effort", label: "effort", value: "high" },
       { key: "token", label: "token", value: "", hidden: true },
     ], instructions: true },
@@ -66,8 +66,8 @@ function server(lang, calls, count) {
 }
 
 const words = {
-  en: { model: "model", effort: "effort", high: "high", def: "agent default", follows: "follows the main model (queqiao/a/main)", subagents: "subagents", servers: "MCP servers", skills: "Skills", instructions: "Instructions", on: "on", apply: "Apply" },
-  zh: { model: "模型", effort: "推理强度", high: "高", def: "Agent 默认值", follows: "跟随主模型（queqiao/a/main）", subagents: "子 agent", servers: "MCP 服务器", skills: "技能", instructions: "指令", on: "开启", apply: "应用" },
+  en: { model: "model", effort: "effort", high: "high", def: "agent default", follows: "follows the main model (magpie/a/main)", subagents: "subagents", servers: "MCP servers", skills: "Skills", instructions: "Instructions", on: "on", apply: "Apply" },
+  zh: { model: "模型", effort: "推理强度", high: "高", def: "Agent 默认值", follows: "跟随主模型（magpie/a/main）", subagents: "子 agent", servers: "MCP 服务器", skills: "技能", instructions: "指令", on: "开启", apply: "应用" },
 };
 
 for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium", "webkit"])) {
@@ -134,8 +134,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.equal(read.apply, w.apply);
         assert(read.inView, "the details must be drawn");
         assert.deepEqual(read.groups, [
-          { name: "Claude Code", rows: [`${w.model}=queqiao/a/main`, `opus=${w.follows}`, "sonnet=queqiao/a/s", `haiku=${w.follows}`, `fable=${w.follows}`, `${w.subagents}=${w.def}`, `${w.servers}=github`, `${w.skills}=review`] },
-          { name: "Codex", rows: [`${w.model}=queqiao/openai/gpt-5`, `${w.effort}=${w.high}`, "token=••••••", `${w.instructions}=${w.on}`] },
+          { name: "Claude Code", rows: [`${w.model}=magpie/a/main`, `opus=${w.follows}`, "sonnet=magpie/a/s", `haiku=${w.follows}`, `fable=${w.follows}`, `${w.subagents}=${w.def}`, `${w.servers}=github`, `${w.skills}=review`] },
+          { name: "Codex", rows: [`${w.model}=magpie/openai/gpt-5`, `${w.effort}=${w.high}`, "token=••••••", `${w.instructions}=${w.on}`] },
         ]);
 
         // a second click closes them; a third opens them again

@@ -13,7 +13,7 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 const HOME = "/Users/aimer";
 const lib = (desktopSkills) => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [
     { id: "codex", name: "Codex", icon: "", skills: `${HOME}/.codex/skills` },
     { id: "claude-desktop", name: "Claude Desktop", icon: "claude-color", mcp: `${HOME}/Library/Application Support/Claude/claude_desktop_config.json`,

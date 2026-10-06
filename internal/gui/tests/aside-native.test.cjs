@@ -15,10 +15,10 @@ for (const engine of ['chromium', 'webkit']) {
       page.on('pageerror', (e) => errors.push(e.message));
       const a = {
         id: 'aside', name: 'Aside', icon: 'aside', path: '~/.aside/u/0/settings.json',
-        native: { provider: 'disconnected', runtime: 'applied', fields: { image: { value: 'queqiao/art/gpt-image-1', status: 'unverified', detail: "Image generation is configured, but Aside's image provider support has not been verified" } } },
+        native: { provider: 'disconnected', runtime: 'applied', fields: { image: { value: 'magpie/art/gpt-image-1', status: 'unverified', detail: "Image generation is configured, but Aside's image provider support has not been verified" } } },
         fields: [
-          { key: 'model', label: 'model', value: 'minimax/native', options: [{ value: 'minimax/native', label: 'Native MiniMax' }, { value: 'queqiao/relay/m1', ref: 'relay/m1', label: 'Magpie model' }] },
-          { key: 'image', label: 'image', value: 'queqiao/art/gpt-image-1', options: [{ value: 'queqiao/art/gpt-image-1', ref: 'art/gpt-image-1', label: 'GPT image' }] },
+          { key: 'model', label: 'model', value: 'minimax/native', options: [{ value: 'minimax/native', label: 'Native MiniMax' }, { value: 'magpie/relay/m1', ref: 'relay/m1', label: 'Magpie model' }] },
+          { key: 'image', label: 'image', value: 'magpie/art/gpt-image-1', options: [{ value: 'magpie/art/gpt-image-1', ref: 'art/gpt-image-1', label: 'GPT image' }] },
         ],
       };
       const state = () => ({ agents: [a], profiles: [], settings: { lang, theme: 'light' } });
@@ -78,7 +78,7 @@ for (const engine of ['chromium', 'webkit']) {
       const a = {
         id: 'aside', name: 'Aside', icon: 'aside', wired: true, cliMissing: true, path: '~/.aside/u/0/settings.json',
         native: { provider: 'connected', runtime: 'applied', fields: {} },
-        fields: [{ key: 'model', label: 'model', value: 'native/current', options: [{ value: 'native/current', label: 'Current model' }, { value: 'queqiao/relay/m1', ref: 'relay/m1', label: 'New model' }] }],
+        fields: [{ key: 'model', label: 'model', value: 'native/current', options: [{ value: 'native/current', label: 'Current model' }, { value: 'magpie/relay/m1', ref: 'relay/m1', label: 'New model' }] }],
       };
       const current = () => ({ agents: [a], profiles: [], settings: { lang, theme: 'light' } });
       await page.route('**/*', async route => {
@@ -90,7 +90,7 @@ for (const engine of ['chromium', 'webkit']) {
         if (p === '/api/agents/stage/aside') { a.fields[0].value = req.postDataJSON().value; return route.fulfill({ json: current() }); }
         if (p === '/api/agents/preview/aside') {
           if (blockPreview) await new Promise(resolve => { releasePreview = resolve; });
-          return route.fulfill({ json: failPreview ? { error: 'No restore point' } : { revision, changes: [{ path: a.path, lines: [{ op: '~', text: 'native/current', was: 'queqiao/relay/m1' }] }] } });
+          return route.fulfill({ json: failPreview ? { error: 'No restore point' } : { revision, changes: [{ path: a.path, lines: [{ op: '~', text: 'native/current', was: 'magpie/relay/m1' }] }] } });
         }
         if (p === '/api/agents/disconnect/aside') return route.fulfill({ status: 400, json: { error: 'Aside unavailable', code: 'runtime_unavailable', offline: 'disconnect' } });
         if (p === '/api/agents/disconnect-offline/aside') {
@@ -109,7 +109,7 @@ for (const engine of ['chromium', 'webkit']) {
       await page.goto('http://magpie.test/?view=agents');
       const row = page.locator('.row.agent[data-id="aside"]');
       await row.locator('.ag-start').waitFor();
-      const pick = () => page.evaluate(() => setPick(state.agents[0], state.agents[0].fields[0], 'queqiao/relay/m1'));
+      const pick = () => page.evaluate(() => setPick(state.agents[0], state.agents[0].fields[0], 'magpie/relay/m1'));
       await pick();
       const ask = page.locator('.disconnect-ask');
       await ask.waitFor();
@@ -133,7 +133,7 @@ for (const engine of ['chromium', 'webkit']) {
       await ask.waitFor();
       await ask.locator('.bar button').last().click();
       await ask.waitFor({ state: 'detached' });
-      assert.deepEqual(posts.filter(p => p.path.includes('/stage/')), [{ path: '/api/agents/stage/aside', body: { field: 'model', value: 'queqiao/relay/m1' } }]);
+      assert.deepEqual(posts.filter(p => p.path.includes('/stage/')), [{ path: '/api/agents/stage/aside', body: { field: 'model', value: 'magpie/relay/m1' } }]);
       const disconnect = async () => {
         await page.evaluate(() => askDisconnect(state.agents[0]));
         await ask.waitFor();

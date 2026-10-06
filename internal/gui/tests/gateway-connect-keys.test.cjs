@@ -114,7 +114,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
           const code = await snippet.textContent();
           assert(code.includes(base), `${api} ${dialect} must use the selected address`);
           assert(code.includes("fixture-server"), `${api} ${dialect} must use the selected key`);
-          assert(!code.includes('"queqiao"'), "named key examples never fall back to queqiao");
+          assert(!code.includes('"magpie"'), "named key examples never fall back to magpie");
         }
       }
       await row("server").locator(".rename").click();

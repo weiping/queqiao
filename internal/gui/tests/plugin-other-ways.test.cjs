@@ -16,9 +16,9 @@ const { chromium, webkit } = require("playwright");
 const assets = path.resolve(__dirname, "../assets");
 
 const plugins = [
-  { id: "zcode", pid: "zcode", name: "ZCode", icon: "generic", spec: "@queqiao-community/opencode-zcode-auth", signedIn: false, models: 3,
+  { id: "zcode", pid: "zcode", name: "ZCode", icon: "generic", spec: "@magpie-community/opencode-zcode-auth", signedIn: false, models: 3,
     methods: [{ type: "oauth", label: "ZCode: Z.ai GLM Coding Plan" }, { type: "oauth", label: "ZCode: BigModel (智谱) GLM Coding Plan" }, { type: "oauth", label: "ZCode app's sign-in" }, { type: "api", label: "GLM Coding Plan API key" }] },
-  { id: "factory", pid: "factory", name: "Factory", icon: "generic", spec: "@queqiao-community/opencode-factory-auth", signedIn: false, models: 3,
+  { id: "factory", pid: "factory", name: "Factory", icon: "generic", spec: "@magpie-community/opencode-factory-auth", signedIn: false, models: 3,
     methods: [{ type: "oauth", label: "Sign in with Factory (device code)" }, { type: "api", label: "Factory API key (fk-…)", placeholder: "fk-…" }] },
 ];
 

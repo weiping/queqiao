@@ -5,7 +5,7 @@
 // its small model, and each of its models, including a relay said to search;
 // a pick is saved as searcher ("<provider>" or "<provider>/<model>") and shown;
 // a provider's small model is offered once, not again among its models, and
-// one saved by name is ticked as it (Player on Discord); no "via queqiao" tag,
+// one saved by name is ticked as it (Player on Discord); no "via magpie" tag,
 // as no agent asks for these;
 // one named that queqiao can't use (turned off) is said in the row, queqiao's pick shown instead;
 // relays said to search are manual-only, including during fallback; a Kimi Code plan, which
@@ -154,7 +154,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(items.filter((x) => x.includes("MyRelay")).length, 1, items.join(" | "));
       assert.equal(items.filter((x) => x.includes("Claude Haiku 4.5")).length, 0, "Claude's and MyRelay's small model only as their small model");
       assert.equal(items.filter((x) => x.startsWith("claude-haiku-4-5")).length, 2, items.join(" | "));
-      assert.equal(await page.locator("#list .badge.path").count(), 0, "no agent asks for these: no via queqiao");
+      assert.equal(await page.locator("#list .badge.path").count(), 0, "no agent asks for these: no via magpie");
       await click(page.locator("#list li:not(.group)", { hasText: "GPT Five Five" }));
       await page.waitForFunction(() => document.querySelector("#searchList button.searcher-pick")?.innerText.includes("GPT Five Five"));
       assert.equal(posted.at(-1).searcher, "openai/gpt-5.5");

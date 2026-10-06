@@ -19,7 +19,7 @@ const DIR = HOME + "/code/app";
 const agent = (id, name, more = {}) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json`, ...more });
 const sv = (name, transport) => ({ name, transport, command: transport === "stdio" ? name : "", url: transport === "stdio" ? "" : "http://localhost:9/" + name, agents: [] });
 const lib = (servers) => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [
     agent("claude", "Claude Code", { projectSkills: ".claude/skills", projectMCP: ".mcp.json" }),
     agent("codex", "Codex", { noSSE: true, projectSkills: ".agents/skills", projectMCP: ".codex/config.toml" }),

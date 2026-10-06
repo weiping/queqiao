@@ -15,15 +15,15 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const models = [{ value: "queqiao/v/glm", label: "GLM", ref: "v/glm" }, { value: "queqiao/v/flash", label: "Flash", ref: "v/flash" }];
+const models = [{ value: "magpie/v/glm", label: "GLM", ref: "v/glm" }, { value: "magpie/v/flash", label: "Flash", ref: "v/flash" }];
 const levels = ["low", "medium", "high"].map((value) => ({ value }));
 const tiers = ["opus", "sonnet", "haiku", "fable"];
 const claude = (id, routed) => ({
   id, name: "Claude Code", path: "/test/settings.json", icon: "claudecode-color", wired: routed,
   fields: [
-    { key: "model", label: "model", value: routed ? "queqiao/v/glm" : "opus", options: routed ? models : [{ value: "opus" }] },
+    { key: "model", label: "model", value: routed ? "magpie/v/glm" : "opus", options: routed ? models : [{ value: "opus" }] },
     { key: "effort", label: "effort", value: "high", options: levels },
-    ...tiers.map((tier) => ({ key: tier, label: tier, value: tier === "haiku" && routed ? "queqiao/v/flash" : "", options: models })),
+    ...tiers.map((tier) => ({ key: tier, label: tier, value: tier === "haiku" && routed ? "magpie/v/flash" : "", options: models })),
     ...tiers.map((tier) => ({ key: tier + "_effort", label: tier + " effort", value: "", options: routed ? levels : [] })),
     { key: "subagent", label: "subagents", value: "", options: routed ? models : [] },
     { key: "subagent_effort", label: "subagent effort", value: "", options: routed ? levels : [] },

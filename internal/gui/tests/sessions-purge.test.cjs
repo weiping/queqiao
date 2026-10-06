@@ -33,7 +33,7 @@ function serve(lang, calls) {
     if (url.pathname === "/api/sessions/manage") {
       return json({
         agents: [{ agent: "claude", count: 0, deletable: true, name: "Claude Code", icon: "claudecode-color" }],
-        agent: "claude", sessions: [], terminal: false, trash: store.trash, trashDir: "~/Library/Application Support/queqiao/trash/sessions",
+        agent: "claude", sessions: [], terminal: false, trash: store.trash, trashDir: "~/Library/Application Support/magpie/trash/sessions",
       });
     }
     if (url.pathname === "/api/sessions/purge") {
@@ -54,12 +54,12 @@ const words = {
   en: {
     nav: "Sessions", cancel: "Cancel", forever: "Delete forever", empty: "Empty trash", askOne: "Delete this session forever?", askAll: "Empty queqiao's trash?",
     one: "Erased for good", all: "2 sessions erased for good", count: "3 sessions", trashEmpty: "Trash is empty",
-    note: "Deleted sessions are kept in ~/Library/Application Support/queqiao/trash/sessions until you erase them here; queqiao never erases them by itself.",
+    note: "Deleted sessions are kept in ~/Library/Application Support/magpie/trash/sessions until you erase them here; magpie never erases them by itself.",
   },
   zh: {
     nav: "会话", cancel: "取消", forever: "彻底删除", empty: "清空回收站", askOne: "彻底删除这个会话？", askAll: "清空 queqiao 的回收站？",
     one: "已彻底删除", all: "已彻底删除 2 个会话", count: "3 个会话", trashEmpty: "回收站是空的",
-    note: "已删除的会话保存在 ~/Library/Application Support/queqiao/trash/sessions，在此彻底删除前不会自动清除。",
+    note: "已删除的会话保存在 ~/Library/Application Support/magpie/trash/sessions，在此彻底删除前不会自动清除。",
   },
 };
 

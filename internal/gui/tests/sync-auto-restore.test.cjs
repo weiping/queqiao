@@ -19,7 +19,7 @@ const assets = path.resolve(__dirname, "../assets");
 
 function serve(lang, posts) {
   const settings = {
-    theme: "light", lang, tray: "panel", version: "test", dir: "/tmp/queqiao",
+    theme: "light", lang, tray: "panel", version: "test", dir: "/tmp/magpie",
     gateway: "http://127.0.0.1:3425", visionModels: [], imageGenModels: [],
     fx: { rate: 7.2, stale: false },
   };
@@ -42,7 +42,7 @@ function serve(lang, posts) {
       posts.push({ action, body: request.postDataJSON() });
       if (action === "auto") sync = { ...sync, auto: Math.max(0, request.postDataJSON().minutes) };
       if (action === "restore") {
-        sync = { ...sync, undo: true, notice: { at: new Date().toISOString(), here: ["providers", "settings"], saved: "/tmp/queqiao/sync", restored: true } };
+        sync = { ...sync, undo: true, notice: { at: new Date().toISOString(), here: ["providers", "settings"], saved: "/tmp/magpie/sync", restored: true } };
         return json({ ...sync, brought: ["providers", "settings"] });
       }
       if (action === "undo") sync = { ...sync, undo: false, notice: undefined };

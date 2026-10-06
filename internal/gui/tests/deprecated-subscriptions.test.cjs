@@ -17,7 +17,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const pkg = (id) => `@queqiao-community/opencode-${id}-auth`;
+const pkg = (id) => `@magpie-community/opencode-${id}-auth`;
 const sub = (id, name, state) => ({
   id, name, icon: id, chat: "", responses: "", anthropic: "", catalog: "", models: [{ id: "m", name: "M", on: true }],
   agents: [], fallback: [], headers: {}, keyList: [], key: {},

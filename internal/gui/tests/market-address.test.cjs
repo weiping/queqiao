@@ -19,7 +19,7 @@ const someone = { id: "io.github.someone/postgres-mcp", name: "postgres", title:
 
 function serve(lang, asked) {
   const view = {
-    dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+    dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
     agents: [agent("claude", "Claude Code", "claudecode-color"), agent("codex", "Codex", "codex-color")],
     instructions: { agents: [], sets: [] }, servers: [], foundServers: [], projects: [], foundSkills: [], skills: [], problems: [],
   };

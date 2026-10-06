@@ -20,7 +20,7 @@ const agent = (id, name) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skill
 const sk = (name) => ({ name, description: name + " skill", kind: "github", source: `https://github.com/${REPO}/tree/HEAD/skills/${name}`, agents: ["claude", "codex"], check: { name, status: "current" } });
 const fresh = (name, description) => ({ id: `https://github.com/${REPO}/tree/HEAD/skills/${name}`, name, description, repo: REPO, path: "skills/" + name, from: `https://github.com/${REPO}/tree/HEAD/skills`, agents: ["claude", "codex"] });
 const lib = (st) => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex"), agent("pi", "Pi")],
   instructions: { agents: [] }, servers: [], skills: st.skills, foundServers: [], projects: [], foundSkills: [],
   newSkills: st.checked ? st.newSkills : [],

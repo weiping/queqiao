@@ -20,11 +20,11 @@ const options = [
   { value: "sonnet", label: "sonnet · claude-sonnet-5-5", note: "Claude Sonnet 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
   { value: "claude-sonnet-5-5", note: "Claude Sonnet 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
   { value: "claude-opus-5-5", note: "Claude Opus 5.5", icon: "claude-color", group: "Claude Code", direct: "Anthropic" },
-  { value: "queqiao/deepseek/pro", label: "DeepSeek Pro", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/pro" },
+  { value: "magpie/deepseek/pro", label: "DeepSeek Pro", icon: "deepseek-color", group: "DeepSeek", ref: "deepseek/pro" },
 ];
 // the other agents, so Claude Code sits down a list that scrolls; on a
 // queqiao model, so connected and in view (#726)
-const filler = [{ key: "model", label: "model", value: "queqiao/deepseek/pro", options: [options[3]] }];
+const filler = [{ key: "model", label: "model", value: "magpie/deepseek/pro", options: [options[3]] }];
 const fresh = () => ({
   agents: [
     ...Array.from({ length: 5 }, (_, i) => ({ id: "agent-" + i, name: "Agent " + i, path: "/test/" + i, wired: true, fields: filler })),

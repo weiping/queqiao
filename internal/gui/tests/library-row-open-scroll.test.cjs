@@ -19,7 +19,7 @@ const HOME = "/Users/aimer";
 const ids = ["claude", "codex", "gemini", "opencode", "pi", "kimi", "qwen", "droid", "crush", "goose", "amp", "cline"];
 const named = (id) => id[0].toUpperCase() + id.slice(1);
 const library = (lines) => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: ids.map((id) => ({ id, name: named(id), icon: "", instructions: `${HOME}/.${id}/AGENTS.md` })),
   instructions: {
     shared: "",

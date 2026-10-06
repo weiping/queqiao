@@ -15,10 +15,10 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const options = ["gpt-5.4", "queqiao/relay/m1"].map((m) => ({ value: m, label: "Label " + m, ...(m.startsWith("queqiao/") ? { ref: "relay/m1" } : {}) }));
+const options = ["gpt-5.4", "magpie/relay/m1"].map((m) => ({ value: m, label: "Label " + m, ...(m.startsWith("magpie/") ? { ref: "relay/m1" } : {}) }));
 const fresh = () => ({
   agents: [
-    { id: "codex", name: "Codex", icon: "generic", path: "/fixture/codex", wired: true, fields: [{ key: "model", label: "model", value: "queqiao/relay/m1", options }] },
+    { id: "codex", name: "Codex", icon: "generic", path: "/fixture/codex", wired: true, fields: [{ key: "model", label: "model", value: "magpie/relay/m1", options }] },
     { id: "claude", name: "Claude Code", icon: "generic", path: "/fixture/claude", fields: [{ key: "model", label: "model", value: "gpt-5.4", options }] },
   ],
   profiles: [],

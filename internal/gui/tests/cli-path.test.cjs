@@ -20,30 +20,30 @@ const assets = path.resolve(__dirname, "../assets");
 const words = {
   en: { row: "Command line", add: "Add to PATH", none: "can't find the queqiao command", ours: "runs this app", fish: "Add to ~/.config/fish/config.fish",
     added: "open a new terminal window", ps: "PowerShell and cmd take up a change in new windows", moved: "moved to Applications",
-    shimTitle: "writes magpie.cmd there, which runs queqiao-windows-amd64.exe", shimAdded: "magpie.cmd beside queqiao-windows-amd64.exe runs it as queqiao", shimRuns: "which runs queqiao-windows-amd64.exe" },
+    shimTitle: "writes magpie.cmd there, which runs magpie-windows-amd64.exe", shimAdded: "magpie.cmd beside magpie-windows-amd64.exe runs it as magpie", shimRuns: "which runs magpie-windows-amd64.exe" },
   zh: { row: "命令行", add: "添加到 PATH", none: "新终端里找不到 queqiao 命令", ours: "运行这个 app", fish: "添加到 ~/.config/fish/config.fish",
     added: "新开一个终端窗口", ps: "PowerShell 和 cmd 在新窗口里生效", moved: "移到「应用程序」",
-    shimTitle: "写一个 magpie.cmd 来运行 queqiao-windows-amd64.exe", shimAdded: "queqiao-windows-amd64.exe 旁边的 magpie.cmd", shimRuns: "它运行 queqiao-windows-amd64.exe" },
+    shimTitle: "写一个 magpie.cmd 来运行 magpie-windows-amd64.exe", shimAdded: "magpie-windows-amd64.exe 旁边的 magpie.cmd", shimRuns: "它运行 magpie-windows-amd64.exe" },
 };
 
-const EXE = "/Applications/magpie.app/Contents/MacOS/queqiao";
+const EXE = "/Applications/magpie.app/Contents/MacOS/magpie";
 
 function view(ctl) {
   if (ctl.windows) {
     // the site's portable download (#942) runs as queqiao through the
     // magpie.cmd Add writes beside it
     const dir = ctl.portable ? "D:\\portable_app" : "C:\\Users\\u\\AppData\\Local\\queqiao";
-    const exe = dir + (ctl.portable ? "\\queqiao-windows-amd64.exe" : "\\magpie.exe"), shim = ctl.portable ? dir + "\\magpie.cmd" : "";
+    const exe = dir + (ctl.portable ? "\\magpie-windows-amd64.exe" : "\\magpie.exe"), shim = ctl.portable ? dir + "\\magpie.cmd" : "";
     const cmd = ctl.added ? shim || exe : "";
     return { exe, ours: ctl.added, command: cmd, dir, windows: true, shim,
       shells: ["PowerShell", "cmd"].map((name, i) => ({ name, default: i === 0, known: true, ours: ctl.added, command: cmd })) };
   }
-  const link = "/Users/u/.local/bin/queqiao";
+  const link = "/Users/u/.local/bin/magpie";
   return {
     exe: EXE, ours: ctl.added, command: ctl.added ? link : "", dir: ctl.added ? "" : "/Users/u/.local/bin", stuck: ctl.stuck || "",
     shells: [
       { name: "zsh", default: true, known: true, ours: ctl.added, command: ctl.added ? link : "", profile: "~/.zshrc", hasDir: !ctl.added },
-      { name: "fish", known: true, ours: ctl.fish, command: ctl.fish ? link : "/opt/old/queqiao", profile: "~/.config/fish/config.fish" },
+      { name: "fish", known: true, ours: ctl.fish, command: ctl.fish ? link : "/opt/old/magpie", profile: "~/.config/fish/config.fish" },
     ],
   };
 }
@@ -54,7 +54,7 @@ function server(lang, ctl) {
     const json = (data) => route.fulfill({ json: data });
     if (url.pathname === "/boot.js") return route.fulfill({ contentType: "text/javascript", body: `window.bootPrefs = {lang:"${lang}",theme:"light",web:false};` });
     if (url.pathname === "/wails/runtime.js") return route.fulfill({ contentType: "text/javascript", body: "export const Window = {};" });
-    if (url.pathname === "/api/state") return json({ agents: [], profiles: [], settings: { theme: "light", lang, version: "0.1.900", dir: "~/.config/queqiao", gateway: "http://127.0.0.1:3425", lanURLs: [], fx: { rate: 7.2 } } });
+    if (url.pathname === "/api/state") return json({ agents: [], profiles: [], settings: { theme: "light", lang, version: "0.1.900", dir: "~/.config/magpie", gateway: "http://127.0.0.1:3425", lanURLs: [], fx: { rate: 7.2 } } });
     if (url.pathname === "/api/cli") {
       if (req.method() === "POST") {
         const body = req.postDataJSON();
@@ -114,7 +114,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await row.locator(".sub", { hasText: w.none }).waitFor();
         const zsh = row.locator('.cli-shell[data-shell="zsh"]'), fish = row.locator('.cli-shell[data-shell="fish"]');
         assert.equal(await zsh.evaluate((e) => e.classList.contains("on")), false);
-        assert.match(await fish.innerText(), /\/opt\/old\/queqiao/, "fish names the other queqiao it runs");
+        assert.match(await fish.innerText(), /\/opt\/old\/magpie/, "fish names the other magpie it runs");
         assert.equal(await row.locator("select").count(), 0, "no native select");
         assert.equal(await zsh.locator("button").count(), 0, "zsh, whose PATH has the folder, is reached by Add to PATH");
         assert.equal(await fish.locator("button", { hasText: w.fish }).count(), 1, "fish, whose PATH hasn't, has its profile's button");
@@ -128,7 +128,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await showRow(page, row);
         let before = await scrolls(page);
         await add.click();
-        await row.locator(".sub", { hasText: "/Users/u/.local/bin/queqiao" }).waitFor();
+        await row.locator(".sub", { hasText: "/Users/u/.local/bin/magpie" }).waitFor();
         await zsh.locator(".cli-state", { hasText: w.ours }).waitFor();
         assert.deepEqual(ctl.posts, [{}], "Add to PATH posts no shell");
         assert.equal(await zsh.evaluate((e) => e.classList.contains("on")), true);

@@ -19,7 +19,7 @@ const HOME = "/Users/stringke";
 const agent = (id, name) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills` });
 const problem = { agent: "claude", what: "skill:impeccable", error: "Claude Code already has a skill of its own called impeccable", own: true };
 const lib = (agents, problems, foundSkills = []) => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex"), agent("gemini", "Gemini CLI")],
   instructions: { agents: [] }, servers: [], foundServers: [], projects: [], foundSkills,
   skills: [

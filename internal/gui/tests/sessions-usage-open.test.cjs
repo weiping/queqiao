@@ -61,7 +61,7 @@ function serve(lang) {
           { agent: "claude", count: store.claude.length, deletable: true, name: "Claude Code", icon: "claudecode-color" },
           { agent: "codex", count: store.codex.length, deletable: true, name: "Codex", icon: "openai" },
         ],
-        agent, sessions: store[agent].map(managed), terminal: true, trash: [], trashDir: "~/queqiao/trash/sessions",
+        agent, sessions: store[agent].map(managed), terminal: true, trash: [], trashDir: "~/magpie/trash/sessions",
       });
     }
     if (url.pathname === "/api/groups") return json({ groups: [] });

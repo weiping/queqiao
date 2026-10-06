@@ -71,7 +71,7 @@ function server(lang, asked, refreshed) {
       return json(CONTENT[s] || { found: false, why: "missing", input: [], output: [] });
     }
     if (url.pathname === "/api/usage/quotas") return json([]);
-    if (url.pathname === "/api/usage") return json({ calls: 1, errors: 0, input: 1, output: 1, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 1, bucket: "day", series: [], agents: [], models: [], path: "~/.config/queqiao/usage.jsonl" });
+    if (url.pathname === "/api/usage") return json({ calls: 1, errors: 0, input: 1, output: 1, cache_read: 0, cache_write: 0, reasoning: 0, unpriced: 0, cost: 1, bucket: "day", series: [], agents: [], models: [], path: "~/.config/magpie/usage.jsonl" });
     if (url.pathname === "/api/sessions") return json({ sessions: [], dirs: [] });
     if (url.pathname === "/api/sessions/stats") return json({ from: "", to: "", days: [], agents: {} });
     if (url.pathname === "/api/groups") return json({ groups: [], models: [] });

@@ -16,7 +16,7 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const listing = (id, name, summary) => ({
-  package: `@queqiao-community/opencode-${id}-auth`, name, icon: id, providers: [id], community: true, replaces: id,
+  package: `@magpie-community/opencode-${id}-auth`, name, icon: id, providers: [id], community: true, replaces: id,
   summary: { en: summary, zh: summary }, npm: { version: "0.1.4" },
 });
 const listings = [

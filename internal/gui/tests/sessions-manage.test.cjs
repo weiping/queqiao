@@ -52,7 +52,7 @@ function serve(lang, calls) {
           { agent: "opencode", count: store.opencode.length, deletable: false, name: "OpenCode", icon: "opencode" },
           { agent: "hermes", count: store.hermes.length, deletable: false, name: "Hermes", icon: "hermes" },
         ],
-        agent, sessions: store[agent], terminal: true, trash: store.trash, trashDir: "~/Library/Application Support/queqiao/trash/sessions",
+        agent, sessions: store[agent], terminal: true, trash: store.trash, trashDir: "~/Library/Application Support/magpie/trash/sessions",
       });
     }
     if (url.pathname === "/api/sessions/delete") {
@@ -189,7 +189,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal((await ask.locator(".ehead b").textContent()).trim(), w.askTwo);
       assert.deepEqual(await ask.locator(".sm-ask-list li").allTextContents(), ["fix the login form", "write the post"]);
       assert.deepEqual(await ask.locator(".sm-ask-list li").evaluateAll((ls) => ls.filter((l) => l.scrollWidth > l.clientWidth).map((l) => l.textContent)), [], "the titles are shown whole");
-      assert((await ask.locator(".lib-confirm").textContent()).includes("~/Library/Application Support/queqiao/trash/sessions"));
+      assert((await ask.locator(".lib-confirm").textContent()).includes("~/Library/Application Support/magpie/trash/sessions"));
       const border = await page.evaluate(() => [...document.querySelectorAll("#view-sessions, #view-sessions *, #modal .sm-ask, #modal .sm-ask *")]
         .filter((e) => parseFloat(getComputedStyle(e).borderLeftWidth) > 1 && getComputedStyle(e).borderLeftColor !== getComputedStyle(e).borderRightColor).map((e) => e.className));
       assert.deepEqual(border, [], "no left-border accent");

@@ -20,7 +20,7 @@ const S3 = { kind: "s3", url: "s3://bkt/team", user: "AKID", endpoint: "https://
 
 function serve(lang, posts) {
   const settings = {
-    theme: "light", lang, tray: "panel", version: "test", dir: "/tmp/queqiao",
+    theme: "light", lang, tray: "panel", version: "test", dir: "/tmp/magpie",
     gateway: "http://127.0.0.1:3425", visionModels: [], imageGenModels: [],
     fx: { rate: 7.2, stale: false },
   };

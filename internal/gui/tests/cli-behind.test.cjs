@@ -28,7 +28,7 @@ function server(lang, behind, quiet) {
     if (url.pathname === "/wails/runtime.js") return route.fulfill({ contentType: "text/javascript", body: "export const Window = {};" });
     if (url.pathname === "/api/state") {
       const s = { agents: [], profiles: [], settings: { lang, theme: "light" } };
-      if (behind) s.cliBehind = "~/.local/bin/queqiao";
+      if (behind) s.cliBehind = "~/.local/bin/magpie";
       return json(s);
     }
     if (url.pathname === "/api/cli-behind/quiet") { quiet.calls++; return route.fulfill({ status: 204 }); }
@@ -57,7 +57,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const dialog = page.locator("#modal:not([hidden])");
       await dialog.waitFor();
       await assert.match(await dialog.textContent(), new RegExp(HEAD[lang].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "the dialog names the copy");
-      assert.match(await dialog.textContent(), /~\/\.local\/bin\/queqiao/, "the dialog names the path");
+      assert.match(await dialog.textContent(), /~\/\.local\/bin\/magpie/, "the dialog names the path");
       // Hide until the next version posts the dismiss and closes
       await dialog.getByRole("button", { name: lang === "zh" ? "隐藏，直到下一个版本" : "Hide until the next version" }).click();
       await page.waitForFunction(() => document.querySelector("#modal").hidden);

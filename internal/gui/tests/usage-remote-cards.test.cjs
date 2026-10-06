@@ -1,6 +1,6 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // Another computer's quotas (莫 on Discord): a computer whose provider is
-// another's queqiao (remote-magpie) shows that queqiao's cards, each named
+// another's magpie (remote-magpie) shows that magpie's cards, each named
 // with the computer ("Codex · Office"), without the buttons that would act
 // on this computer's accounts. The remote's own card says why it has none
 // (nothing read there yet, or a queqiao too old to share) in the reader's
@@ -23,9 +23,9 @@ function fixtures(now) {
       windows: [{ name: "5 hours", used: 50, resetsAt: iso(now + 2 * H) }], resets: { count: 1 } },
     { provider: "office/codex", name: "Codex · Office", icon: "openai", plan: "Pro", user: "a@x.com", from: "Office", kind: "subscription", readAt: iso(now - 40 * M),
       windows: [{ name: "5 hours", used: 30, resetsAt: iso(now + 2 * H) }] },
-    { provider: "home", name: "Home", icon: "queqiao", from: "Home", kind: "subscription", windows: [],
+    { provider: "home", name: "Home", icon: "magpie", from: "Home", kind: "subscription", windows: [],
       error: "nothing read on that queqiao yet; refresh to have it read" },
-    { provider: "attic", name: "Attic", icon: "queqiao", from: "Attic", kind: "subscription", windows: [],
+    { provider: "attic", name: "Attic", icon: "magpie", from: "Attic", kind: "subscription", windows: [],
       error: "remote queqiao doesn't share its quotas; update queqiao on that computer" },
   ];
 }

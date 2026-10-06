@@ -7,10 +7,10 @@ const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const options = [
-  { value: "queqiao/b/executor", label: "B Executor", ref: "b/executor", group: "B", icon: "deepseek-color" },
-  { value: "queqiao/b/planner", label: "B Planner", ref: "b/planner", group: "B", icon: "deepseek-color" },
-  { value: "queqiao/a/pro", label: "A Pro", ref: "a/pro", group: "A", icon: "deepseek-color" },
-  { value: "queqiao/a/flash", label: "A Flash", ref: "a/flash", group: "A", icon: "deepseek-color" },
+  { value: "magpie/b/executor", label: "B Executor", ref: "b/executor", group: "B", icon: "deepseek-color" },
+  { value: "magpie/b/planner", label: "B Planner", ref: "b/planner", group: "B", icon: "deepseek-color" },
+  { value: "magpie/a/pro", label: "A Pro", ref: "a/pro", group: "A", icon: "deepseek-color" },
+  { value: "magpie/a/flash", label: "A Flash", ref: "a/flash", group: "A", icon: "deepseek-color" },
   { value: "native/old", label: "Native Old", group: "Reasonix Studio" },
 ];
 
@@ -83,8 +83,8 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         } else for (const f of fields) {
           assert.equal(await row.locator(`.field[data-key="${f.key}"] > .k`).count(), 1, "a default role must be labelled once");
         }
-        fields[0].value = "queqiao/b/executor";
-        fields[1].value = "queqiao/b/planner";
+        fields[0].value = "magpie/b/executor";
+        fields[1].value = "magpie/b/planner";
         // Either role keeps the connection while the other is on its default.
         for (const f of fields) {
           const selected = f.value;
@@ -117,7 +117,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
           assert.match(listed, /A Flash/);
           assert(!listed.includes("Native Old"));
           await page.locator('#pickerRail [data-group="all"]').click();
-          await page.locator("#q").fill("queqiao/a/typed");
+          await page.locator("#q").fill("magpie/a/typed");
           assert.equal(await page.locator("#list li.custom").count(), 1, "typed model choice is missing");
           await page.keyboard.press("Escape");
         }

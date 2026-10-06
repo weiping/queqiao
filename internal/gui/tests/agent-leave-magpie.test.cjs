@@ -3,7 +3,7 @@
 // model list moved it under Not set up and turned 「接入」 off, picking
 // Sonnet 5.5 then turned it back on, and neither row said why: the Opus
 // was Claude Code's own model, asked of Anthropic directly (picking it
-// unroutes Claude Code), the Sonnet queqiao's, its "· via queqiao" cut off
+// unroutes Claude Code), the Sonnet magpie's, its "· via magpie" cut off
 // the end of a long note. Now each model says which way it goes, and a
 // pick that takes a connected agent off queqiao (one of its own models, or
 // Default) is asked first, as the switch's off is; Default's ask offers
@@ -21,14 +21,14 @@ const options = [
   { value: "claude-opus-5-5", note: "Claude Opus 5.5", group: "Claude Code", direct: "Anthropic", icon: "claude-color" },
   { value: "claude-sonnet-5-5", note: "Claude Sonnet 5.5", group: "Claude Code", direct: "Anthropic", icon: "claude-color" },
   { value: "claude/claude-sonnet-5-5[1m]", label: "Claude Sonnet 5.5", ref: "claude/claude-sonnet-5-5", group: "Claude", icon: "claude-color",
-    note: "someone.with.a.long.address@example.com · via queqiao" },
+    note: "someone.with.a.long.address@example.com · via magpie" },
   { value: "claude/claude-opus-5-5[1m]", label: "Claude Opus 5.5", ref: "claude/claude-opus-5-5", group: "Claude", icon: "claude-color",
-    note: "someone.with.a.long.address@example.com · via queqiao" },
+    note: "someone.with.a.long.address@example.com · via magpie" },
 ];
 const fresh = () => ({
   agents: [
     { id: "claude", name: "Claude Code", icon: "generic", path: "/fixture/claude", wired: true, fields: [{ key: "model", label: "model", value: "claude/claude-sonnet-5-5[1m]", options }] },
-    { id: "codex", name: "Codex", icon: "generic", path: "/fixture/codex", wired: true, fields: [{ key: "model", label: "model", value: "", options: [{ value: "relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via queqiao" }] }] },
+    { id: "codex", name: "Codex", icon: "generic", path: "/fixture/codex", wired: true, fields: [{ key: "model", label: "model", value: "", options: [{ value: "relay/m1", label: "m1", ref: "relay/m1", note: "Relay · via magpie" }] }] },
   ],
   profiles: [],
 });
@@ -76,7 +76,7 @@ function server(lang, posts) {
 }
 
 const words = {
-  en: { via: "via queqiao", direct: "direct, not via queqiao", off: "off queqiao", ask: "Take Claude Code off queqiao?", use: "Use claude-opus-5-5", restore: "Disconnect and restore", cancel: "Cancel", connected: "it had no model set, so the first of its own" },
+  en: { via: "via magpie", direct: "direct, not via magpie", off: "off magpie", ask: "Take Claude Code off magpie?", use: "Use claude-opus-5-5", restore: "Disconnect and restore", cancel: "Cancel", connected: "it had no model set, so the first of its own" },
   zh: { via: "经 queqiao", direct: "直连，不经 queqiao", off: "不经 queqiao", ask: "让 Claude Code 不再经过 queqiao？", use: "使用 claude-opus-5-5", restore: "断开并还原", cancel: "取消", connected: "原先未设模型" },
 };
 const row = '.row.agent[data-id="claude"]';
@@ -97,7 +97,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       await page.goto("http://magpie.test/?view=agents");
       await page.locator(`${row} .ag-conn`).waitFor();
       const missing = await page.evaluate(() => [
-        "via queqiao", "{agent} asks queqiao for it", "direct, not via queqiao", "off queqiao",
+        "via magpie", "{agent} asks magpie for it", "direct, not via magpie", "off magpie",
         "{agent} as installed: queqiao's endpoint and models come out", "Take {agent} off queqiao?",
         "Default is {agent} as installed: queqiao's endpoint and models come out, and {agent} starts on its own default model. What it had before queqiao isn't put back; Disconnect and restore does that.",
         "{model} is {agent}'s own model: {agent} asks {vendor} for it itself, with its own sign-in, not through queqiao. Picking it takes {agent} off queqiao, and it starts on {model}.",
@@ -124,7 +124,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const via = item("someone.with");
       assert.equal(await tag(via), w.via);
       assert.ok(await via.locator(".badge.path").evaluate((b) => b.scrollWidth <= b.clientWidth + 1 && b.getBoundingClientRect().right <= b.closest("li").getBoundingClientRect().right), "the tag isn't cut off");
-      assert.ok(!(await via.locator(".n").textContent()).includes("via queqiao"), "said once, as the tag");
+      assert.ok(!(await via.locator(".n").textContent()).includes("via magpie"), "said once, as the tag");
       assert.equal(await tag(page.locator("#pop #list li.reset", { hasText: lang === "en" ? "Default" : "默认" }).first()), w.off);
 
       // Claude Code's own Opus is asked first; Cancel leaves it connected

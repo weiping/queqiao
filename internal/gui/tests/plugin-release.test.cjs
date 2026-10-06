@@ -10,7 +10,7 @@ const { test } = require("node:test");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
-const ZED = "@queqiao-community/opencode-zed-auth";
+const ZED = "@magpie-community/opencode-zed-auth";
 
 function server(lang, asked) {
   const installed = [

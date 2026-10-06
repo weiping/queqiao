@@ -56,7 +56,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       assert.equal(await brand.isVisible(), c.shown, where);
       if (c.shown) {
         assert.ok(await brand.locator(".logo svg").isVisible(), `${where}: logo`);
-        assert.ok(await brand.getByText("queqiao", { exact: true }).isVisible(), `${where}: name`);
+        assert.ok(await brand.getByText("magpie", { exact: true }).isVisible(), `${where}: name`);
         // beside the tabs, not under them
         const [b, n] = [await brand.boundingBox(), await page.locator("#nav").boundingBox()];
         assert.ok(b.x + b.width <= n.x, `${where}: ${JSON.stringify(b)} overlaps the tabs ${JSON.stringify(n)}`);

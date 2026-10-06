@@ -333,7 +333,7 @@ function renderAgents() {
       // in words like the rest, the row itself the link (or the command)
       const act = a.import ? importButton(a) : launchSolo(a);
       sum = el("span", "ag-sum");
-      sum.append(a.import ? el("span", "v" + (a.added ? "" : " empty"), a.added ? "queqiao" : t("Add queqiao")) : el("span", "v empty", t("Copy launch command")), el("span"));
+      sum.append(a.import ? el("span", "v" + (a.added ? "" : " empty"), a.added ? "magpie" : t("Add magpie")) : el("span", "v empty", t("Copy launch command")), el("span"));
       const c = el("span", "chev");
       c.append(a.import ? svg(OUT, 10, 1.6) : svg(LAUNCH_GLYPH, 10, 1.5));
       sum.append(c);
@@ -461,7 +461,7 @@ function renderAgents() {
     }
     if (sw && openBox) {
       const line = el("div", "ag-conn-row");
-      line.append(el("span", "k", t("queqiao")), el("span", "ag-conn-said", connectSaid(a)), sw);
+      line.append(el("span", "k", t("magpie")), el("span", "ag-conn-said", connectSaid(a)), sw);
       openBox.querySelector(".ag-body").prepend(line);
     }
     row.append(agentHandle(a, row, inFold), who);
@@ -818,7 +818,7 @@ const DISCONNECT_TIP = "Take out everything queqiao wrote into {agent}'s config 
 // queqiao's models to offer (Cursor, Copilot) has no switch.
 // the field queqiao is picked in: the first, or Gemini CLI's model, its
 // first being how it signs in
-const connectField = (a) => a.fields.find((f) => f.options.some((o) => o.ref)) || a.fields.find((f) => f.options.some((o) => o.value === "queqiao"));
+const connectField = (a) => a.fields.find((f) => f.options.some((o) => o.ref)) || a.fields.find((f) => f.options.some((o) => o.value === "magpie"));
 // connectable: queqiao has models for it — in its pickers, or every one
 // hidden from its lists, which leave its pickers but not the way back (#356)
 function connectable(a) {
@@ -937,7 +937,7 @@ function fillMenuButton(b, a) {
   const c = a.models;
   const k = b.querySelector(":scope > .k");
   b.replaceChildren(...(k ? [k] : []));
-  b.append(icon("queqiao"));
+  b.append(icon("magpie"));
   b.append(el("span", "v" + (c.shown ? "" : " empty"), menuSaid(c)));
   const ch = el("span", "chev");
   ch.append(svg(CHEV, 11, 1.7));
@@ -1197,7 +1197,7 @@ function agentsLead(list) {
   lead.classList.toggle("welcome", first);
   if (!first) {
     const [pre, post] = t("Switch an agent on and the models you set up in queqiao show up as the {queqiao} provider in its own model list; or pick its model right here.").split("{queqiao}");
-    lead.append(pre, el("b", "", "queqiao"), post || "");
+    lead.append(pre, el("b", "", "magpie"), post || "");
     return;
   }
   lead.append(el("b", "ag-lead-h", t("Let your agents use the models you set up in queqiao")));
@@ -1815,7 +1815,7 @@ function importButton(a) {
   b.title = a.added
     ? t("{name} has queqiao as a provider · click to add it again", { name: a.name })
     : t("Opens {name} to add queqiao as a provider — confirm it there", { name: a.name });
-  b.append(icon("queqiao"), el("span", "v" + (a.added ? "" : " empty"), a.added ? "queqiao" : t("Add queqiao")));
+  b.append(icon("magpie"), el("span", "v" + (a.added ? "" : " empty"), a.added ? "magpie" : t("Add magpie")));
   const c = el("span", "chev");
   c.append(svg(OUT, 11, 1.6));
   b.append(c);
@@ -2778,7 +2778,7 @@ function launchSolo(a) {
   const b = el("button", "field solo import launch-solo");
   b.type = "button";
   b.title = t("{name} takes queqiao only from its environment · click to copy the command that starts it:", { name: a.name }) + "\n" + a.launch;
-  b.append(icon("queqiao"), el("span", "v empty", t("Copy launch command")));
+  b.append(icon("magpie"), el("span", "v empty", t("Copy launch command")));
   const c = el("span", "chev");
   c.append(svg(LAUNCH_GLYPH, 11, 1.5));
   b.append(c);
@@ -3122,7 +3122,7 @@ function updateStuck(u) {
 // their issue was fixed). Not in the tray's panel, where a dialog has no
 // room; Settings' version row opens it again, and with an update waiting,
 // that one's notes first.
-const ISSUES = "https://github.com/yetone/queqiao/issues/";
+const ISSUES = "https://github.com/yetone/magpie/issues/";
 let whatsNewAsked = false;
 // cliBehindOnce: the terminal's queqiao is a copied file rather than the
 // installer's link, so it can't follow the app's updates (#531's lesson: a
@@ -3437,7 +3437,7 @@ function foldSame(items) {
   if (!same.length) return items;
   const first = same[0];
   const row = { fold: true, open: !!pick.unfold, n: same.length, group: first.group, icon: first.icon,
-    account: (first.note || "").replace(/ · via queqiao$/, "") };
+    account: (first.note || "").replace(/ · via magpie$/, "") };
   const out = items.filter((o) => !same.includes(o));
   const own = out.findLastIndex((o) => o.group === first.group);
   out.splice(own >= 0 ? own + 1 : items.indexOf(first), 0, row, ...(pick.unfold ? same : []));
@@ -3908,7 +3908,7 @@ function contextTag(n, name) {
 // asks it through queqiao or of its own vendor directly (Claude Code on its
 // own sign-in), and its Default, while it is connected, that it takes the
 // agent off queqiao. Every agent's picker says it so, in one tag the note's
-// ellipsis can't cut off: the others' "· via queqiao" ended their notes,
+// ellipsis can't cut off: the others' "· via magpie" ended their notes,
 // where Claude Code's was a tag (EZN7L2C3, #834). Codex's own models,
 // through queqiao while it is routed, say so too (via); Codex's, Grok
 // Build's and Antigravity CLI's own said nothing at all
@@ -3916,10 +3916,10 @@ function pathTag(o) {
   if (!pick?.agent || o.custom || o.run) return null;
   let tag = null;
   if (o.ref || o.via) {
-    tag = el("span", "badge path via", t("via queqiao"));
+    tag = el("span", "badge path via", t("via magpie"));
     tag.title = t("{agent} asks queqiao for it", { agent: pick.agent.name });
   } else if (o.direct) {
-    tag = el("span", "badge path direct", t("direct, not via queqiao"));
+    tag = el("span", "badge path direct", t("direct, not via magpie"));
     tag.title = t("straight to {vendor}, not through queqiao", { vendor: o.direct });
   } else if (o.reset && o.value === "" && leavesMagpie(pick.agent, pick.field, "", o)) {
     tag = el("span", "badge path direct", t("off queqiao"));
@@ -3953,11 +3953,11 @@ function renderList() {
     if (ctx) words.append(ctx);
     let note = o.note && o.note !== (o.label || o.value) ? (own ? t(o.note) : o.note) : "";
     // which way the model goes, as a tag the note's ellipsis can't cut
-    // off: "· via queqiao" ended a long note (an account's e-mail), and
+    // off: "· via magpie" ended a long note (an account's e-mail), and
     // Claude Code's own models said nothing, so an Opus asked of Anthropic
     // directly and a Sonnet through queqiao looked alike (#726)
     const path = pathTag(o);
-    if (path) { words.append(path); note = note.replace(/(^| · )via queqiao$/, ""); }
+    if (path) { words.append(path); note = note.replace(/(^| · )via magpie$/, ""); }
     if (q && o.group && !note) note = o.group;
     // a note cut off by its ellipsis (the other groups a model is in,
     // #907) reads whole on hover
@@ -4050,7 +4050,7 @@ function foldRow(o, idx, hasIcons) {
   li.setAttribute("aria-expanded", String(o.open));
   if (hasIcons) li.append(optionIcon(o));
   const words = el("span", "option-words");
-  words.append(el("span", "v", t(o.n === 1 ? "{n} model via queqiao" : "{n} models via queqiao", { n: o.n })));
+  words.append(el("span", "v", t(o.n === 1 ? "{n} model via magpie" : "{n} models via magpie", { n: o.n })));
   words.append(el("span", "n", o.account ? t("{account} · the account {agent} is signed in to", { account: o.account, agent: pick.agent.name }) : t("the account {agent} is signed in to", { agent: pick.agent.name })));
   li.append(words);
   const chev = el("span", "chev");
@@ -5201,9 +5201,9 @@ const FLAVORS = {
   openai: {
     name: "OpenAI", base: (u) => u + "/v1", baseEnv: "OPENAI_BASE_URL", keyEnv: "OPENAI_API_KEY",
     note: "Chat Completions, the API most tools speak. Anything with an OpenAI base-URL setting works.",
-    curl: (b, m, k = "queqiao") => ({ url: `${b}/chat/completions`, headers: [`Authorization: Bearer ${k}`],
+    curl: (b, m, k = "magpie") => ({ url: `${b}/chat/completions`, headers: [`Authorization: Bearer ${k}`],
       body: `{"model": "${m}",\n "messages": [{"role": "user", "content": "hi"}]}` }),
-    python: (b, m, k = "queqiao") => `from openai import OpenAI
+    python: (b, m, k = "magpie") => `from openai import OpenAI
 
 client = OpenAI(base_url="${b}", api_key="${k}")
 r = client.chat.completions.create(
@@ -5211,7 +5211,7 @@ r = client.chat.completions.create(
     messages=[{"role": "user", "content": "hi"}],
 )
 print(r.choices[0].message.content)`,
-    node: (b, m, k = "queqiao") => `import OpenAI from "openai";
+    node: (b, m, k = "magpie") => `import OpenAI from "openai";
 
 const client = new OpenAI({ baseURL: "${b}", apiKey: "${k}" });
 const r = await client.chat.completions.create({
@@ -5223,14 +5223,14 @@ console.log(r.choices[0].message.content);`,
   responses: {
     name: "Responses", base: (u) => u + "/v1", baseEnv: "OPENAI_BASE_URL", keyEnv: "OPENAI_API_KEY",
     note: "OpenAI's newer API: reasoning, built-in tool items, encrypted reasoning. Codex speaks this.",
-    curl: (b, m, k = "queqiao") => ({ url: `${b}/responses`, headers: [`Authorization: Bearer ${k}`],
+    curl: (b, m, k = "magpie") => ({ url: `${b}/responses`, headers: [`Authorization: Bearer ${k}`],
       body: `{"model": "${m}", "input": "hi"}` }),
-    python: (b, m, k = "queqiao") => `from openai import OpenAI
+    python: (b, m, k = "magpie") => `from openai import OpenAI
 
 client = OpenAI(base_url="${b}", api_key="${k}")
 r = client.responses.create(model="${m}", input="hi")
 print(r.output_text)`,
-    node: (b, m, k = "queqiao") => `import OpenAI from "openai";
+    node: (b, m, k = "magpie") => `import OpenAI from "openai";
 
 const client = new OpenAI({ baseURL: "${b}", apiKey: "${k}" });
 const r = await client.responses.create({ model: "${m}", input: "hi" });
@@ -5239,9 +5239,9 @@ console.log(r.output_text);`,
   anthropic: {
     name: "Anthropic", base: (u) => u, baseEnv: "ANTHROPIC_BASE_URL", keyEnv: "ANTHROPIC_API_KEY",
     note: "Messages API. Claude Code reads ANTHROPIC_AUTH_TOKEN instead of the key; the Agents tab sets that for you.",
-    curl: (b, m, k = "queqiao") => ({ url: `${b}/v1/messages`, headers: [`x-api-key: ${k}`, "anthropic-version: 2023-06-01"],
+    curl: (b, m, k = "magpie") => ({ url: `${b}/v1/messages`, headers: [`x-api-key: ${k}`, "anthropic-version: 2023-06-01"],
       body: `{"model": "${m}", "max_tokens": 1024,\n "messages": [{"role": "user", "content": "hi"}]}` }),
-    python: (b, m, k = "queqiao") => `import anthropic
+    python: (b, m, k = "magpie") => `import anthropic
 
 client = anthropic.Anthropic(
     base_url="${b}", api_key="${k}",
@@ -5252,7 +5252,7 @@ m = client.messages.create(
     messages=[{"role": "user", "content": "hi"}],
 )
 print(m.content[0].text)`,
-    node: (b, m, k = "queqiao") => `import Anthropic from "@anthropic-ai/sdk";
+    node: (b, m, k = "magpie") => `import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({ baseURL: "${b}", apiKey: "${k}" });
 const m = await client.messages.create({
@@ -5265,14 +5265,14 @@ console.log(m.content[0].text);`,
   gemini: {
     name: "Gemini", base: (u) => u, baseEnv: "GOOGLE_GEMINI_BASE_URL", keyEnv: "GEMINI_API_KEY",
     note: "Google's generateContent API, v1beta. Gemini CLI and the google-genai SDKs speak this.",
-    curl: (b, m, k = "queqiao") => ({ url: `${b}/v1beta/models/${m}:generateContent`, headers: [`x-goog-api-key: ${k}`],
+    curl: (b, m, k = "magpie") => ({ url: `${b}/v1beta/models/${m}:generateContent`, headers: [`x-goog-api-key: ${k}`],
       body: `{"contents": [{"parts": [{"text": "hi"}]}]}` }),
-    python: (b, m, k = "queqiao") => `from google import genai
+    python: (b, m, k = "magpie") => `from google import genai
 
 client = genai.Client(api_key="${k}", http_options={"base_url": "${b}"})
 r = client.models.generate_content(model="${m}", contents="hi")
 print(r.text)`,
-    node: (b, m, k = "queqiao") => `import { GoogleGenAI } from "@google/genai";
+    node: (b, m, k = "magpie") => `import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({
   apiKey: "${k}",
@@ -5287,9 +5287,9 @@ console.log(r.text);`,
   systemone: {
     name: "System One", base: (u) => u + "/v1", decide: true,
     note: "TypeSafe's decision API: a Jev or Clef model answers typed questions (choice, noul, score) about a state, with how sure it is. Clef also reads images: add \"images\": [\"data:image/png;base64,…\"].",
-    curl: (b, m, k = "queqiao") => ({ url: `${b}/systemone`, headers: [`Authorization: Bearer ${k}`],
+    curl: (b, m, k = "magpie") => ({ url: `${b}/systemone`, headers: [`Authorization: Bearer ${k}`],
       body: `{"model": "${m}",\n "state": {"message": "My order never arrived, refund it"},\n "questions": {"team": {"type": "choice",\n   "instructions": "Which team should answer the message?",\n   "criteria": {"billing": "Payments and refunds", "shipping": "Deliveries", "other": "Anything else"}}}}` }),
-    python: (b, m, k = "queqiao") => `import requests
+    python: (b, m, k = "magpie") => `import requests
 
 r = requests.post("${b}/systemone",
     headers={"Authorization": "Bearer ${k}"},
@@ -5304,7 +5304,7 @@ r = requests.post("${b}/systemone",
     })
 a = r.json()["answers"]["team"]
 print(a["choice"], a["confidence"])`,
-    node: (b, m, k = "queqiao") => `const r = await fetch("${b}/systemone", {
+    node: (b, m, k = "magpie") => `const r = await fetch("${b}/systemone", {
   method: "POST",
   headers: { Authorization: "Bearer ${k}", "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -5457,7 +5457,7 @@ function renderConnect() {
     queueMicrotask(() => selectConnectKey(keys[0].id));
   }
   const key = keys.find((k) => k.id === connectKeyID);
-  const secret = key ? (connectSecret?.id === key.id ? connectSecret.secret : "") : remote ? "" : "queqiao";
+  const secret = key ? (connectSecret?.id === key.id ? connectSecret.secret : "") : remote ? "" : "magpie";
   const base = f.base(connectURL);
   const fold = $("#foldConnect");
   fold.setAttribute("aria-expanded", String(!connectFolded));
@@ -5484,12 +5484,12 @@ function renderConnect() {
   const options = keys.map((k) => ({ v: k.id, name: k.name, literalName: true, note: k.masked }));
   if (!remote) options.unshift({ v: "", name: "This computer", note: t("Any key · no key attribution") });
   const keyLabel = remote || key ? "Gateway key" : "API key";
-  if (!g.lan) k.append(el("code", "", "queqiao"));
+  if (!g.lan) k.append(el("code", "", "magpie"));
   else if (options.length) k.append(connectPick("connectKey", keyLabel, key ? key.name : remote ? t("Choose a gateway key") : t("This computer"),
     options, connectKeyID, selectConnectKey));
   else k.append(el("code", "", t("Create a gateway key above to connect")));
   if (key) k.append(copyCallerKeyBtn(key));
-  else if (!remote) k.append(copyBtn("queqiao", t("Key")));
+  else if (!remote) k.append(copyBtn("magpie", t("Key")));
   box.append(...field(t(keyLabel), k, !f.keyEnv ? t(g.lan && (remote || gatewayKeys?.length)
     ? "Choose a gateway key to send as Authorization: Bearer; usage is tracked by key."
     : "Sent as Authorization: Bearer. The gateway trusts everything on loopback, so any value works.") : t(g.lan && (remote || gatewayKeys?.length)
@@ -7002,7 +7002,7 @@ function headerEditor(hints = []) {
 function parses(s) { try { JSON.parse(s); return true; } catch { return false; } }
 
 // iconPicker: a custom provider's icon — one of the built-in ones, or a
-// picture of the user's own, which queqiao keeps in ~/.config/queqiao/icons.
+// picture of the user's own, which magpie keeps in ~/.config/magpie/icons.
 // A routing group's icon: its providers' icons stacked, the first on top,
 // so which providers a group routes over shows at a glance.
 function stackIcon(icons) {
@@ -7750,7 +7750,7 @@ function drawEditor(p, presetID) {
   keyWrap.append(key, side);
   if (p?.keyList?.length) ed.append(...field(t("Accounts"), renderKeyAccounts(p), p.routing ? t("Tick every key to use; Routing says how requests spread over them.") : t("Tick every key to use. Requests go to the first; when it runs out of quota or hits a rate limit, the next ticked key takes over.")));
   if (p?.keyList?.filter((k) => k.on).length > 1) ed.append(...renderRouting(p));
-  else ed.append(...field(t("API key"), keyWrap, isNew ? t("Kept in ~/.config/queqiao/providers.json, readable by you alone. Nothing is read from your shell.") : ""));
+  else ed.append(...field(t("API key"), keyWrap, isNew ? t("Kept in ~/.config/magpie/providers.json, readable by you alone. Nothing is read from your shell.") : ""));
 
   // A user-defined provider can have its own picture; presets keep theirs.
   if (custom) ed.append(...field(t("Icon"), iconPicker(ed), ""));
@@ -8535,7 +8535,7 @@ function renderImport(im) {
   if (p.keysUrl && !p.key) { const b = el("button", "link", t("Get a key ↗")); b.onclick = () => api("open", { url: p.keysUrl }); side.append(b); }
   const keyWrap = el("div", "pair");
   keyWrap.append(key, side);
-  ed.append(...field(t("API key"), keyWrap, p.key ? t("From the link. Kept in ~/.config/queqiao/providers.json, readable by you alone.") : ""));
+  ed.append(...field(t("API key"), keyWrap, p.key ? t("From the link. Kept in ~/.config/magpie/providers.json, readable by you alone.") : ""));
 
   ed.append(...field(t("Endpoints"), renderEndpoints(null, p), ""));
   if (p.models?.length) {
@@ -10845,7 +10845,7 @@ function loginUsageOf(agent) {
 function quotaError(err) {
   if (/sign-in has expired/.test(err)) return t("Signed out — add this account again to use it");
   if (/no longer supported for Gemini Code Assist for individuals/.test(err)) return t("Google no longer serves personal accounts to Gemini CLI — hover for more");
-  if (/queqiao accounts project/.test(err)) return t("Needs a Google Cloud project — hover for how");
+  if (/magpie accounts project/.test(err)) return t("Needs a Google Cloud project — hover for how");
   if (/^Antigravity (hasn't set|won't serve)/.test(err)) return t("Antigravity hasn't set this account up — hover for why");
   if (/violation of Terms of Service/i.test(err)) return t("Google has suspended this account — hover for details");
   if (/access token is invalid or expired|didn't take the access token/.test(err)) return t("AiHubMix didn't take the access token — paste a new one in the provider's settings");
@@ -11063,7 +11063,7 @@ function capHeldOf(q, cap) {
 // directNote: why the cap can't stop agent, signed in to the account and
 // asking its vendor itself, with no other account on to move it to
 function directNote(agent) {
-  return t("{agent} is signed in to this account and asks its vendor itself, not through queqiao, so with no other account on to move it to, {agent} goes on using it past the cap. Add another account, or pick {agent}'s models via queqiao, for the cap to hold it", { agent });
+  return t("{agent} is signed in to this account and asks its vendor itself, not through magpie, so with no other account on to move it to, {agent} goes on using it past the cap. Add another account, or pick {agent}'s models via magpie, for the cap to hold it", { agent });
 }
 function capHeldNote(held, cap, several, direct) {
   if (direct) {
@@ -17422,7 +17422,7 @@ function renderCLI(r) {
       cliView = await api("cli", body);
       cliAt = Date.now();
       paint(cliView);
-      status(cliView.windows && cliView.shim ? t("Added: magpie.cmd beside {name} runs it as queqiao; open a new PowerShell or Command Prompt window to run queqiao", { name: exeName(cliView.exe) })
+      status(cliView.windows && cliView.shim ? t("Added: magpie.cmd beside {name} runs it as magpie; open a new PowerShell or Command Prompt window to run magpie", { name: exeName(cliView.exe) })
         : cliView.windows ? t("Added: open a new PowerShell or Command Prompt window to run queqiao") : t("Added: open a new terminal window to run queqiao"), "ok");
     } catch (e) { status(t(e.message), "err"); } finally { btn.disabled = false; }
   };
@@ -17434,7 +17434,7 @@ function renderCLI(r) {
       : t("A new terminal can't find the queqiao command");
     add.hidden = v.ours || !v.dir || !!v.stuck;
     add.textContent = v.command ? t("Use this app") : t("Add to PATH");
-    // an app not named magpie.exe (the site's queqiao-windows-amd64.exe,
+    // an app not named magpie.exe (the site's magpie-windows-amd64.exe,
     // #942) is given a magpie.cmd beside it that runs it
     add.title = v.windows && v.shim ? t("Puts {dir} first in your user PATH and writes magpie.cmd there, which runs {name}", { dir: v.dir || "", name: exeName(v.exe) })
       : v.windows ? t("Puts {dir} first in your user PATH", { dir: v.dir || "" }) : t("Links queqiao in {dir}", { dir: v.dir || "" });
@@ -17685,8 +17685,8 @@ function renderSettings() {
   const repo = el("button", "github");
   repo.innerHTML = GITHUB_SVG;
   repo.append(el("span", "", "GitHub"));
-  repo.title = "github.com/yetone/queqiao";
-  repo.onclick = () => api("open", { url: "https://github.com/yetone/queqiao" }).catch(() => {});
+  repo.title = "github.com/yetone/magpie";
+  repo.onclick = () => api("open", { url: "https://github.com/yetone/magpie" }).catch(() => {});
   row(t("Community"), t("questions, ideas and feedback, on Discord or GitHub"), "", join, repo);
   // gateway mode leaves out what is written into this computer's agents'
   // files, and the alerts its desktop would show
@@ -18769,7 +18769,7 @@ function renderSearcher(s, keep, box) {
     // its small model is offered once (Player on Discord): the model of the
     // same name below it searched just the same, "<provider>/<small>" being
     // that model named rather than queqiao's pick, so a pick saved so is
-    // ticked here. No "via queqiao": no agent asks for these
+    // ticked here. No "via magpie": no agent asks for these
     const small = c.small ? `${c.id}/${c.small}` : "";
     options.push({ value: v === small ? small : c.id, label: t("{model}, its small model", { model: c.smallName || c.small }), note: c.name, icon: c.icon, group: c.name });
     for (const m of c.models) if (m.id !== small) options.push({ value: m.id, label: m.name || m.id, note: c.name, icon: c.icon, group: c.name });

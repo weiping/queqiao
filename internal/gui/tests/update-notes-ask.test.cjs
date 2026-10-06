@@ -25,7 +25,7 @@ function server(lang, ctl) {
     const json = (data) => route.fulfill({ json: data });
     if (url.pathname === "/boot.js") return route.fulfill({ contentType: "text/javascript", body: `window.bootPrefs = {lang:"${lang}",theme:"light",web:false};` });
     if (url.pathname === "/wails/runtime.js") return route.fulfill({ contentType: "text/javascript", body: "export const Window = {};" });
-    const settings = { theme: "light", lang, version: "0.1.400", dir: "~/.config/queqiao", gateway: "http://127.0.0.1:3425", fx: { rate: 7.2, at: new Date().toISOString() } };
+    const settings = { theme: "light", lang, version: "0.1.400", dir: "~/.config/magpie", gateway: "http://127.0.0.1:3425", fx: { rate: 7.2, at: new Date().toISOString() } };
     if (url.pathname === "/api/state") return json({ agents: [], profiles: [], settings });
     if (url.pathname === "/api/settings") return json(settings);
     if (url.pathname === "/api/update") return json({ state: "ready", current: "0.1.400", latest: "0.1.402", notes: "- Two: the pill asks first", url: "https://example.test/v0.1.402" });

@@ -22,7 +22,7 @@ function server(lang, posts) {
   const how = (id) => st.own[id] || (st.copy ? "copy" : "link");
   const agent = (id, name, extra = {}) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, how: how(id), howOwn: !!st.own[id], ...extra });
   const lib = () => ({
-    dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME, copySkills: st.copy,
+    dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME, copySkills: st.copy,
     agents: [agent("claude", "Claude Code"), agent("codex", "Codex"), agent("claude-desktop", "Claude Desktop", { how: "copy", mustCopy: true })],
     instructions: { agents: [] }, servers: [], foundServers: [], projects: [], foundSkills: [],
     skills: [

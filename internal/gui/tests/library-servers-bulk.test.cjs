@@ -26,7 +26,7 @@ const HOME = "/Users/emo";
 const agent = (id, name, more = {}) => ({ id, name, icon: "", skills: `${HOME}/.${id}/skills`, mcp: `${HOME}/.${id}/mcp.json`, ...more });
 const sv = (name, transport, agents, more = {}) => ({ name, transport, command: transport === "stdio" ? name + "-mcp" : "", url: transport === "stdio" ? "" : "http://localhost:9/" + name, agents, ...more });
 const lib = (servers) => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [agent("claude", "Claude Code"), agent("codex", "Codex", { noSSE: true }), agent("copilot", "Copilot CLI"), agent("gemini", "Gemini CLI")],
   instructions: { agents: [] }, servers, skills: [], foundServers: [], projects: [], foundSkills: [], problems: [],
 });

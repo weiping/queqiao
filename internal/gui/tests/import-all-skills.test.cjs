@@ -20,7 +20,7 @@ const found = [
   { name: "notes", description: "Mine", agents: ["codex"] },
 ];
 const lib = (foundSkills) => ({
-  dir: `${HOME}/.queqiao/library`, backups: `${HOME}/.queqiao/backups`, home: HOME,
+  dir: `${HOME}/.magpie/library`, backups: `${HOME}/.magpie/backups`, home: HOME,
   agents: [agent("codex", "Codex"), agent("pi", "Pi")],
   instructions: { agents: [] }, servers: [], skills: [], foundServers: [], projects: [], foundSkills,
 });
