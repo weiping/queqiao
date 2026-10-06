@@ -110,6 +110,27 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
 
 配置无效时路由自动降级：网关照常服务，只是少了选档。`queqiao router status` 会报告具体的配置错误。
 
+### 分类器：TypeSafe Jev
+
+分类器默认是 `"local"`——这是个占位值，要换成实际的 `provider/model`（如 `ollama/qwen3-4b`），否则分类一直失败，路由只能走默认档。推荐的分类器是 TypeSafe 的 [Jev](https://docs.typesafe.ai/introduction)：单请求返回档位选择和置信度，以及「用户在说上一轮不对」的概率，不用自己拼提示词。
+
+```sh
+# 1. 加 TypeSafe provider（key 从 https://console.typesafe.ai/keys 拿）
+queqiao provider add typesafe <api-key>
+```
+
+```jsonc
+// 2. ~/.config/queqiao/router.json
+{
+  "classifier": "typesafe/jev-latest",
+  "classify_timeout_ms": 1500
+}
+```
+
+不想直连 TypeSafe 还有两个中继预设：`vercel-jev`（Vercel AI Gateway，分类器写 `vercel-jev/typesafe-ai/jev`）和 `cloudflare-jev`（Cloudflare Workers AI，写 `cloudflare-jev/typesafe/jev`）。
+
+时延提示：实测本机到 TypeSafe 的请求在 300–1500ms 之间波动，偶发超时时该轮不落新档、下一轮自动补偿（spec §5.7）。如果网络到 TypeSafe 不稳定，用本地小模型更稳。
+
 ### 项目级覆盖
 
 在项目根目录放 `.queqiao/router.json`，只能覆盖各档的 `criteria`（比如告诉分类器「这个仓库的改动大多是跨服务的」），其余字段一律忽略：
