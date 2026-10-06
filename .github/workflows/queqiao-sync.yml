@@ -86,8 +86,14 @@ jobs:
           else
             body=$(printf 'main (%s) has commits that upstream main (%s) does not. main must only mirror upstream; move those commits to a branch off queqiao, then reset main to upstream.\n\nRun: %s' \
               "${old:0:7}" "${new:0:7}" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
-            gh label create sync --color BFD4F2 --force >/dev/null
-            gh issue create --title "Upstream sync: main has diverged from yetone/magpie" --label sync --body "$body"
+            gh label create sync --color BFD4F2 --force >/dev/null \
+              || echo "::warning::could not create the sync label on $GH_REPO"
+            if ! gh issue create --title "Upstream sync: main has diverged from yetone/magpie" --label sync --body "$body"; then
+              # issues disabled, or the token lacks Issues write: warn, but
+              # never mask the real error below (run #5's failure)
+              echo "::warning::could not open the sync issue; its text follows"
+              echo "$body"
+            fi
             echo "::error::main has diverged from upstream"
             exit 1
           fi
@@ -128,8 +134,14 @@ jobs:
             # shellcheck disable=SC2016 # Markdown backticks, not shell
             body=$(printf 'Merging upstream %s..%s (%s commits) into queqiao conflicts in:\n\n%s\n\nResolve by hand:\n\n```sh\ngit switch queqiao && git pull\ngit fetch origin main\ngit merge --no-ff origin/main\n# resolve, then\ngit push origin queqiao\n```\n\nOnly the upstream files listed in the spec (section 6.1) should ever conflict.\n\nRun: %s' \
               "$from" "$to" "$count" "$files" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
-            gh label create sync --color BFD4F2 --force >/dev/null
-            gh issue create --title "Upstream sync: merge conflicts ($from..$to)" --label sync --body "$body"
+            gh label create sync --color BFD4F2 --force >/dev/null \
+              || echo "::warning::could not create the sync label on $GH_REPO"
+            if ! gh issue create --title "Upstream sync: merge conflicts ($from..$to)" --label sync --body "$body"; then
+              # issues disabled, or the token lacks Issues write: warn, but
+              # never mask the real error below (run #5's failure)
+              echo "::warning::could not open the sync issue; its text follows"
+              echo "$body"
+            fi
             echo "::error::merge conflicts"
             exit 1
           fi
