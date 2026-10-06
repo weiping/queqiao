@@ -59,13 +59,13 @@ test-ui:
 
 # macOS bundle: menu bar app with no Dock icon (LSUIElement).
 app: build
-	@rm -rf magpie.app
-	@mkdir -p magpie.app/Contents/MacOS magpie.app/Contents/Resources
-	@cp $(BIN) magpie.app/Contents/MacOS/magpie
-	@cp build/darwin/magpie.icns magpie.app/Contents/Resources/magpie.icns
-	@cp build/darwin/Assets.car magpie.app/Contents/Resources/Assets.car
-	@sed 's/@VERSION@/$(VERSION)/' build/darwin/Info.plist > magpie.app/Contents/Info.plist
-	@echo "  magpie.app"
+	@rm -rf queqiao.app
+	@mkdir -p queqiao.app/Contents/MacOS queqiao.app/Contents/Resources
+	@cp $(BIN) queqiao.app/Contents/MacOS/$(BIN)
+	@cp build/darwin/magpie.icns queqiao.app/Contents/Resources/magpie.icns
+	@cp build/darwin/Assets.car queqiao.app/Contents/Resources/Assets.car
+	@sed 's/@VERSION@/$(VERSION)/' build/darwin/Info.plist > queqiao.app/Contents/Info.plist
+	@echo "  queqiao.app"
 
 icons:
 	@go run build/icon/gen.go tray internal/gui/tray.png
@@ -120,7 +120,7 @@ release-linux:
 	@go build -tags "$(TAGS)" -trimpath -ldflags="$(LDFLAGS)" -o dist/magpie-linux-$(shell go env GOARCH) .
 
 clean:
-	rm -rf $(BIN) $(BIN).exe magpie.app dist rsrc_windows_*.syso
+	rm -rf $(BIN) $(BIN).exe queqiao.app dist rsrc_windows_*.syso
 
 # Development: the UI is served from internal/gui/assets and the window
 # reloads itself when a file there is saved. With fswatch installed, the

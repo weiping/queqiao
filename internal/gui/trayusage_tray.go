@@ -43,7 +43,7 @@ func (h *host) watchTrayUsage() {
 				cells = trayPlain(cells)
 			}
 			if tip == "" {
-				tip = "magpie"
+				tip = "queqiao"
 			}
 			if runtime.GOOS != "darwin" {
 				cells = nil

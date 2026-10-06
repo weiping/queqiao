@@ -2,10 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleName</key><string>magpie</string>
-	<key>CFBundleDisplayName</key><string>magpie</string>
-	<key>CFBundleIdentifier</key><string>com.yetone.magpie</string>
-	<key>CFBundleExecutable</key><string>magpie</string>
+	<key>CFBundleName</key><string>queqiao</string>
+	<key>CFBundleDisplayName</key><string>queqiao</string>
+	<key>CFBundleIdentifier</key><string>com.weiping.queqiao</string>
+	<key>CFBundleExecutable</key><string>queqiao</string>
 	<key>CFBundleIconFile</key><string>magpie</string>
 	<key>CFBundleIconName</key><string>AppIcon</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
@@ -17,7 +17,7 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
-			<key>CFBundleURLName</key><string>com.yetone.magpie.import</string>
+			<key>CFBundleURLName</key><string>com.weiping.queqiao.import</string>
 			<key>CFBundleURLSchemes</key><array><string>magpie</string></array>
 		</dict>
 	</array>
