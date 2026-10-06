@@ -909,7 +909,7 @@ func serve() error {
 	go stats.Run(version, "serve")
 	go catalog.KeepFresh() // new models' prices, in a gateway left running
 	public := advertisedURL()
-	fmt.Println(green.Render("●"), "magpie gateway on", bold.Render(gateway.URL()))
+	fmt.Println(green.Render("●"), "queqiao gateway on", bold.Render(gateway.URL()))
 	fmt.Println(muted.Render("  OpenAI  "), public+"/v1/chat/completions", muted.Render("·"), public+"/v1/responses")
 	fmt.Println(muted.Render("  Anthropic"), public+"/v1/messages")
 	fmt.Println(muted.Render("  key     "), gateway.Token, muted.Render(keyNote()))

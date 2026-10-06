@@ -10,10 +10,10 @@ import (
 	"github.com/yetone/magpie/internal/gui"
 )
 
-// webAddr is where `magpie web` listens unless told: beside the gateway.
+// webAddr is where `queqiao web` listens unless told: beside the gateway.
 const webAddr = "127.0.0.1:3430"
 
-// webCmd: magpie web [--addr host:port] [--lan] [--no-open] [--gateway] —
+// webCmd: queqiao web [--addr host:port] [--lan] [--no-open] [--gateway] —
 // the app's window in a browser, for a computer that can't show the app;
 // --gateway shows it in gateway mode (gui.WebGateway) unless Settings says
 // otherwise.
@@ -33,7 +33,7 @@ func webCmd(args []string) error {
 		case a == "--gateway":
 			gui.WebGateway.Store(true)
 		default:
-			return fmt.Errorf("magpie web: unknown %q · magpie web [--addr host:port] [--lan] [--no-open] [--gateway], MAGPIE_WEB_KEY to keep one key", a)
+			return fmt.Errorf("queqiao web: unknown %q · queqiao web [--addr host:port] [--lan] [--no-open] [--gateway], MAGPIE_WEB_KEY to keep one key", a)
 		}
 	}
 	if lan && addr == webAddr {
@@ -44,7 +44,7 @@ func webCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(green.Render("●"), "magpie web on", bold.Render(w.Link))
+	fmt.Println(green.Render("●"), "queqiao web on", bold.Render(w.Link))
 	host, _, _ := net.SplitHostPort(w.Addr)
 	if ip := net.ParseIP(host); ip != nil && !ip.IsLoopback() {
 		_, port, _ := net.SplitHostPort(w.Addr)
