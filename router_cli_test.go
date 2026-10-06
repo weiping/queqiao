@@ -44,8 +44,9 @@ func routerHome(t *testing.T) {
 func TestRouterInitCnWritesGroupsAndConfig(t *testing.T) {
 	routerHome(t)
 	// cn preset: fast/balanced resolved by name; performance members are
-	// <p>/… and resolve to nothing here — left literal, and reported
-	// unresolved rather than failing init.
+	// <p>/… and resolve to nothing here — reported unresolved, left out of
+	// the group, and the tier takes balanced's members for now
+	// (TestRouterInitFillsAnEmptyTier) rather than failing init.
 	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
 		t.Fatal(err)
 	}
@@ -80,6 +81,32 @@ func TestRouterInitCnWritesGroupsAndConfig(t *testing.T) {
 	}
 	if cfg.Experiment.Salt == "" {
 		t.Fatal("no experiment salt")
+	}
+}
+
+// A tier whose preset members nothing serves is not written with "<p>/"
+// placeholders that can never answer: it takes the nearest tier's members
+// (performance takes balanced's) and init says how to give it its own.
+func TestRouterInitFillsAnEmptyTier(t *testing.T) {
+	routerHome(t)
+	out, err := captureStdout(t, func() error {
+		return routerInit([]string{"--preset", "cn", "--groups-only"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	perf, _ := groupByID("qq-perf")
+	bal, _ := groupByID("qq-balanced")
+	for _, m := range perf.Members {
+		if strings.HasPrefix(m, "<p>/") {
+			t.Fatalf("qq-perf kept a placeholder: %v", perf.Members)
+		}
+	}
+	if strings.Join(perf.Members, ",") != strings.Join(bal.Members, ",") {
+		t.Fatalf("qq-perf = %v, want balanced's %v", perf.Members, bal.Members)
+	}
+	if !strings.Contains(out, "queqiao group set qq-perf models=") {
+		t.Fatalf("init did not say how to give performance its own members:\n%s", out)
 	}
 }
 
@@ -255,5 +282,102 @@ func TestRouterReportRejectsBadFlags(t *testing.T) {
 	}
 	if err := routerReport([]string{"--nope"}); err == nil {
 		t.Fatal("unknown flag accepted")
+	}
+}
+
+// frontier with none of its gpt or claude models served: balanced and
+// performance both take fast's members, no placeholder left anywhere.
+func TestRouterInitFrontierWithOnlyFastServed(t *testing.T) {
+	routerHome(t)
+	if _, err := captureStdout(t, func() error {
+		return routerInit([]string{"--preset", "frontier", "--groups-only"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	fast, _ := groupByID("qq-fast")
+	for _, id := range []string{"qq-balanced", "qq-perf"} {
+		g, _ := groupByID(id)
+		if strings.Join(g.Members, ",") != strings.Join(fast.Members, ",") {
+			t.Fatalf("%s = %v, want fast's %v", id, g.Members, fast.Members)
+		}
+	}
+	for _, m := range fast.Members {
+		if strings.HasPrefix(m, "<p>/") {
+			t.Fatalf("qq-fast kept a placeholder: %v", fast.Members)
+		}
+	}
+}
+
+// router init points Pi at the balanced tier the way `queqiao pi` does:
+// settings.json's defaultProvider/defaultModel and the gateway provider in
+// models.json, the user's other settings kept. It also takes out the
+// top-level "magpie": {"default": …} an earlier router init wrote into
+// models.json, which Pi never read.
+func TestRouterInitPiSetsPisDefaultModel(t *testing.T) {
+	routerHome(t)
+	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(os.Getenv("HOME"), ".pi", "agent")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"theme": "dark"}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "models.json"), []byte(`{"magpie": {"default": "magpie/group/qq-balanced"}, "providers": {}}`), 0o644)
+	if _, err := captureStdout(t, routerInitPi); err != nil {
+		t.Fatal(err)
+	}
+	var settings map[string]any
+	b, _ := os.ReadFile(filepath.Join(dir, "settings.json"))
+	if err := json.Unmarshal(b, &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings["defaultProvider"] != "magpie" || settings["defaultModel"] != "group/qq-balanced" || settings["theme"] != "dark" {
+		t.Fatalf("settings.json: %s", b)
+	}
+	var models map[string]json.RawMessage
+	b, _ = os.ReadFile(filepath.Join(dir, "models.json"))
+	if err := json.Unmarshal(b, &models); err != nil {
+		t.Fatal(err)
+	}
+	if _, stray := models["magpie"]; stray {
+		t.Fatalf("models.json kept the stray top-level magpie: %s", b)
+	}
+	var providers map[string]json.RawMessage
+	json.Unmarshal(models["providers"], &providers)
+	if _, ok := providers["magpie"]; !ok {
+		t.Fatalf("models.json has no gateway provider: %s", b)
+	}
+}
+
+// A top-level "magpie" in models.json that isn't the one router init
+// wrote (any other shape) is the user's: it stays.
+func TestRouterInitPiKeepsAnotherTopLevelMagpie(t *testing.T) {
+	routerHome(t)
+	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(os.Getenv("HOME"), ".pi", "agent")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "models.json"), []byte(`{"magpie": {"note": "mine"}, "providers": {}}`), 0o644)
+	if _, err := captureStdout(t, routerInitPi); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "models.json"))
+	if !strings.Contains(string(b), `"note": "mine"`) && !strings.Contains(string(b), `"note":"mine"`) {
+		t.Fatalf("the user's own top-level magpie went: %s", b)
+	}
+}
+
+// Without Pi on this machine router init leaves no Pi files behind.
+func TestRouterInitPiWithoutPi(t *testing.T) {
+	routerHome(t)
+	t.Setenv("PATH", t.TempDir())
+	if _, err := captureStdout(t, routerInitPi); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("HOME"), ".pi")); err == nil {
+		t.Fatal("router init made ~/.pi with no Pi here")
 	}
 }

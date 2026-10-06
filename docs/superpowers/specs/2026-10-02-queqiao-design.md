@@ -237,7 +237,7 @@ Pi 的流程与 Claude Code 相似，第 ① 步由 `before_agent_start` 发起�
 | balanced | `moonshot/kimi-k2.5` | `glm/glm-5.3:high` |
 | performance | 沿用 `frontier` 的 performance 主成员 | 沿用 `frontier` 的 performance 失败转移 |
 
-`cn` 预设的 performance 档暂不指定国内模型。初始化时 CLI 会提示用户从 `queqiao models` 里挑一个当前公认最强的国内模型替换，或者保持沿用 `frontier`。
+`cn` 预设的 performance 档暂不指定国内模型。`<p>/` 占位成员只在有已配置的 Provider 提供该模型时才写进组里；一个也解析不了的档位先借用最近一档的成员（performance 借 balanced），`router init` 同时打印 `queqiao group set qq-perf models=…` 提示用户从 `queqiao models` 里挑一个当前公认最强的国内模型替换。（2026-10-06 修订：原先占位成员原样写入组内，组显示 no member ready。）
 
 ### 4.4 落到网关配置
 
@@ -275,7 +275,7 @@ queqiao group add queqiao        models=group/qq-balanced,group/qq-perf,group/qq
 
 ### 4.6 选型的冒烟测试与例行复审
 
-- `queqiao router check`：对三档主成员和失败转移成员逐个检查第 4.2 节第 4 条的门槛。分别用 Anthropic Messages 和 OpenAI Responses 协议发 20 次带工具的请求，并检查窗口大小是否满足要求。任何一项不过，返回非零退出码。
+- `queqiao router check`：对三档主成员和失败转移成员逐个检查第 4.2 节第 4 条的门槛。默认只做不发请求的检查（成员有没有 Provider 服务、窗口大小是否满足要求）；加 `--yes` 才分别用 Anthropic Messages 和 OpenAI Responses 协议发 20 次带工具的请求，这些请求会计费。任何一项不过，返回非零退出码。（2026-10-06 修订：写明 `--yes`，与实现一致。）
 - 每季度或某一档出现新的帕累托点时复审：新模型先作为同档失败转移成员加入，跑一轮 A/B（第 9 节），数据不劣于现任主成员再提升为主成员。
 
 ---

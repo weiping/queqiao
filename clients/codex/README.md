@@ -22,8 +22,11 @@ hook stays silent, exits 0, and the request simply goes out as
 
 ```sh
 codex plugin marketplace add weiping/queqiao
-codex plugin install queqiao-router-codex
+codex plugin add queqiao-router-codex@queqiao
 ```
+
+(`codex plugin add` needs the `@queqiao` marketplace suffix; without it
+Codex asks for `--marketplace`. Codex has no `plugin install` subcommand.)
 
 Then three steps inside Codex:
 

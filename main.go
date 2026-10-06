@@ -228,6 +228,7 @@ func run(args []string) error {
 		}
 		return nil, false
 	}
+	beforeCommand(args)
 	if len(args) == 0 {
 		if hasGUI {
 			return runGUI(true, "")
