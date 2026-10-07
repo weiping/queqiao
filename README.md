@@ -207,7 +207,7 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
 | `tiers.<档>.claude_alias` | — | Claude Code 侧的别名映射（`haiku`/`sonnet`/`opus`） |
 | `tiers.<档>.criteria` | — | 交给分类器的选档标准（自然语言） |
 | `default_tier` | `balanced` | 分类失败或不可信时的落档（规则 R8） |
-| `classifier` | `local` | 分类器：`typesafe/jev-latest`，或任意 `provider/model`（普通模型没有置信度，`tier_min` 按回答是否合法记 1/0） |
+| `classifier` | `local` | 分类器：`typesafe/jev-latest`，或任意 `provider/model`。普通模型用结构化输出给出档位置信度与不满分数（实测 Kimi 支持）；厂商拒绝 `response_format` 时（如 DeepSeek 返回 400）退回只回编号的提示词，此时置信度按回答是否合法记 1/0，事件里的 `classifier` 标 `#plain` |
 | `classify_timeout_ms` | `1500` | 分类超时；超时该轮不落新档，下一轮补偿 |
 | `thresholds.tier_min` | `0.4` | 分类结果的最低置信度（R5） |
 | `thresholds.dissatisfied_min` | `0.7` | 「用户在说上一轮不对」的判定阈值（R3 升档） |
