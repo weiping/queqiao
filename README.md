@@ -192,7 +192,7 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
     "review_min": 0.7,
     "review_confidence_min": 0.5
   },
-  "review": { "mode": "off", "timeout_ms": 15000, "max_answer_chars": 6000 },
+  "review": { "mode": "off", "timeout_ms": 5000, "max_answer_chars": 6000 },
   "escalate_turns": 2,
   "cache_ttl_seconds": 300,
   "fixed_agents": { "Explore": "fast", "Plan": "performance" },
@@ -215,7 +215,7 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
 | `thresholds.review_confidence_min` | `0.5` | 复核自身的置信度下限，低于它不算命中 |
 | `thresholds.overrides` | — | 按 harness 或 agent 覆盖上面几个阈值，例如 `[{"harness":"codex","tier_min":0.5}]`；同时写 harness 和 agent 的条目优先于只写一个的 |
 | `review.mode` | `off` | 轮末复核：`off` 不问；`shadow` 只记 `would_review` 不影响路由；`act` 命中 R3 升档 |
-| `review.timeout_ms` | `15000` | 后台复核的超时（不影响本轮回复，回复早已发出） |
+| `review.timeout_ms` | `5000` | 后台复核的超时（不影响本轮回复，回复早已发出） |
 | `review.max_answer_chars` | `6000` | 送审的回复上限，超出保留前 2000 和后 4000 字 |
 | `escalate_turns` | `2` | 升档后保持的轮数（R4） |
 | `cache_ttl_seconds` | `300` | 降档迟滞：距上次请求超过它才允许立即降档（R6） |
