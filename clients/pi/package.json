@@ -1,6 +1,6 @@
 {
   "name": "@weiping/pi-queqiao",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Route every Pi turn across queqiao's fast/balanced/performance tiers via the queqiao gateway.",
   "keywords": [
     "pi-package"
