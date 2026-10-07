@@ -8,7 +8,7 @@
       "name": "queqiao-router",
       "source": "./clients/claude-code",
       "description": "Per-turn tier routing for Claude Code via the queqiao gateway.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "weiping"
       }

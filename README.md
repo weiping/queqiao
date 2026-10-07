@@ -192,7 +192,7 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
     "review_min": 0.7,
     "review_confidence_min": 0.5
   },
-  "review": { "mode": "off", "timeout_ms": 15000, "max_answer_chars": 6000 },
+  "review": { "mode": "off", "timeout_ms": 5000, "max_answer_chars": 6000 },
   "escalate_turns": 2,
   "cache_ttl_seconds": 300,
   "fixed_agents": { "Explore": "fast", "Plan": "performance" },
@@ -207,7 +207,7 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
 | `tiers.<档>.claude_alias` | — | Claude Code 侧的别名映射（`haiku`/`sonnet`/`opus`） |
 | `tiers.<档>.criteria` | — | 交给分类器的选档标准（自然语言） |
 | `default_tier` | `balanced` | 分类失败或不可信时的落档（规则 R8） |
-| `classifier` | `local` | 分类器：`typesafe/jev-latest`，或任意 `provider/model`（普通模型没有置信度，`tier_min` 按回答是否合法记 1/0） |
+| `classifier` | `local` | 分类器：`typesafe/jev-latest`，或任意 `provider/model`。普通模型用结构化输出给出档位置信度与不满分数（实测 Kimi 支持）；厂商拒绝 `response_format` 时（如 DeepSeek 返回 400）退回只回编号的提示词，此时置信度按回答是否合法记 1/0，事件里的 `classifier` 标 `#plain` |
 | `classify_timeout_ms` | `1500` | 分类超时；超时该轮不落新档，下一轮补偿 |
 | `thresholds.tier_min` | `0.4` | 分类结果的最低置信度（R5） |
 | `thresholds.dissatisfied_min` | `0.7` | 「用户在说上一轮不对」的判定阈值（R3 升档） |
@@ -215,7 +215,7 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
 | `thresholds.review_confidence_min` | `0.5` | 复核自身的置信度下限，低于它不算命中 |
 | `thresholds.overrides` | — | 按 harness 或 agent 覆盖上面几个阈值，例如 `[{"harness":"codex","tier_min":0.5}]`；同时写 harness 和 agent 的条目优先于只写一个的 |
 | `review.mode` | `off` | 轮末复核：`off` 不问；`shadow` 只记 `would_review` 不影响路由；`act` 命中 R3 升档 |
-| `review.timeout_ms` | `15000` | 后台复核的超时（不影响本轮回复，回复早已发出） |
+| `review.timeout_ms` | `5000` | 后台复核的超时（不影响本轮回复，回复早已发出） |
 | `review.max_answer_chars` | `6000` | 送审的回复上限，超出保留前 2000 和后 4000 字 |
 | `escalate_turns` | `2` | 升档后保持的轮数（R4） |
 | `cache_ttl_seconds` | `300` | 降档迟滞：距上次请求超过它才允许立即降档（R6） |
