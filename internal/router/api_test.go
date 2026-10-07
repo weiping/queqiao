@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 var errClassify = errors.New("classify failed")
@@ -17,12 +18,40 @@ type fakeClassifier struct {
 	verdict   *Verdict
 	err       error
 	questions []Question
+
+	// SP7 review side (§3.5).
+	review      *ReviewVerdict
+	reviewErr   error
+	reviewQs    []ReviewQuestion
+	reviewDone  chan struct{}
+	gate        chan struct{} // when set, Review waits for it to close
+	reviewSleep time.Duration
 }
 
 func (f *fakeClassifier) Classify(ctx context.Context, q Question) (*Verdict, error) {
 	f.questions = append(f.questions, q)
 	return f.verdict, f.err
 }
+
+func (f *fakeClassifier) Review(ctx context.Context, q ReviewQuestion) (*ReviewVerdict, error) {
+	f.reviewQs = append(f.reviewQs, q)
+	if f.gate != nil {
+		<-f.gate
+	}
+	if f.reviewSleep > 0 {
+		select {
+		case <-time.After(f.reviewSleep):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if f.reviewDone != nil {
+		f.reviewDone <- struct{}{}
+	}
+	return f.review, f.reviewErr
+}
+
+func (f *fakeClassifier) reviewCalls() int { return len(f.reviewQs) }
 
 // testDeps builds Deps around a fake classifier and an in-memory event log.
 func testDeps(t *testing.T, verdict *Verdict) (*Deps, *fakeClassifier, *[]Event) {

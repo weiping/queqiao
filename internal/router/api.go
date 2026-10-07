@@ -83,6 +83,7 @@ func Register(mux *http.ServeMux, deps *Deps) {
 		deps.Log = Append
 	}
 	mux.HandleFunc("POST /v1/queqiao/turn", deps.turn)
+	mux.HandleFunc("POST /v1/queqiao/review", deps.review)
 	mux.HandleFunc("POST /v1/queqiao/feedback", deps.feedback)
 	mux.HandleFunc("GET /v1/queqiao/session", deps.session)
 	mux.HandleFunc("POST /v1/queqiao/lineage", deps.lineage)
@@ -141,8 +142,13 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 		}
 	}
 
+	var review *ReviewVerdict
+	if in.Agent == "main" {
+		review = d.Sessions.TakeReview(in.Key)
+	}
 	decision := Choose(PolicyInput{
 		Agent:        in.Agent,
+		Review:       review,
 		PlanMode:     in.PlanMode,
 		Classified:   classified,
 		Prev:         prev,
@@ -183,9 +189,13 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 		c := classified.TierConfidence
 		ev.TierConfidence = &c
 		if prev != nil {
-			d := classified.Dissatisfied
-			ev.Dissatisfied = &d
+			v := classified.Dissatisfied
+			ev.Dissatisfied = &v
 		}
+	}
+	if review != nil {
+		u, c := review.Unresolved, review.Confidence
+		ev.Unresolved, ev.ReviewConfidence = &u, &c
 	}
 	if arm == "control" {
 		res.Shadow, res.Tier = true, cfg.Experiment.ControlTier
@@ -299,6 +309,9 @@ func (d *Deps) feedback(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil || req.Session == "" || req.Kind == "" {
 		http.Error(w, "session and kind are required", http.StatusBadRequest)
 		return
+	}
+	if req.Kind == "manual_model_switch" {
+		d.Sessions.MarkPinned(req.Session)
 	}
 	ev := Event{Kind: "feedback", Session: req.Session, Extra: req.Kind}
 	if req.Value != "" {

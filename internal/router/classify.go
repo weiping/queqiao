@@ -27,8 +27,10 @@ type Question struct {
 }
 
 // Classifier picks a tier for a question, or fails (timeout included).
+// Review asks the end-of-turn question of SP7 §3.4.
 type Classifier interface {
 	Classify(ctx context.Context, q Question) (*Verdict, error)
+	Review(ctx context.Context, q ReviewQuestion) (*ReviewVerdict, error)
 }
 
 // classifier is the built Classifier: a branch (jev or plain) plus the
