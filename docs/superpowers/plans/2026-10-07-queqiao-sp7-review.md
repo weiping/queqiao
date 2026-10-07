@@ -39,22 +39,29 @@
 
 worktree `.worktrees/qq-sp7-review`，分支 `qq/sp7-review`，基于 `queqiao`。完成后 PR 合回 `queqiao`。
 
-## 执行结果（2026-10-07）
+## 执行结果（2026-10-07 完成）
 
-Task 0–11 全部执行完毕（inline、逐任务 TDD、每任务一次提交，共 12 个提交，分支 `qq/sp7-review`）。
-执行中的判断（Ruling）与真机验收步骤见执行台账 `.superpowers/sdd/2026-10-07-queqiao-sp7-review/progress.md`
-与 `docs/queqiao-验收清单.md` 的 SP7 一节。已知未做：Pi 扩展发布到 npm；真机三 Agent 验收（待人工执行）。
+Task 0–11 全部执行完毕（inline 执行、逐任务 TDD、每任务一次提交）。
+
+- **合并**：PR [#19](https://github.com/weiping/queqiao/pull/19) → merge commit `8f774d71`（CI 三平台绿）。
+- **发布**：`qq-v0.1.4`（16 资产）、`@weiping/pi-queqiao@0.1.2`、CC/Codex 插件清单 0.1.1；本机 CLI 与 App 已升到 qq-v0.1.4，三个 Agent 的插件/扩展均已更新。
+- **真机验收**：Claude Code ✅、Pi ✅、Codex ⚠️（`codex exec` 下 `UserPromptSubmit` 不产出状态文件，故 `Stop` 无 prompt 可配；交互式场景可用）。
+- **测试**：`claude plugin test` 26 pass、`npx vitest run` 30 pass、Go 全量仅插件宿主用例红（环境性，已用干净基线排除）。
+- **偏离与判断**（完整见执行台账 `.superpowers/sdd/2026-10-07-queqiao-sp7-review/progress.md`、设计记录见 SP7 spec 的「执行结果」一节）：S17 模型 id 本机不存在（改用等价模型）、Task 2 的 report 断言空虚（`report.go` 不读 `Reason`）、Task 4 三个既有 plain 测试改为「厂商拒绝 schema」、Task 5 测试日志闭包 race、Task 10 无 hooks schema 且加了 `turn_id` 错配守卫。
+- 各 Step 的勾选见下（Task 9 Step 5 的 npm 发布、Task 11 的 PR 与合并均已完成）。
+
+## Task 0：先行验证 S14–S17（不写产品代码）
 
 ## Task 0：先行验证 S14–S17（不写产品代码）
 
 **Files:**
 - Modify: `docs/superpowers/notes/spike-results.md`（新增 “SP7（S14–S17）” 一节）
 
-- [ ] **Step 1: S14 Pi 轮末事件**。读当前 `@earendil-works/pi-coding-agent` 的扩展类型定义，找出一轮结束的事件名和其中最后一条 assistant 消息文本的取法；写一个只 `console.error(JSON.stringify(event))` 的临时扩展，`pi -p "hi"` 跑一轮确认。记录事件名与字段路径。
-- [ ] **Step 2: S15 Codex `Stop` hook**。读 Codex 当前版本 hooks 文档；装一个 `cat > /tmp/stop.json` 的 `Stop` hook，`codex exec "say hi"` 跑一轮，记录输入里最后一条 assistant 消息的字段名（预期 `last_assistant_message`）以及是否有 `transcript_path`。
-- [ ] **Step 3: S16 Jev 复核可用性**。准备 20 组（请求，回复）：10 组明显解决、10 组明显没解决，用 §3.4 的请求各问 3 次，记录每次的 `unresolved`、`confidence`、时延。判定：两组 `unresolved` 中位数相差 ≥ 0.3 视为可用。需要 TypeSafe key，没有时标 `[human]` 留给维护者。
-- [ ] **Step 4: S17 结构化输出支持**。对 `deepseek/deepseek-v4-flash`、`moonshot/kimi-k2.5`、`glm/glm-5.3-flash` 各发一次 spec §4 的 `response_format`，记录是否返回合法 JSON。需要对应 key，没有时标 `[human]`。
-- [ ] **Step 5: 按结论处理**。S14 或 S15 不成立：在 SP7 spec §3.6 把对应 harness 标为不支持，并跳过 Task 9 或 Task 10。S16 不成立：spec §2.2 第 3 条注明不作为完成标准。提交：
+- [x] **Step 1: S14 Pi 轮末事件**。读当前 `@earendil-works/pi-coding-agent` 的扩展类型定义，找出一轮结束的事件名和其中最后一条 assistant 消息文本的取法；写一个只 `console.error(JSON.stringify(event))` 的临时扩展，`pi -p "hi"` 跑一轮确认。记录事件名与字段路径。
+- [x] **Step 2: S15 Codex `Stop` hook**。读 Codex 当前版本 hooks 文档；装一个 `cat > /tmp/stop.json` 的 `Stop` hook，`codex exec "say hi"` 跑一轮，记录输入里最后一条 assistant 消息的字段名（预期 `last_assistant_message`）以及是否有 `transcript_path`。
+- [x] **Step 3: S16 Jev 复核可用性**。准备 20 组（请求，回复）：10 组明显解决、10 组明显没解决，用 §3.4 的请求各问 3 次，记录每次的 `unresolved`、`confidence`、时延。判定：两组 `unresolved` 中位数相差 ≥ 0.3 视为可用。需要 TypeSafe key，没有时标 `[human]` 留给维护者。
+- [x] **Step 4: S17 结构化输出支持**。对 `deepseek/deepseek-v4-flash`、`moonshot/kimi-k2.5`、`glm/glm-5.3-flash` 各发一次 spec §4 的 `response_format`，记录是否返回合法 JSON。需要对应 key，没有时标 `[human]`。
+- [x] **Step 5: 按结论处理**。S14 或 S15 不成立：在 SP7 spec §3.6 把对应 harness 标为不支持，并跳过 Task 9 或 Task 10。S16 不成立：spec §2.2 第 3 条注明不作为完成标准。提交：
 
 ```bash
 git add docs/superpowers/notes/spike-results.md docs/superpowers/specs/2026-10-07-queqiao-sp7-review-calibration-design.md
@@ -77,7 +84,7 @@ git commit -m "docs(spike): SP7 S14–S17 results"
   - `PolicyConfig` 新增 `ReviewMin, ReviewConfMin float64; ReviewMode string`
   - `func (c Config) PolicyConfigFor(harness, agent string) PolicyConfig`：`agent` 为 `main`、`gateway` 原样，其余视为 `sub`；`Overrides` 按“`harness` 与 `agent` 都写了的条目优先，其次只写一项的，同级按出现顺序”逐项覆盖写了的字段。现有 `PolicyConfig()` 保留，等价于 `PolicyConfigFor("", "main")`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestOldConfigGetsReviewDefaults(t *testing.T) // 无新字段的 router.json：ReviewMin 0.7, ReviewConfidenceMin 0.5, Review.Mode "off", TimeoutMs 5000, MaxAnswerChars 6000，Load 不报错
@@ -89,10 +96,10 @@ func TestOverrideThresholdRange(t *testing.T)     // override review_min 1.2 →
 func TestRouterInitWritesReviewDefaults(t *testing.T) // router_cli_test：init 后 router.json 含 "review":{"mode":"off",...} 与 "review_min":0.7
 ```
 
-- [ ] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestOldConfigGetsReviewDefaults|TestReviewModeValidated|TestOverride' && go test -tags nogui . -run TestRouterInitWritesReviewDefaults`，预期编译失败或断言失败。
-- [ ] **Step 3: 实现** 上述类型、默认值补齐（沿用 `config.go` 第 96 行起的写法）、校验（所有阈值在 [0,1]、mode 三选一）、`PolicyConfigFor`；`router init` 写入新默认值；`router status` 在实验开关下一行打印 `review: <mode>`。
-- [ ] **Step 4: 运行，确认通过**，再跑 `go test -tags nogui ./internal/router/ .`。
-- [ ] **Step 5: 提交** `feat(router): review config and per-harness threshold overrides`
+- [x] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestOldConfigGetsReviewDefaults|TestReviewModeValidated|TestOverride' && go test -tags nogui . -run TestRouterInitWritesReviewDefaults`，预期编译失败或断言失败。
+- [x] **Step 3: 实现** 上述类型、默认值补齐（沿用 `config.go` 第 96 行起的写法）、校验（所有阈值在 [0,1]、mode 三选一）、`PolicyConfigFor`；`router init` 写入新默认值；`router status` 在实验开关下一行打印 `review: <mode>`。
+- [x] **Step 4: 运行，确认通过**，再跑 `go test -tags nogui ./internal/router/ .`。
+- [x] **Step 5: 提交** `feat(router): review config and per-harness threshold overrides`
 
 ## Task 2：策略，R3 条件 (c) 与 Reason 拆分
 
@@ -109,7 +116,7 @@ func TestRouterInitWritesReviewDefaults(t *testing.T) // router_cli_test：init 
   - `Decision.WouldReview bool`：`ReviewMode == "shadow"` 时，条件 (c) 若会命中则为 true，档位不受影响
   - Reason：(a) `R3-escalate`，(b) `R3-tools`，(c) `R3-review`，同时满足时按 a、b、c 顺序取第一个
 
-- [ ] **Step 1: 写失败测试**（表驱动，`prev = &TurnState{Tier: TierFast}`，默认 `ReviewMin 0.7, ReviewConfMin 0.5`）
+- [x] **Step 1: 写失败测试**（表驱动，`prev = &TurnState{Tier: TierFast}`，默认 `ReviewMin 0.7, ReviewConfMin 0.5`）
 
 ```go
 // 1 toolsFailing only → Reason "R3-tools", Tier balanced, EscalatedLeft == cfg.EscalateTurns
@@ -125,10 +132,10 @@ func TestR3Sources(t *testing.T)
 
 `report_test.go` 增加一条：含 `R3-tools`、`R3-review` 的事件，`Aggregate` 的已有档位分布结果与把它们记为 `R3-escalate` 时相同。
 
-- [ ] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestR3Sources|TestAggregate'`
-- [ ] **Step 3: 实现**：在 `policy.go` 第 47 行起的 R3 块里加 `reviewing := cfg.ReviewMode == "act" && in.Review != nil && in.Review.Unresolved >= cfg.ReviewMin && in.Review.Confidence >= cfg.ReviewConfMin`，shadow 时只算 `WouldReview`；Reason 按优先级取。`git grep -n '"R3-escalate"'` 逐处核对报表与测试。
-- [ ] **Step 4: 运行，确认通过**；`go test -tags nogui ./internal/router/`。
-- [ ] **Step 5: 提交** `feat(router): R3 review condition and per-source reasons`
+- [x] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestR3Sources|TestAggregate'`
+- [x] **Step 3: 实现**：在 `policy.go` 第 47 行起的 R3 块里加 `reviewing := cfg.ReviewMode == "act" && in.Review != nil && in.Review.Unresolved >= cfg.ReviewMin && in.Review.Confidence >= cfg.ReviewConfMin`，shadow 时只算 `WouldReview`；Reason 按优先级取。`git grep -n '"R3-escalate"'` 逐处核对报表与测试。
+- [x] **Step 4: 运行，确认通过**；`go test -tags nogui ./internal/router/`。
+- [x] **Step 5: 提交** `feat(router): R3 review condition and per-source reasons`
 
 ## Task 3：把分数记全
 
@@ -142,7 +149,7 @@ func TestR3Sources(t *testing.T)
   - `Verdict.Source string`：Jev 为 `typesafe/jev-latest`；普通模型为模型 ID，走老提示词时追加 `#plain`
   - `DecideInput.TurnID` 已有；网关在空时生成 `"gw-" + <8 位随机十六进制>` 写入事件
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestDecideLogsAllScores(t *testing.T)
@@ -157,10 +164,10 @@ func TestShadowEventCarriesScores(t *testing.T)
 func TestPlainVerdictSourceMarksPlainPrompt(t *testing.T) // classify_test：老提示词路径的 Source == "<model>#plain"
 ```
 
-- [ ] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestDecideLogs|TestDecideFailed|TestFirstTurnOmits|TestShadowEvent|TestPlainVerdictSource'`
-- [ ] **Step 3: 实现**：`Decide` 在构造 `ev` 处（`api.go` 第 170 行附近）填新字段；`Dissatisfied` 只在 `prev != nil && classified != nil` 时写；`WouldReview` 取 `decision.WouldReview`。现有 `Confidence` 字段保持原样。
-- [ ] **Step 4: 运行，确认通过**；`go test -tags nogui ./internal/router/`。
-- [ ] **Step 5: 提交** `feat(router): log raw tier, every score and the classifier per decision`
+- [x] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestDecideLogs|TestDecideFailed|TestFirstTurnOmits|TestShadowEvent|TestPlainVerdictSource'`
+- [x] **Step 3: 实现**：`Decide` 在构造 `ev` 处（`api.go` 第 170 行附近）填新字段；`Dissatisfied` 只在 `prev != nil && classified != nil` 时写；`WouldReview` 取 `decision.WouldReview`。现有 `Confidence` 字段保持原样。
+- [x] **Step 4: 运行，确认通过**；`go test -tags nogui ./internal/router/`。
+- [x] **Step 5: 提交** `feat(router): log raw tier, every score and the classifier per decision`
 
 ## Task 4：普通模型分类器的结构化输出
 
@@ -176,7 +183,7 @@ func TestPlainVerdictSourceMarksPlainPrompt(t *testing.T) // classify_test：老
   - 进程内记忆：`classifier.noSchema map[string]bool`（加锁），某模型返回 4xx 或连续 2 次解析失败后置 true，之后直接走老提示词
   - 第一轮（`PreviousTier == ""`）时结果的 `Dissatisfied` 置 0
 
-- [ ] **Step 1: 写失败测试**（`ask` 用假函数，按请求体是否含 `"response_format"` 分支返回）
+- [x] **Step 1: 写失败测试**（`ask` 用假函数，按请求体是否含 `"response_format"` 分支返回）
 
 ```go
 func TestPlainSchemaGivesRealConfidence(t *testing.T)    // 返回 {"tier":"balanced","confidence":0.62,"dissatisfied":0.1} → Verdict{balanced, 0.62, 0.1}, Source "m/x"
@@ -188,10 +195,10 @@ func TestPlainSchemaRejectedFallsBackAndRemembers(t *testing.T)
 func TestPlainSchemaFirstTurnZeroDissatisfied(t *testing.T) // PreviousTier "" 且模型给 dissatisfied 0.9 → 0
 ```
 
-- [ ] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run TestPlainSchema`
-- [ ] **Step 3: 实现** 如上；schema 字面量放在包级 `const tierVerdictSchema`，与 spec §4 一字不差（`description` 文案照抄）。
-- [ ] **Step 4: 运行，确认通过**；`go test -tags nogui -race -count=20 -run TestPlainSchema ./internal/router/`。
-- [ ] **Step 5: 提交** `feat(router): structured-output scores for plain-model classifiers`
+- [x] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run TestPlainSchema`
+- [x] **Step 3: 实现** 如上；schema 字面量放在包级 `const tierVerdictSchema`，与 spec §4 一字不差（`description` 文案照抄）。
+- [x] **Step 4: 运行，确认通过**；`go test -tags nogui -race -count=20 -run TestPlainSchema ./internal/router/`。
+- [x] **Step 5: 提交** `feat(router): structured-output scores for plain-model classifiers`
 
 ## Task 5：复核后端，`/v1/queqiao/review`
 
@@ -213,7 +220,7 @@ func TestPlainSchemaFirstTurnZeroDissatisfied(t *testing.T) // PreviousTier "" �
 
 复核条件（全部满足才 202）：`Review.Mode != "off"`；该会话 `Arm` 不是 `control`；`!Pinned(session)`；会话当前 `TurnState.Tier != performance`；`Get(key) != nil`。后台用 `context.WithTimeout(context.Background(), Review.TimeoutMs)` 调 `Classify.Review`，成功后 `PutReview(key, turnAtAccept, v)` 并写 `kind:"review"` 事件（带 `turn_id`、`unresolved`、`review_confidence`、`classifier`）。`PutReview` 只在 `Turn(key) == turnAtAccept` 时生效，否则丢弃（下一轮已经开始）。`feedback` 收到 `manual_model_switch` 时调用 `MarkPinned`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestReviewAcceptedThenEscalates(t *testing.T)
@@ -234,10 +241,10 @@ func TestJevReviewRequestShape(t *testing.T)          // classify_test：请求�
 func TestTurnLatencyUnaffectedByReview(t *testing.T)  // 假分类器复核耗时 2s；mode act 与 off 各跑 50 次 /turn（复核在途），p95 差 < 50ms（spec §2.2 第 2 条）
 ```
 
-- [ ] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestReview|TestPinned|TestLateReview|TestTruncate|TestJevReview'`
-- [ ] **Step 3: 实现** `review.go` 与上述改动。后台 goroutine 只持有它自己的数据，写会话状态走 `Sessions` 的锁；不在持锁时调分类器或发事件（LESSONS.md “Never send on a channel … while holding a lock”）。
-- [ ] **Step 4: 运行，确认通过**；`go test -tags nogui -race -count=20 -run 'TestReview|TestLateReview|TestPinned' ./internal/router/`。
-- [ ] **Step 5: 提交** `feat(router): end-of-turn review endpoint feeding R3`
+- [x] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestReview|TestPinned|TestLateReview|TestTruncate|TestJevReview'`
+- [x] **Step 3: 实现** `review.go` 与上述改动。后台 goroutine 只持有它自己的数据，写会话状态走 `Sessions` 的锁；不在持锁时调分类器或发事件（LESSONS.md “Never send on a channel … while holding a lock”）。
+- [x] **Step 4: 运行，确认通过**；`go test -tags nogui -race -count=20 -run 'TestReview|TestLateReview|TestPinned' ./internal/router/`。
+- [x] **Step 5: 提交** `feat(router): end-of-turn review endpoint feeding R3`
 
 ## Task 6：校准，`calibrate.go` 与 `queqiao router calibrate`
 
@@ -263,7 +270,7 @@ func TestTurnLatencyUnaffectedByReview(t *testing.T)  // 假分类器复核耗�
 - `Proj*`：假设阈值换成 `Suggested` 后，按同样的样本重算升档比例与未升档轮次的选低率；`Suggested == nil` 时为 0。
 - `--csv` 列：`session,turn_id,harness,agent,tier,tier_confidence,dissatisfied,unresolved,under_tiered`，不含原话。
 
-- [ ] **Step 1: 写失败测试**（合成事件，手算期望）
+- [x] **Step 1: 写失败测试**（合成事件，手算期望）
 
 ```go
 func TestCalibrateBandsAndUnderRate(t *testing.T)
@@ -277,10 +284,10 @@ func TestCalibrateLabelsIgnoreOwnScore(t *testing.T) // review 校准的标签�
 func TestRouterCalibrateCSV(t *testing.T)            // router_cli_test：--csv 首行为上面的列名，行中不含提示文本
 ```
 
-- [ ] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run TestCalibrate && go test -tags nogui . -run TestRouterCalibrate`
-- [ ] **Step 3: 实现**；文字输出顶部固定一行说明标签只反映用户表达出来的不满（spec §5.2）。
-- [ ] **Step 4: 运行，确认通过**。
-- [ ] **Step 5: 提交** `feat(router): calibrate scores against next-turn under-tier signals`
+- [x] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run TestCalibrate && go test -tags nogui . -run TestRouterCalibrate`
+- [x] **Step 3: 实现**；文字输出顶部固定一行说明标签只反映用户表达出来的不满（spec §5.2）。
+- [x] **Step 4: 运行，确认通过**。
+- [x] **Step 5: 提交** `feat(router): calibrate scores against next-turn under-tier signals`
 
 ## Task 7：报表监控
 
@@ -292,11 +299,11 @@ func TestRouterCalibrateCSV(t *testing.T)            // router_cli_test：--csv 
 - Consumes: Task 6 的标签函数（同包内复用，不复制逻辑）、分段常量
 - Produces: `ArmReport` 新增 `ScoreBands map[string][]CalibrationBand`（键 `tier`、`dissatisfied`、`review`）、`EscalateRates map[string]float64`（键 `R3-escalate`、`R3-tools`、`R3-review`、`would_review`，分母为该组主会话轮次）、`UnderRateKept float64`（未升档主会话轮次的选低率）
 
-- [ ] **Step 1: 写失败测试**：在 SP5 的合成台账上新建一个只有 10 个主会话轮次的 router 组会话集（R3-escalate 1、R3-tools 1、R3-review 2；其余 6 轮未升档，其中 1 轮带 would_review，3 轮按标签为选低），断言 `EscalateRates["R3-review"] == 0.2`、`EscalateRates["would_review"] == 0.1`、`UnderRateKept == 0.5`；`render_test` 断言文字输出含 “升档率” 与 “未升档轮次的选低率”。
-- [ ] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestAggregate|TestRender'`
-- [ ] **Step 3: 实现**；SP5 已有字段与输出不变。
-- [ ] **Step 4: 运行，确认通过**；`go test -tags nogui ./internal/router/`。
-- [ ] **Step 5: 提交** `feat(router): report score bands, escalation sources and kept-turn under-tier rate`
+- [x] **Step 1: 写失败测试**：在 SP5 的合成台账上新建一个只有 10 个主会话轮次的 router 组会话集（R3-escalate 1、R3-tools 1、R3-review 2；其余 6 轮未升档，其中 1 轮带 would_review，3 轮按标签为选低），断言 `EscalateRates["R3-review"] == 0.2`、`EscalateRates["would_review"] == 0.1`、`UnderRateKept == 0.5`；`render_test` 断言文字输出含 “升档率” 与 “未升档轮次的选低率”。
+- [x] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/router/ -run 'TestAggregate|TestRender'`
+- [x] **Step 3: 实现**；SP5 已有字段与输出不变。
+- [x] **Step 4: 运行，确认通过**；`go test -tags nogui ./internal/router/`。
+- [x] **Step 5: 提交** `feat(router): report score bands, escalation sources and kept-turn under-tier rate`
 
 ## Task 8：Claude Code mod 轮末发复核
 
@@ -308,7 +315,7 @@ func TestRouterCalibrateCSV(t *testing.T)            // router_cli_test：--csv 
 - Consumes: Task 5 的 `POST /v1/queqiao/review`
 - Produces: `turn.complete` 在 `e.agentId === undefined && !e.isAborted` 且 `stTurn` 非空、`stTurn.tier !== 'performance'` 时，发 `{session, harness:'claude-code', turn_id: e.turnId, prompt: <本轮 turn.start 的 text>, answer: e.answer, tool_calls, tool_failures}`，不 `await` 结果。本轮 `text` 在 `turn.start` 里存进新 atom `stPrompt`；工具统计读 `stToolStats`（它在下一轮 `turn.start` 才清零）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 test('turn.complete posts a review for a routed main turn and does not wait', …)
@@ -316,10 +323,10 @@ test('turn.complete posts a review for a routed main turn and does not wait', �
 test('aborted, performance, subagent and gateway-mode turns post no review', …)
 ```
 
-- [ ] **Step 2: 运行，确认失败**：`claude plugin test clients/claude-code`
-- [ ] **Step 3: 实现**：用现有 `post($, gateway, path, body)` 包一层 `void`，异常吞掉。
-- [ ] **Step 4: 运行，确认通过**；`claude plugin validate --strict clients/claude-code`。
-- [ ] **Step 5: 提交** `feat(claude-code): post an end-of-turn review`
+- [x] **Step 2: 运行，确认失败**：`claude plugin test clients/claude-code`
+- [x] **Step 3: 实现**：用现有 `post($, gateway, path, body)` 包一层 `void`，异常吞掉。
+- [x] **Step 4: 运行，确认通过**；`claude plugin validate --strict clients/claude-code`。
+- [x] **Step 5: 提交** `feat(claude-code): post an end-of-turn review`
 
 ## Task 9：Pi 扩展轮末发复核（S14 成立时）
 
@@ -331,11 +338,11 @@ test('aborted, performance, subagent and gateway-mode turns post no review', …
 - Consumes: S14 记录的事件名与回复字段；Task 5 接口
 - Produces: `QueqiaoClient.review(body): void`（fire-and-forget，`fetch` 不 await，`.catch(() => {})`）；扩展在 S14 的轮末事件里，`!manualPinned && lastTier !== null && lastTier !== 'performance'` 时调用，`prompt` 取本轮 `before_agent_start` 记下的 `event.prompt`
 
-- [ ] **Step 1: 写失败测试**：vitest 断言轮末事件触发一次 `review`，body 含 `harness:'pi'`、`answer`；`manualPinned` 时不触发；网关不可达时事件处理不抛错。
-- [ ] **Step 2: 运行，确认失败**：`cd clients/pi && npx vitest run`
-- [ ] **Step 3: 实现。**
-- [ ] **Step 4: 运行，确认通过。**
-- [ ] **Step 5: 提交** `feat(pi): post an end-of-turn review`；发布 `@weiping/pi-queqiao` 新补丁版本并用 `npm view @weiping/pi-queqiao version` 确认已上 npm。
+- [x] **Step 1: 写失败测试**：vitest 断言轮末事件触发一次 `review`，body 含 `harness:'pi'`、`answer`；`manualPinned` 时不触发；网关不可达时事件处理不抛错。
+- [x] **Step 2: 运行，确认失败**：`cd clients/pi && npx vitest run`
+- [x] **Step 3: 实现。**
+- [x] **Step 4: 运行，确认通过。**
+- [x] **Step 5: 提交** `feat(pi): post an end-of-turn review`；发布 `@weiping/pi-queqiao` 新补丁版本并用 `npm view @weiping/pi-queqiao version` 确认已上 npm。
 
 ## Task 10：Codex `Stop` hook（S15 成立时）
 
@@ -350,7 +357,7 @@ test('aborted, performance, subagent and gateway-mode turns post no review', …
   - `func (c *Client) Review(ctx context.Context, body map[string]any)`：1 秒超时，忽略错误
   - `hooks.json` 新增 `"Stop": [{"hooks":[{"type":"command","command":"queqiao hook stop --harness codex","timeout":2}]}]`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 func TestStopPostsReview(t *testing.T)            // 先跑 UserPrompt（写状态文件），再 Stop：假网关收到 /review，prompt 与 answer 正确，harness "codex"
@@ -359,10 +366,10 @@ func TestStopGatewayDownExitsQuietly(t *testing.T) // 网关地址不可达：�
 func TestCodexHooksJSONHasStop(t *testing.T)      // hooks.json 通过现有 Schema 校验且含 Stop
 ```
 
-- [ ] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/harness/... -run 'TestStop|TestCodexHooksJSON'`
-- [ ] **Step 3: 实现。** Codex 的 hook 内容变了，用户需要在 `/hooks` 里重新信任，写进 `clients/codex/README.md`。
-- [ ] **Step 4: 运行，确认通过**；`go test -tags nogui ./internal/harness/...`。
-- [ ] **Step 5: 提交** `feat(codex): Stop hook posts an end-of-turn review`
+- [x] **Step 2: 运行，确认失败**：`go test -tags nogui ./internal/harness/... -run 'TestStop|TestCodexHooksJSON'`
+- [x] **Step 3: 实现。** Codex 的 hook 内容变了，用户需要在 `/hooks` 里重新信任，写进 `clients/codex/README.md`。
+- [x] **Step 4: 运行，确认通过**；`go test -tags nogui ./internal/harness/...`。
+- [x] **Step 5: 提交** `feat(codex): Stop hook posts an end-of-turn review`
 
 ## Task 11：文档、真机验收与回填
 
@@ -371,7 +378,7 @@ func TestCodexHooksJSONHasStop(t *testing.T)      // hooks.json 通过现有 Sch
 - Modify: `docs/queqiao-验收清单.md`（新增 SP7 一节）
 - Modify: SP7 spec（“执行结果”回填）与本计划（顶部“执行结果”）
 
-- [ ] **Step 1: README** 写明默认关闭的原因（回复会发给分类器厂商）与推荐流程：先 `shadow`，`calibrate` 后再 `act`。
-- [ ] **Step 2: 真机**（`[human]` 若无对应 Agent 或 key）：三个 Agent 各在 `shadow` 下跑一轮故意答不好的请求（“读取 ./no-such-file.md 并总结”），确认 `router.jsonl` 有 `review` 事件；切 `act` 后同一请求的下一轮 decide 为 `R3-review`。记录到验收清单。
-- [ ] **Step 3: 全量测试**：`go test -tags nogui ./...`；`claude plugin test clients/claude-code`；`cd clients/pi && npx vitest run`。红的测试先查是否本分支引起，`-race -count=20` 后再下结论。
-- [ ] **Step 4: 提交** `docs: SP7 review and calibration`，开 PR，PR 描述写明跑过的命令和真机结果，CI 绿后 `gh pr merge --match-head-commit <sha>`。
+- [x] **Step 1: README** 写明默认关闭的原因（回复会发给分类器厂商）与推荐流程：先 `shadow`，`calibrate` 后再 `act`。
+- [x] **Step 2: 真机**（`[human]` 若无对应 Agent 或 key）：三个 Agent 各在 `shadow` 下跑一轮故意答不好的请求（“读取 ./no-such-file.md 并总结”），确认 `router.jsonl` 有 `review` 事件；切 `act` 后同一请求的下一轮 decide 为 `R3-review`。记录到验收清单。
+- [x] **Step 3: 全量测试**：`go test -tags nogui ./...`；`claude plugin test clients/claude-code`；`cd clients/pi && npx vitest run`。红的测试先查是否本分支引起，`-race -count=20` 后再下结论。
+- [x] **Step 4: 提交** `docs: SP7 review and calibration`，开 PR，PR 描述写明跑过的命令和真机结果，CI 绿后 `gh pr merge --match-head-commit <sha>`。
