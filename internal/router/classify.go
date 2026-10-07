@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,13 @@ type classifier struct {
 	cfg Config
 	ask func(ctx context.Context, model, body string) (string, error)
 	jev bool
+
+	// noSchema[name] means the model rejected response_format (or failed
+	// twice to answer it) this process: it goes straight to the fallback
+	// prompt from then on (SP7 §4). A restart tries again.
+	noMu      sync.Mutex
+	noSchema  map[string]bool
+	schemaBad map[string]int
 }
 
 // NewClassifier builds the classifier cfg names: "typesafe/jev-latest"
@@ -44,7 +52,8 @@ type classifier struct {
 // §5.4). ask sends one request: it receives the model id and the JSON
 // body string, returns the raw response body text.
 func NewClassifier(cfg Config, ask func(ctx context.Context, model, body string) (string, error)) Classifier {
-	return &classifier{cfg: cfg, ask: ask, jev: cfg.Classifier == jevClassifier}
+	return &classifier{cfg: cfg, ask: ask, jev: cfg.Classifier == jevClassifier,
+		noSchema: map[string]bool{}, schemaBad: map[string]int{}}
 }
 
 // Classify answers one question, wrapping every ask in the configured
@@ -175,7 +184,148 @@ func (c *classifier) askPlain(ctx context.Context, prompt string) (string, error
 	return c.askOnce(ctx, string(body))
 }
 
+// tierVerdictSchema is spec §4's response_format, with the numeric ranges
+// in the descriptions: some vendors' structured output rejects
+// minimum/maximum.
+const tierVerdictSchema = `"response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "tier_verdict",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "tier": { "type": "string", "enum": ["fast", "balanced", "performance"] },
+          "confidence": { "type": "number", "description": "How sure you are about the tier, from 0 (a guess) to 1 (certain)." },
+          "dissatisfied": { "type": "number", "description": "How likely the message says the previous answer was wrong, from 0 to 1. Use 0 when there is no previous answer." }
+        },
+        "required": ["tier", "confidence", "dissatisfied"],
+        "additionalProperties": false
+      }
+    }
+  }`
+
+// plainSchemaUsable reports whether the model may be asked for structured
+// output in this process.
+func (c *classifier) plainSchemaUsable() bool {
+	c.noMu.Lock()
+	defer c.noMu.Unlock()
+	return !c.noSchema[c.cfg.Classifier]
+}
+
+func (c *classifier) forbidPlainSchema() {
+	c.noMu.Lock()
+	defer c.noMu.Unlock()
+	c.noSchema[c.cfg.Classifier] = true
+}
+
+// blameSchema counts a parse failure and forbids the schema after the
+// second one in a row (§4).
+func (c *classifier) blameSchema() {
+	c.noMu.Lock()
+	defer c.noMu.Unlock()
+	c.schemaBad[c.cfg.Classifier]++
+	if c.schemaBad[c.cfg.Classifier] >= 2 {
+		c.noSchema[c.cfg.Classifier] = true
+	}
+}
+
+func (c *classifier) clearSchemaBlame() {
+	c.noMu.Lock()
+	defer c.noMu.Unlock()
+	c.schemaBad[c.cfg.Classifier] = 0
+}
+
+// parseTierVerdict reads the model's structured tier verdict: the JSON in
+// choices[0].message.content. Scores clamp to [0,1]; a tier outside the
+// three is a parse failure.
+func parseTierVerdict(body string) (*Verdict, error) {
+	var res struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal([]byte(body), &res); err != nil || len(res.Choices) == 0 {
+		return nil, fmt.Errorf("router: structured reply: %v", err)
+	}
+	var v struct {
+		Tier         string  `json:"tier"`
+		Confidence   float64 `json:"confidence"`
+		Dissatisfied float64 `json:"dissatisfied"`
+	}
+	if err := json.Unmarshal([]byte(res.Choices[0].Message.Content), &v); err != nil {
+		return nil, fmt.Errorf("router: structured content: %v", err)
+	}
+	switch Tier(v.Tier) {
+	case TierFast, TierBalanced, TierPerformance:
+	default:
+		return nil, fmt.Errorf("router: structured tier %q, not a tier", v.Tier)
+	}
+	return &Verdict{Tier: Tier(v.Tier), TierConfidence: clamp01(v.Confidence), Dissatisfied: clamp01(v.Dissatisfied)}, nil
+}
+
+func clamp01(f float64) float64 {
+	if f < 0 {
+		return 0
+	}
+	if f > 1 {
+		return 1
+	}
+	return f
+}
+
+// askPlainSchema sends the tier request with structured output.
+func (c *classifier) askPlainSchema(ctx context.Context, q Question) (*Verdict, error) {
+	var criteria strings.Builder
+	for i, tier := range tierOrder {
+		fmt.Fprintf(&criteria, "%d. %s\n", i+1, q.Criteria[tier])
+	}
+	prompt := "You route a user's message to a coding assistant. Choose the tier that fits best.\n" + criteria.String() + "\nMessage:\n" + q.Message
+	body := fmt.Sprintf(`{"model":%q,"max_tokens":400,%s,"messages":[{"role":"user","content":%s}]}`,
+		c.cfg.Classifier, tierVerdictSchema, jsonString(prompt))
+	v, err := c.parseFrom(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	if q.PreviousTier == "" {
+		v.Dissatisfied = 0
+	}
+	v.Source = c.cfg.Classifier
+	return v, nil
+}
+
+func (c *classifier) parseFrom(ctx context.Context, body string) (*Verdict, error) {
+	reply, err := c.askOnce(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	return parseTierVerdict(reply)
+}
+
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
 func (c *classifier) classifyPlain(ctx context.Context, q Question) (*Verdict, error) {
+	if c.plainSchemaUsable() {
+		v, err := c.askPlainSchema(ctx, q)
+		if err == nil {
+			c.clearSchemaBlame()
+			return v, nil
+		}
+		if strings.Contains(err.Error(), "structured tier") || strings.Contains(err.Error(), "structured content") {
+			c.blameSchema() // the model answered but not the schema
+		} else {
+			c.forbidPlainSchema() // 4xx and the like: it does not take one
+		}
+	}
+	return c.classifyPlainOld(ctx, q)
+}
+
+func (c *classifier) classifyPlainOld(ctx context.Context, q Question) (*Verdict, error) {
 	var prompt strings.Builder
 	prompt.WriteString("You route a user's message to a coding assistant. " +
 		"Given numbered tiers and the user's message, answer with only the number of the tier that fits best.\n")

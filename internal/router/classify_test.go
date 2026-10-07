@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -281,5 +282,101 @@ func TestPlainVerdictSourceMarksPlainPrompt(t *testing.T) {
 	}
 	if v.Source != "qwen/qwen3-32b#plain" {
 		t.Fatalf("source = %q, want qwen/qwen3-32b#plain", v.Source)
+	}
+}
+
+// --- SP7 §4: structured output for plain-model classifiers ---
+
+type schemaAsk struct {
+	calls       []string // bodies seen
+	schemaReply func() (string, error)
+	plainReply  string
+}
+
+func (s *schemaAsk) ask(_ context.Context, _, body string) (string, error) {
+	s.calls = append(s.calls, body)
+	if strings.Contains(body, `"response_format"`) {
+		return s.schemaReply()
+	}
+	return s.plainReply, nil
+}
+func (s *schemaAsk) schemaCalls() int {
+	n := 0
+	for _, b := range s.calls {
+		if strings.Contains(b, `"response_format"`) {
+			n++
+		}
+	}
+	return n
+}
+
+func schemaBody(tier string, conf, diss float64) string {
+	return fmt.Sprintf(`{"choices":[{"message":{"content":%q}}]}`, fmt.Sprintf(`{"tier":%q,"confidence":%v,"dissatisfied":%v}`, tier, conf, diss))
+}
+
+func TestPlainSchemaGivesRealConfidence(t *testing.T) {
+	s := &schemaAsk{schemaReply: func() (string, error) { return schemaBody("balanced", 0.62, 0.1), nil }, plainReply: "1"}
+	v, err := NewClassifier(testConfig("m/x"), s.ask).Classify(context.Background(), Question{
+		Message: "refactor across files", PreviousTier: TierFast, Criteria: testCriteria})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Tier != TierBalanced || v.TierConfidence != 0.62 || v.Dissatisfied != 0.1 || v.Source != "m/x" {
+		t.Fatalf("verdict: %+v", v)
+	}
+}
+
+func TestPlainSchemaClampsOutOfRange(t *testing.T) {
+	s := &schemaAsk{schemaReply: func() (string, error) { return schemaBody("fast", 1.4, -0.2), nil }, plainReply: "1"}
+	v, err := NewClassifier(testConfig("m/x"), s.ask).Classify(context.Background(), Question{
+		Message: "hi", PreviousTier: TierFast, Criteria: testCriteria})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.TierConfidence != 1 || v.Dissatisfied != 0 {
+		t.Fatalf("clamp: %+v", v)
+	}
+}
+
+func TestPlainSchemaUnknownTierFallsBack(t *testing.T) {
+	s := &schemaAsk{schemaReply: func() (string, error) { return schemaBody("medium", 0.5, 0.5), nil }, plainReply: "2"}
+	v, err := NewClassifier(testConfig("m/x"), s.ask).Classify(context.Background(), Question{
+		Message: "hi", PreviousTier: TierFast, Criteria: testCriteria})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Tier != TierBalanced || v.Source != "m/x#plain" {
+		t.Fatalf("fallback verdict: %+v", v)
+	}
+	if s.schemaCalls() != 1 {
+		t.Fatalf("schema calls = %d, want 1 (fallback for this turn only)", s.schemaCalls())
+	}
+}
+
+func TestPlainSchemaRejectedFallsBackAndRemembers(t *testing.T) {
+	s := &schemaAsk{schemaReply: func() (string, error) { return "", errClassify }, plainReply: "2"}
+	c := NewClassifier(testConfig("m/x"), s.ask)
+	v, err := c.Classify(context.Background(), Question{Message: "hi", PreviousTier: TierFast, Criteria: testCriteria})
+	if err != nil || v.Tier != TierBalanced || v.TierConfidence != 1 || v.Source != "m/x#plain" {
+		t.Fatalf("first: v=%+v err=%v", v, err)
+	}
+	before := s.schemaCalls()
+	if _, err := c.Classify(context.Background(), Question{Message: "hi again", PreviousTier: TierFast, Criteria: testCriteria}); err != nil {
+		t.Fatal(err)
+	}
+	if s.schemaCalls() != before {
+		t.Fatalf("a second schema request went out after a 4xx: %d → %d", before, s.schemaCalls())
+	}
+}
+
+func TestPlainSchemaFirstTurnZeroDissatisfied(t *testing.T) {
+	s := &schemaAsk{schemaReply: func() (string, error) { return schemaBody("fast", 0.9, 0.9), nil }, plainReply: "1"}
+	v, err := NewClassifier(testConfig("m/x"), s.ask).Classify(context.Background(), Question{
+		Message: "hello", Criteria: testCriteria}) // PreviousTier "" = first turn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Dissatisfied != 0 {
+		t.Fatalf("first turn dissatisfied = %v, want 0", v.Dissatisfied)
 	}
 }
