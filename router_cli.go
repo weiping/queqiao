@@ -26,7 +26,7 @@ import (
 // routerCmd is `queqiao router <init|status|check>` (spec §6.6).
 func routerCmd(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("queqiao router takes init, status or check")
+		return fmt.Errorf("queqiao router takes init, status, check, report or calibrate")
 	}
 	switch args[0] {
 	case "init":
@@ -37,8 +37,10 @@ func routerCmd(args []string) error {
 		return routerCheck(args[1:])
 	case "report":
 		return routerReport(args[1:])
+	case "calibrate":
+		return routerCalibrate(args[1:])
 	}
-	return fmt.Errorf("queqiao router takes init, status or check, not %q", args[0])
+	return fmt.Errorf("queqiao router takes init, status, check, report or calibrate, not %q", args[0])
 }
 
 // routerJSONPath is ~/.config/queqiao/router.json.
@@ -596,6 +598,101 @@ func groupByID(id string) (provider.Group, bool) {
 		}
 	}
 	return provider.Group{}, false
+}
+
+// routerCalibrate is `queqiao router calibrate [--since 14d]
+// [--score tier|dissatisfied|review] [--harness h] [--agent main|sub]
+// [--csv]` (SP7 §5.3).
+func routerCalibrate(args []string) error {
+	return routerCalibrateTo(os.Stdout, args)
+}
+
+// routerCalibrateTo is routerCalibrate with the output stream as a
+// parameter (tests capture it).
+func routerCalibrateTo(w io.Writer, args []string) error {
+	since := 14 * 24 * time.Hour
+	f := router.CalibrateFilter{}
+	asCSV := false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--since":
+			i++
+			if i >= len(args) {
+				return fmt.Errorf("--since needs a duration like 14d")
+			}
+			d, err := parseSince(args[i])
+			if err != nil {
+				return fmt.Errorf("--since: %v", err)
+			}
+			since = d
+		case "--score":
+			i++
+			if i >= len(args) {
+				return fmt.Errorf("--score needs tier, dissatisfied or review")
+			}
+			if args[i] != "tier" && args[i] != "dissatisfied" && args[i] != "review" {
+				return fmt.Errorf("--score takes tier, dissatisfied or review, not %q", args[i])
+			}
+			f.Score = args[i]
+		case "--harness":
+			i++
+			if i >= len(args) {
+				return fmt.Errorf("--harness needs a harness name")
+			}
+			f.Harness = args[i]
+		case "--agent":
+			i++
+			if i >= len(args) {
+				return fmt.Errorf("--agent needs main or sub")
+			}
+			if args[i] != "main" && args[i] != "sub" {
+				return fmt.Errorf("--agent takes main or sub, not %q", args[i])
+			}
+			f.Agent = args[i]
+		case "--csv":
+			asCSV = true
+		default:
+			return fmt.Errorf("unknown flag %q", args[i])
+		}
+	}
+
+	cfg, err := router.Load(routerJSONPath(), "")
+	if err != nil {
+		return err
+	}
+	events, err := readRouterEvents()
+	if err != nil {
+		return err
+	}
+	f.Since = time.Now().Add(-since)
+	if asCSV {
+		router.CalibrateCSV(w, events, cfg, f)
+		return nil
+	}
+	router.RenderCalibrate(w, router.Calibrate(events, cfg, f))
+	return nil
+}
+
+// readRouterEvents reads router.jsonl, skipping lines that do not parse.
+func readRouterEvents() ([]router.Event, error) {
+	b, err := os.ReadFile(filepath.Join(appdir.Config(), "router.jsonl"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var events []router.Event
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var ev router.Event
+		if json.Unmarshal([]byte(line), &ev) == nil {
+			events = append(events, ev)
+		}
+	}
+	return events, nil
 }
 
 // routerReport is `queqiao router report [--since 14d] [--json]` (§9):

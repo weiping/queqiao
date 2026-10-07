@@ -155,3 +155,69 @@ func jsonMap(m map[string]float64) string {
 	}
 	return "{" + strings.Join(parts, ", ") + "}"
 }
+
+/**
+ * The §5.3 calibration tables. The fixed first line says what the labels
+ * can and cannot see: they only show dissatisfaction the user expressed.
+ */
+
+// RenderCalibrate writes the calibration tables.
+func RenderCalibrate(w io.Writer, cals []ScoreCalibration) {
+	fmt.Fprintln(w, "标签只反映用户表达出来的不满；要更准的判断，用 --csv 导出逐轮明细人工核对。")
+	for _, c := range cals {
+		dir := "越低越该升档"
+		if c.HigherEscalates {
+			dir = "越高越该升档"
+		}
+		fmt.Fprintf(w, "\n%s（%s）当前阈值 %.2f", scoreName(c.Score), dir, c.Current)
+		switch {
+		case c.Suggested != nil:
+			fmt.Fprintf(w, "，建议阈值 %.2f", *c.Suggested)
+		case c.SampleShort:
+			fmt.Fprint(w, "，样本不足")
+		}
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "%-14s %8s %8s %10s\n", "分段", "样本", "占比", "选低率")
+		for _, b := range c.Bands {
+			fmt.Fprintf(w, "%-14s %8d %7.1f%% %9.1f%%\n",
+				fmt.Sprintf("%.2f–%.2f", b.Lo, b.Hi), b.N, b.Share*100, b.UnderRate*100)
+		}
+		fmt.Fprintf(w, "升档率 %.1f%%，未升档轮次的选低率 %.1f%%", c.EscalateRate*100, c.UnderRateKept*100)
+		if c.Suggested != nil {
+			fmt.Fprintf(w, "；阈值改为 %.2f 后：升档率 %.1f%%，未升档轮次的选低率 %.1f%%",
+				*c.Suggested, c.ProjEscalateRate*100, c.ProjUnderRateKept*100)
+		}
+		fmt.Fprintln(w)
+	}
+}
+
+func scoreName(s string) string {
+	switch s {
+	case "tier":
+		return "档位置信度"
+	case "dissatisfied":
+		return "不满分数"
+	case "review":
+		return "复核分数"
+	}
+	return s
+}
+
+// CalibrateCSV writes the per-turn detail §5.3 asks for: the three scores
+// and the label, never the user's words or the answer.
+func CalibrateCSV(w io.Writer, events []Event, cfg Config, f CalibrateFilter) {
+	fmt.Fprintln(w, "session,turn_id,harness,agent,tier,tier_confidence,dissatisfied,unresolved,under_tiered")
+	for _, t := range calTurns(events, cfg, f) {
+		fmt.Fprintf(w, "%s,%s,%s,%s,%s,%s,%s,%s,%v\n",
+			escapeCSV(t.session), escapeCSV(t.turnID), escapeCSV(t.harness), escapeCSV(t.agent),
+			t.tier, optScore(t.tierConf), optScore(t.dissatisfied), optScore(t.unresolved),
+			t.label("tier"))
+	}
+}
+
+func optScore(f *float64) string {
+	if f == nil {
+		return ""
+	}
+	return formatScore(*f)
+}
