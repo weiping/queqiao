@@ -25,6 +25,8 @@ const stDerived = atom({ plugin: 'queqiao-router', key: 'derived' }, { is: false
 const stPlanMode = atom({ plugin: 'queqiao-router', key: 'planMode' }, false)
 const stCwd = atom({ plugin: 'queqiao-router', key: 'cwd' }, null as string | null)
 const stStored = atom({ plugin: 'queqiao-router', key: 'stored' }, false)
+// SP7 §3.5: this turn's user words, kept for the end-of-turn review
+const stPrompt = atom({ plugin: 'queqiao-router', key: 'prompt' }, null as string | null)
 
 // §5.8: the same hash on both the storing side and the looking-up side
 function fnv1a(s: string): string {
@@ -114,6 +116,7 @@ export const register: Register = (on, options) => {
 
   on('turn.start', async ($, e, next) => {
     if (e.text !== '') {
+      await update($, stPrompt, () => e.text)
       const session = await $.session.id()
       const stats = await read($, stToolStats)
       const planMode = await read($, stPlanMode)
@@ -214,6 +217,25 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.complete', async ($, e, next) => {
+    // SP7 §3.5: the review goes out after a routed main turn that did not
+    // end on performance. Fire and forget: the answer is already delivered,
+    // and a review that never arrives just means no R3-review next turn.
+    if (e.agentId === undefined && !e.isAborted) {
+      const turn = await read($, stTurn)
+      const prompt = await read($, stPrompt)
+      if (turn !== null && turn.tier !== 'performance' && prompt !== null) {
+        const stats = await read($, stToolStats)
+        void post($, gateway, '/v1/queqiao/review', {
+          session: await sessionOf($),
+          harness: 'claude-code',
+          turn_id: e.turnId,
+          prompt,
+          answer: e.answer,
+          tool_calls: stats.calls,
+          tool_failures: stats.failures,
+        })
+      }
+    }
     if (e.agentId === undefined) {
       const derived = await read($, stDerived)
       const stored = await read($, stStored)

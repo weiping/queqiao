@@ -474,3 +474,93 @@ function fnv1a(s: string): string {
   }
   return (h >>> 0).toString(16)
 }
+
+// ---- SP7: the end-of-turn review ----
+
+// A gateway that answers /turn with `tier` and records /review calls, whose
+// response hangs so an awaited one would stall the turn.
+function reviewGateway(on: any, tier: string) {
+  const reviews: Array<Record<string, unknown>> = []
+  on('http.fetch', (_$: unknown, e: { url: string; init?: { body?: string } }) => {
+    if (e.url.endsWith('/v1/queqiao/review')) {
+      reviews.push(JSON.parse(e.init?.body ?? '{}') as Record<string, unknown>)
+      return { value: new Promise(() => {}) } // never resolves
+    }
+    if (e.url.endsWith('/v1/queqiao/turn')) {
+      return {
+        value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ tier, group: 'group/qq-' + tier, reason: 'R5-classified' }) },
+      }
+    }
+    return { value: { status: 200, ok: true, headers: {}, text: '{}' } }
+  })
+  return reviews
+}
+
+test('turn.complete posts a review for a routed main turn and does not wait', async ($, on) => {
+  const reviews = reviewGateway(on, 'fast')
+  stubBasics(on)
+  mock.clock(on)
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+
+  await $.turn.start({ turnId: 't1', text: 'what license is this repo?' })
+  const started = Date.now()
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 10, isAborted: false, usage: null })
+  const elapsed = Date.now() - started
+
+  expect(elapsed).toBeLessThan(100) // it did not wait for /review
+  expect(reviews.length).toBe(1)
+  expect(reviews[0]).toMatchObject({
+    session: 's-1',
+    harness: 'claude-code',
+    turn_id: 't1',
+    prompt: 'what license is this repo?',
+    answer: 'ok',
+    tool_calls: 0,
+    tool_failures: 0,
+  })
+})
+
+test('aborted, performance, subagent and gateway-mode turns post no review', async ($, on) => {
+  // one handler, with the behaviour the case needs (the kit forbids
+  // registering http.fetch after the test has called $)
+  const reviews: Array<Record<string, unknown>> = []
+  let mode: 'fast' | 'performance' | 'down' = 'fast'
+  on('http.fetch', (_$: unknown, e: { url: string; init?: { body?: string } }) => {
+    if (e.url.endsWith('/v1/queqiao/review')) {
+      reviews.push(JSON.parse(e.init?.body ?? '{}') as Record<string, unknown>)
+      return { value: new Promise(() => {}) }
+    }
+    if (mode === 'down') return { value: { status: 503, ok: false, headers: {}, text: '' } }
+    return {
+      value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ tier: mode, group: 'group/qq-' + mode, reason: 'R5-classified' }) },
+    }
+  })
+  stubBasics(on)
+  mock.clock(on)
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+
+  // aborted
+  await $.turn.start({ turnId: 't1', text: 'hello' })
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 1, isAborted: true, usage: null })
+  expect(reviews.length).toBe(0)
+
+  // performance tier
+  mode = 'performance'
+  await $.turn.start({ turnId: 't2', text: 'hello' })
+  await $.turn.complete({ turnId: 't2', answer: 'ok', durationMs: 1, isAborted: false, usage: null })
+  expect(reviews.length).toBe(0)
+
+  // subagent
+  mode = 'fast'
+  await $.turn.start({ turnId: 't3', text: 'hello' })
+  await $.turn.complete({ turnId: 't3', answer: 'ok', durationMs: 1, isAborted: false, usage: null, agentId: 'a1' })
+  expect(reviews.length).toBe(0)
+
+  // gateway mode: /turn failed, so no turn is recorded
+  mode = 'down'
+  await $.turn.start({ turnId: 't4', text: 'hello' })
+  await $.turn.complete({ turnId: 't4', answer: 'ok', durationMs: 1, isAborted: false, usage: null })
+  expect(reviews.length).toBe(0)
+})
