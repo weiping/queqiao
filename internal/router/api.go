@@ -2,9 +2,11 @@ package router
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -166,10 +168,24 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 	if classified != nil {
 		res.Confidence = classified.TierConfidence
 	}
+	turnID := in.TurnID
+	if turnID == "" {
+		turnID = generatedTurnID()
+	}
 	ev := Event{
 		Kind: "decide", Session: in.Session, Harness: in.Harness, Agent: in.Agent,
 		Tier: decision.Tier, Reason: decision.Reason, Source: source,
 		Arm: arm, Confidence: res.Confidence, LatencyMs: res.LatencyMs,
+		TurnID: turnID, WouldReview: decision.WouldReview,
+	}
+	if classified != nil {
+		ev.ClassifiedTier, ev.Classifier = classified.Tier, classified.Source
+		c := classified.TierConfidence
+		ev.TierConfidence = &c
+		if prev != nil {
+			d := classified.Dissatisfied
+			ev.Dissatisfied = &d
+		}
 	}
 	if arm == "control" {
 		res.Shadow, res.Tier = true, cfg.Experiment.ControlTier
@@ -177,6 +193,15 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 	}
 	d.log(ev)
 	return res
+}
+
+// generatedTurnID names a turn the harness did not: "gw-" and 8 hex chars.
+func generatedTurnID() string {
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("gw-%d", time.Now().UnixNano()&0xffffffff)
+	}
+	return "gw-" + hex.EncodeToString(b[:])
 }
 
 // classifySource names where a verdict came from (§6.4's source field).

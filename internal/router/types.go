@@ -14,6 +14,10 @@ type Verdict struct {
 	Tier           Tier
 	TierConfidence float64 // 0–1
 	Dissatisfied   float64 // noul 0–1
+	// Source names the model that gave the scores, with "#plain" when the
+	// fallback prompt was used (SP7 §4), e.g. "typesafe/jev-latest" or
+	// "deepseek/deepseek-flash#plain".
+	Source string
 }
 
 type TurnState struct {

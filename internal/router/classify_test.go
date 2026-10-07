@@ -268,3 +268,18 @@ func TestEmptyClassifierAlwaysErrors(t *testing.T) {
 		t.Fatal("empty classifier accepted")
 	}
 }
+
+// SP7 §4: the fallback prompt's verdicts are marked #plain so calibration
+// can keep them apart from structured-output ones.
+func TestPlainVerdictSourceMarksPlainPrompt(t *testing.T) {
+	f := askFunc(func(_ context.Context, _, _ string) (string, error) { return "2", nil })
+	v, err := NewClassifier(testConfig("qwen/qwen3-32b"), f.ask).Classify(context.Background(), Question{
+		Message: "hello", PreviousTier: TierFast, Criteria: testCriteria,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Source != "qwen/qwen3-32b#plain" {
+		t.Fatalf("source = %q, want qwen/qwen3-32b#plain", v.Source)
+	}
+}

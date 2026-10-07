@@ -137,6 +137,7 @@ func (c *classifier) classifyJev(ctx context.Context, q Question) (*Verdict, err
 		Tier:           Tier(parsed.Answers.Tier.Choice),
 		TierConfidence: parsed.Answers.Tier.Confidence,
 		Dissatisfied:   parsed.Answers.Dissatisfied.Noul,
+		Source:         jevClassifier,
 	}
 	switch v.Tier {
 	case TierFast, TierBalanced, TierPerformance:
@@ -187,7 +188,7 @@ func (c *classifier) classifyPlain(ctx context.Context, q Question) (*Verdict, e
 	if err != nil {
 		return nil, err
 	}
-	v := &Verdict{}
+	v := &Verdict{Source: c.cfg.Classifier + "#plain"}
 	if i := strings.IndexAny(reply, "123"); i >= 0 {
 		v.Tier = tierOrder[reply[i]-'1']
 		v.TierConfidence = 1

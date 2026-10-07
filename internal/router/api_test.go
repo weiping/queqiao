@@ -3,11 +3,14 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+var errClassify = errors.New("classify failed")
 
 // fakeClassifier returns a fixed verdict and records the questions asked.
 type fakeClassifier struct {
@@ -365,5 +368,62 @@ func TestExperimentToggleFlipsTheArm(t *testing.T) {
 	}
 	if shadows != 1 || decides != 2 {
 		t.Fatalf("events: %d shadow, %d decide", shadows, decides)
+	}
+}
+
+// SP7: every score the decision used is in the event, 0 included.
+func TestDecideLogsAllScores(t *testing.T) {
+	d, _, events := testDeps(t, &Verdict{Tier: TierFast, TierConfidence: 0, Dissatisfied: 0.3, Source: "x/y"})
+	d.Sessions.Commit("k", TurnState{Tier: TierFast})
+	d.Decide(context.Background(), DecideInput{Session: "s1", Key: "k", Agent: "main", Prompt: "hi", TurnID: "t-9"})
+	if len(*events) == 0 {
+		t.Fatal("no decide event")
+	}
+	b, _ := json.Marshal((*events)[len(*events)-1])
+	s := string(b)
+	for _, want := range []string{`"tier_confidence":0`, `"dissatisfied":0.3`, `"classified_tier":"fast"`, `"classifier":"x/y"`, `"turn_id":"t-9"`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("event lacks %s:\n%s", want, s)
+		}
+	}
+}
+
+// A failed classification leaves the score keys out rather than writing 0.
+func TestDecideFailedClassifyOmitsScores(t *testing.T) {
+	d, _, events := testDeps(t, nil)
+	d.Classify = &fakeClassifier{err: errClassify}
+	d.Sessions.Commit("k", TurnState{Tier: TierFast})
+	d.Decide(context.Background(), DecideInput{Session: "s1", Key: "k", Agent: "main", Prompt: "hi"})
+	s, _ := json.Marshal((*events)[len(*events)-1])
+	if strings.Contains(string(s), "tier_confidence") || strings.Contains(string(s), "dissatisfied") {
+		t.Fatalf("failed classify wrote scores: %s", s)
+	}
+}
+
+// The first turn has no previous answer to be dissatisfied with.
+func TestFirstTurnOmitsDissatisfied(t *testing.T) {
+	d, _, events := testDeps(t, &Verdict{Tier: TierFast, TierConfidence: 0.9, Dissatisfied: 0.8, Source: "x/y"})
+	d.Decide(context.Background(), DecideInput{Session: "s1", Key: "k", Agent: "main", Prompt: "hi"})
+	s, _ := json.Marshal((*events)[len(*events)-1])
+	if strings.Contains(string(s), "dissatisfied") {
+		t.Fatalf("first turn wrote dissatisfied: %s", s)
+	}
+}
+
+// The control arm's shadow event carries the same scores.
+func TestShadowEventCarriesScores(t *testing.T) {
+	d, _, events := testDeps(t, &Verdict{Tier: TierFast, TierConfidence: 0.9, Dissatisfied: 0.4, Source: "x/y"})
+	d.Config.Experiment = ExperimentConfig{Enabled: true, RouterPercent: 0, ControlTier: TierPerformance, Salt: "s"}
+	d.Sessions.Commit("k", TurnState{Tier: TierFast})
+	d.Decide(context.Background(), DecideInput{Session: "ctl", Key: "k", Agent: "main", Prompt: "hi"})
+	ev := (*events)[len(*events)-1]
+	if ev.Kind != "shadow" {
+		t.Fatalf("kind = %s, want shadow", ev.Kind)
+	}
+	s, _ := json.Marshal(ev)
+	for _, want := range []string{`"tier_confidence":0.9`, `"dissatisfied":0.4`, `"classifier":"x/y"`} {
+		if !strings.Contains(string(s), want) {
+			t.Fatalf("shadow event lacks %s: %s", want, s)
+		}
 	}
 }
