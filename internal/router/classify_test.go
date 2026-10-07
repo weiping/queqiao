@@ -131,6 +131,9 @@ func TestJevClassifyUnparseable(t *testing.T) {
 func TestPlainClassify(t *testing.T) {
 	var bodies []string
 	f := askFunc(func(_ context.Context, model, body string) (string, error) {
+		if strings.Contains(body, `"response_format"`) {
+			return "", errClassify // this vendor does not take one
+		}
 		bodies = append(bodies, body)
 		if len(bodies) == 1 {
 			return "2", nil
@@ -177,7 +180,10 @@ func TestPlainClassify(t *testing.T) {
 
 func TestPlainClassifyNo(t *testing.T) {
 	n := 0
-	f := askFunc(func(_ context.Context, _, _ string) (string, error) {
+	f := askFunc(func(_ context.Context, _, body string) (string, error) {
+		if strings.Contains(body, `"response_format"`) {
+			return "", errClassify
+		}
 		n++
 		if n == 1 {
 			return "1", nil
@@ -218,7 +224,10 @@ func TestPlainClassifyGarbageTier(t *testing.T) {
 
 func TestPlainClassifyFirstTurnSkipsDissatisfied(t *testing.T) {
 	n := 0
-	f := askFunc(func(_ context.Context, _, _ string) (string, error) {
+	f := askFunc(func(_ context.Context, _, body string) (string, error) {
+		if strings.Contains(body, `"response_format"`) {
+			return "", errClassify
+		}
 		n++
 		return "3", nil
 	})
