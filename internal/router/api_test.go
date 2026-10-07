@@ -313,7 +313,7 @@ func TestDecideGatewayToolStats(t *testing.T) {
 		Session: "gw-s", Key: "gw-key", Agent: "gateway",
 		HasToolStats: true, ToolCalls: 4, ToolFailures: 2,
 	})
-	if res.Tier != TierBalanced || res.Reason != "R3-escalate" {
+	if res.Tier != TierBalanced || res.Reason != "R3-tools" {
 		t.Fatalf("gateway stats: %+v", res)
 	}
 }

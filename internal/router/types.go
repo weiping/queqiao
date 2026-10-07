@@ -31,6 +31,15 @@ type PolicyInput struct {
 	ToolCalls    int
 	SinceLast    time.Duration
 	Now          time.Time
+	Review       *ReviewVerdict // last turn's end-of-turn review; nil when none (SP7)
+}
+
+// ReviewVerdict is the end-of-turn review's reading of the previous turn
+// (SP7 §3.4): how unresolved it left the request, and how sure the
+// classifier is of that.
+type ReviewVerdict struct {
+	Unresolved float64 // 0–1, higher = less resolved
+	Confidence float64 // 0–1
 }
 
 type PolicyConfig struct {
@@ -49,4 +58,8 @@ type Decision struct {
 	Tier   Tier
 	Reason string // e.g. "R1-fixed"
 	Next   TurnState
+	// WouldReview is the shadow review mode's record: the R3 review
+	// condition would have escalated, but the mode is shadow, so the tier
+	// is whatever the other rules chose (SP7).
+	WouldReview bool
 }
