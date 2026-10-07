@@ -20,7 +20,7 @@ queqiao 是一个**放在 Agent Harness 里做决策、在本地网关里执行*
 | --- | --- |
 | G1 | 每个用户轮次开始、模型请求发出之前，选定这一轮的**档位**（`fast` / `balanced` / `performance`）。依据是 harness 才拿得到的上下文：用户原话、计划模式、Agent 类型、项目级判定标准 |
 | G2 | 子代理单独选档：从零开始的子代理在派生时单独选档（Claude Code、Codex，以及 Pi 上的 pi-subagents 扩展）；继承父会话上下文的 fork 子代理跟随父会话当前的档位；派生会话的第一轮继承父会话的档位状态（第 5.8 节） |
-| G3 | 事后复核（附件“开关二”的 Agent 版）：上一轮的结果信号表明这一档不够时，下一轮自动升档 |
+| G3 | 事后复核（附件“开关二”的 Agent 版）：上一轮的结果信号表明这一档不够时，下一轮自动升档。**（SP7 修订，2026-10-07）** 增加轮末复核信号，由 Jev 读本轮请求与回复给出带置信度的判断，并补上分数记录与阈值校准，见 [SP7 规格](2026-10-07-queqiao-sp7-review-calibration-design.md) |
 | G4 | 档位与具体模型解耦。换模型只改配置，不改代码，不重装插件 |
 | G5 | 失败安全：路由链路的任何一环失败，请求都照常完成；选档（hook 或 mod 等待 `/turn`）带来的额外延迟每轮不超过 1.5 秒 |
 | G6 | 内置线上 A/B 验收，能回答“省了多少钱、质量退了没有” |
@@ -39,7 +39,7 @@ queqiao 是一个**放在 Agent Harness 里做决策、在本地网关里执行*
 
 | 不做 | 原因 |
 | --- | --- |
-| 单次调用的“便宜模型自报置信度 → 低于阈值换强模型重答”（OpenRouter 原样） | 编码 Agent 的一轮要跑几十次模型调用，单次调用的答案没法独立打分；Claude Code 后台的小调用（标题、摘要）不值得升级。G3 用“轮次级升档”覆盖同一需求 |
+| 单次调用的“便宜模型自报置信度 → 低于阈值换强模型重答”（OpenRouter 原样） | **（SP7 修订理由，2026-10-07）** Agent 主请求是流式、带工具调用的，要求生成模型输出 `{answer, confidence}` 会改变 Agent 期待的返回格式，同一轮重答会重放写文件、跑命令等副作用；OpenRouter 原文也只覆盖单次问答。分数改由不生成内容的 Jev 在轮末给出，原文的校准纪律（记分、分档校准、分组阈值、上线监控）由 SP7 补上 |
 | 离线评测基准（如 DeepSWE） | 附件也只列为后续计划；v1 只做线上 A/B |
 | 自训分类器 | 用 TypeSafe Jev，备选为任意小模型 |
 | OpenCode、Gemini CLI 等其他 Agent 的插件 | 它们仍可通过网关模式使用路由组（第 5.7 节），但没有 harness 上下文 |
@@ -327,7 +327,7 @@ func Choose(in PolicyInput, cfg PolicyConfig) Decision
 | --- | --- | --- |
 | R1 固定子代理 | `Agent` 在 `cfg.FixedAgents` 里（默认：Claude Code 的 `Explore`、`statusline-setup`、`claude-code-guide` 与 Codex 的 `explorer` → `fast`；Claude Code 的 `Plan` → `performance`） | 对应档位 |
 | R2 计划模式 | `PlanMode` | `performance` |
-| R3 升档 | `Prev != nil`，并且 `Classified.Dissatisfied ≥ cfg.DissatisfiedMin`（默认 0.7）或上一轮 `ToolCalls ≥ 3` 且 `ToolFailures*2 ≥ ToolCalls` | `max(分类档, Prev.Tier + 1)`；分类不可用或不可信时为 `Prev.Tier + 1`。`EscalatedLeft = cfg.EscalateTurns`（默认 2） |
+| R3 升档 | `Prev != nil`，并且 `Classified.Dissatisfied ≥ cfg.DissatisfiedMin`（默认 0.7）或上一轮 `ToolCalls ≥ 3` 且 `ToolFailures*2 ≥ ToolCalls`（**SP7** 增加条件 (c) 轮末复核，并把 Reason 拆为 `R3-escalate`、`R3-tools`、`R3-review`，见 SP7 规格 §3.5） | `max(分类档, Prev.Tier + 1)`；分类不可用或不可信时为 `Prev.Tier + 1`。`EscalatedLeft = cfg.EscalateTurns`（默认 2） |
 | R4 升档保持 | `Prev.EscalatedLeft > 0` | `max(分类档, Prev.Tier)`，`EscalatedLeft - 1` |
 | R5 分类可信 | `Classified != nil` 且 `TierConfidence ≥ cfg.TierMin`（默认 0.4） | 进入 R6 的迟滞判断 |
 | R6 迟滞 | 没有上一轮，或 R5 的档位高于或等于上一轮：直接采用，`LowerStreak = 0`。低于上一轮：`SinceLast ≥ cfg.CacheTTL`（默认 300 秒，此时缓存已凉）或 `Prev.LowerStreak + 1 ≥ 2` 时降档并令 `LowerStreak = 0`；否则保持 `Prev.Tier`，`LowerStreak = Prev.LowerStreak + 1` | 见左 |
@@ -823,8 +823,9 @@ CI 中所有测试都不访问真实的 TypeSafe 和模型厂商。
 | `SP4-pi` | §4.5（Pi 部分）、§5.8 中 Pi 的行、§6.8 | SP2 | vitest 通过；在真实的 Pi 里手动走一遍：一轮简单提问后档位为 fast，模型随之切换 |
 | `SP6-codex` | §4.5（Codex 部分）、§5.6、§5.8 中 Codex 的行、§6.6 中标为 SP6 的命令（含建立 `internal/harness/` 的公共部分）、§6.9 | SP2 | hook 集成测试通过；插件与市场文件通过 Schema 校验；§8 的 Responses 端到端用例通过；在真实的 Codex 里手动走一遍：信任 hook 后，一轮简单提问的请求进入 `qq-fast` |
 | `SP5-eval` | §6.4 的 `feedback`、§6.6 中标为 SP5 的命令、§9 | SP3、SP4、SP6 至少完成一个 | 用合成的 `usage.jsonl` 和 `router.jsonl` 测试报表的统计结果；实验能开能关 |
+| `SP7-review` | [SP7 规格](2026-10-07-queqiao-sp7-review-calibration-design.md) 全文 | SP2–SP6 全部完成 | SP7 规格 §2.2 的五条成功标准 |
 
-执行顺序：`SP0 → SP1 → SP2 → SP3 ∥ SP4 ∥ SP6 → SP5`。三个 harness 子项目互不依赖，可以放在不同的 git worktree 里并行：SP3 只写 TypeScript 的 mod，SP4 只写 Pi 包，SP6 写 Go 的 hook 处理程序和 Codex 插件，改动的目录互不重叠。
+执行顺序：`SP0 → SP1 → SP2 → SP3 ∥ SP4 ∥ SP6 → SP5 → SP7`。三个 harness 子项目互不依赖，可以放在不同的 git worktree 里并行：SP3 只写 TypeScript 的 mod，SP4 只写 Pi 包，SP6 写 Go 的 hook 处理程序和 Codex 插件，改动的目录互不重叠。
 
 ### 执行结果（2026-10-05 回填）
 
