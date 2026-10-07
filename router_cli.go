@@ -125,9 +125,13 @@ func routerInit(args []string) error {
 		DefaultTier:       router.TierBalanced,
 		Classifier:        "local",
 		ClassifyTimeoutMs: 1500,
-		Thresholds:        router.Thresholds{TierMin: 0.4, DissatisfiedMin: 0.7},
-		EscalateTurns:     2,
-		CacheTTLSeconds:   300,
+		Thresholds: router.Thresholds{
+			TierMin: 0.4, DissatisfiedMin: 0.7,
+			ReviewMin: 0.7, ReviewConfidenceMin: 0.5,
+		},
+		Review:          router.ReviewConfig{Mode: router.ReviewOff, TimeoutMs: 5000, MaxAnswerChars: 6000},
+		EscalateTurns:   2,
+		CacheTTLSeconds: 300,
 		FixedAgents: map[string]router.Tier{
 			"Explore": router.TierFast, "statusline-setup": router.TierFast,
 			"claude-code-guide": router.TierFast, "Plan": router.TierPerformance,
@@ -337,6 +341,7 @@ func routerStatus(args []string) error {
 		return nil
 	}
 	fmt.Println("config:", green.Render("ok"), muted.Render("("+routerJSONPath()+")"))
+	fmt.Println(muted.Render("  review:"), cfg.Review.Mode)
 	for _, tier := range []router.Tier{router.TierFast, router.TierBalanced, router.TierPerformance} {
 		tc := cfg.Tiers[tier]
 		fmt.Printf("  %-11s %s (%s)\n", tier, "group/"+tc.Group, tc.ClaudeAlias)

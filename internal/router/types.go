@@ -38,6 +38,9 @@ type PolicyConfig struct {
 	DefaultTier     Tier
 	TierMin         float64
 	DissatisfiedMin float64
+	ReviewMin       float64
+	ReviewConfMin   float64
+	ReviewMode      string
 	EscalateTurns   int
 	CacheTTL        time.Duration
 }

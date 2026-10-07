@@ -381,3 +381,20 @@ func TestRouterInitPiWithoutPi(t *testing.T) {
 		t.Fatal("router init made ~/.pi with no Pi here")
 	}
 }
+
+// SP7: init writes the review defaults so a fresh config has them visible.
+func TestRouterInitWritesReviewDefaults(t *testing.T) {
+	routerHome(t)
+	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(routerJSONPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"review"`, `"mode": "off"`, `"review_min": 0.7`, `"review_confidence_min": 0.5`, `"timeout_ms": 5000`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("router.json lacks %s:\n%s", want, raw)
+		}
+	}
+}
