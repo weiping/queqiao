@@ -4,16 +4,17 @@
 
 queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magpie 的全部功能，在它的本地网关之上加一层路由。名字取自“鹊桥”：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。
 
-> **状态：已实现，生产运行中。** 全部七个子项目（SP0–SP6）完成并合并（PR #4–#11），Claude Code、Pi、Codex 三条通路真机验收通过；自 2026-10-06 起在本机正式启用（magpie 已迁移退役），线上 A/B 实验积累中，首份真实报表待跑满两周。发布物：三平台 CLI + 三平台桌面 App + 校验和（`qq-v*` 标签自动构建）。总体设计与各子项目的执行结果见 [`docs/superpowers/specs/2026-10-02-queqiao-design.md`](docs/superpowers/specs/2026-10-02-queqiao-design.md) 与 `docs/superpowers/plans/`。
+> **状态：已实现，生产运行中。** 全部八个子项目（SP0–SP7）完成并合并（PR #4–#11、[#19](https://github.com/weiping/queqiao/pull/19)），Claude Code、Pi、Codex 三条通路真机验收通过；自 2026-10-06 起在本机正式启用（magpie 已迁移退役），线上 A/B 实验积累中，首份真实报表待跑满两周。发布物：三平台 CLI + 三平台桌面 App + 校验和（`qq-v*` 标签自动构建，当前 `qq-v0.1.4`）；Pi 扩展 `@weiping/pi-queqiao@0.1.2` 已上 npm。总体设计与各子项目的执行结果见 [`docs/superpowers/specs/2026-10-02-queqiao-design.md`](docs/superpowers/specs/2026-10-02-queqiao-design.md)、[`docs/superpowers/specs/2026-10-07-queqiao-sp7-review-calibration-design.md`](docs/superpowers/specs/2026-10-07-queqiao-sp7-review-calibration-design.md) 与 `docs/superpowers/plans/`。
 
 ## 要做什么
 
 - **事前选档**：每一轮用户发话时，插件把用户原话、计划模式、Agent 和子代理类型交给分类器（默认用 TypeSafe 的 [Jev](https://docs.typesafe.ai/introduction)），选出 `fast`、`balanced`、`performance` 三档之一。
 - **事后升档**：用户说上一轮不对，或者上一轮工具调用失败过半，下一轮自动升一档。
+- **事后复核**（可选，默认关闭）：轮末把这一轮的请求和最终回复交给分类器判「到底有没有解决」，命中就下一轮升档；先把 `review.mode` 设 `shadow` 攒样本、用 `queqiao router calibrate` 看阈值站不站得住，再切 `act`。开启后回复会发给你配的分类器厂商，所以默认关。
 - **子代理单独选档**：从零开始的子代理单独选档；继承父会话上下文的 fork 子代理跟随父会话的档位，保住 prompt cache。
 - **档位与模型解耦**：每一档是网关里的一个路由组，组内有跨厂商的失败转移成员。换模型只改配置。
 - **失败安全**：分类器、hook、网关任何一环出错，请求照常完成，只是少了路由。
-- **自带验收**：按会话分组做线上 A/B，统计成本、合并 PR 的比例和手动换模型的次数。
+- **自带验收**：按会话分组做线上 A/B，统计成本、合并 PR 的比例和手动换模型的次数；`queqiao router calibrate` 另外用「下一轮的不满 / 手动升档 / 工具失败」当标签，给出各分数分段的选低率与建议阈值。
 
 ## 组件
 
@@ -24,6 +25,7 @@ queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magp
 | Pi 包 `@weiping/pi-queqiao`（`clients/pi/`） | Pi | SP4 | ✅ 已合并，真机验收 4/4 |
 | Codex 插件 `queqiao-router-codex`（`clients/codex/`） | Codex | SP6 | ✅ 已合并，hook 验收通过 |
 | 验收报表 `queqiao router report` | 所有 Agent | SP5 | ✅ 已合并，首份真实报表待实验跑满 |
+| 轮末复核与置信度校准（`internal/router/review.go`、`calibrate.go`） | 所有 Agent | SP7 | ✅ 已合并，三 Agent 真机验收（Claude Code / Pi 通过；Codex 需在 `/hooks` 重新信任 Stop，`codex exec` 下不发） |
 
 ## 快速开始
 
