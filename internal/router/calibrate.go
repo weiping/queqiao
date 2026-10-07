@@ -67,6 +67,7 @@ type calTurn struct {
 	dissatisfied                    *float64
 	unresolved                      *float64
 	reason                          string
+	wouldReview                     bool
 	order                           int
 	switchedHigher                  bool
 	nextDissatisfied                bool
@@ -126,7 +127,7 @@ func calTurns(events []Event, cfg Config, f CalibrateFilter) []*calTurn {
 	if agent == "" {
 		agent = "main"
 	}
-	matches := func(ev Event) bool {
+	return calTurnsCore(events, f.Since, func(ev Event) bool {
 		if f.Harness != "" && ev.Harness != f.Harness {
 			return false
 		}
@@ -134,7 +135,18 @@ func calTurns(events []Event, cfg Config, f CalibrateFilter) []*calTurn {
 			return ev.Agent == "main"
 		}
 		return ev.Agent != "main" && ev.Agent != ""
-	}
+	})
+}
+
+// calTurnsForSessions is calTurns for one arm's sessions: main-agent turns
+// only, no harness filter (SP7 §6.2).
+func calTurnsForSessions(events []Event, since time.Time, sessions map[string]bool) []*calTurn {
+	return calTurnsCore(events, since, func(ev Event) bool {
+		return sessions[ev.Session] && ev.Agent == "main"
+	})
+}
+
+func calTurnsCore(events []Event, since time.Time, include func(Event) bool) []*calTurn {
 	bySession := map[string][]*calTurn{}
 	// switches are the manual model picks, kept per session with the event
 	// position they fall at.
@@ -145,8 +157,8 @@ func calTurns(events []Event, cfg Config, f CalibrateFilter) []*calTurn {
 	switches := map[string][]switchMark{}
 	var order int
 	for _, ev := range events {
-		if !f.Since.IsZero() {
-			if at, err := time.Parse(time.RFC3339, ev.Time); err == nil && at.Before(f.Since) {
+		if !since.IsZero() {
+			if at, err := time.Parse(time.RFC3339, ev.Time); err == nil && at.Before(since) {
 				continue
 			}
 		}
@@ -159,13 +171,13 @@ func calTurns(events []Event, cfg Config, f CalibrateFilter) []*calTurn {
 				}
 			}
 		case "decide":
-			if ev.Arm == "control" || !matches(ev) {
+			if ev.Arm == "control" || !include(ev) {
 				continue
 			}
 			t := &calTurn{session: ev.Session, harness: ev.Harness, agent: ev.Agent,
 				turnID: ev.TurnID, tier: ev.Tier, classifiedTier: ev.ClassifiedTier,
 				tierConf: ev.TierConfidence, dissatisfied: ev.Dissatisfied,
-				reason: ev.Reason, order: order}
+				reason: ev.Reason, wouldReview: ev.WouldReview, order: order}
 			bySession[ev.Session] = append(bySession[ev.Session], t)
 		case "feedback":
 			if !strings.HasPrefix(ev.Extra, "manual_model_switch") {
@@ -228,7 +240,6 @@ func tierFromExtra(extra string) (Tier, bool) {
 func calibrateScore(score string, turns []*calTurn, cfg Config) ScoreCalibration {
 	higher := score != "tier"
 	out := ScoreCalibration{Score: score, HigherEscalates: higher, Current: currentThreshold(score, cfg)}
-	out.Bands = make([]CalibrationBand, len(calBands))
 	values := make([]float64, 0, len(turns))
 	under := make([]bool, 0, len(turns))
 	for _, t := range turns {
@@ -239,29 +250,8 @@ func calibrateScore(score string, turns []*calTurn, cfg Config) ScoreCalibration
 		values = append(values, v)
 		under = append(under, t.label(score))
 	}
-	counts := make([]int, len(calBands))
-	unders := make([]int, len(calBands))
-	for i, v := range values {
-		b := bandOf(v)
-		counts[b]++
-		if under[i] {
-			unders[b]++
-		}
-	}
-	out.SampleShort = false
+	out.Bands, out.SampleShort = bandsFor(score, turns)
 	total := len(values)
-	for i, seg := range calBands {
-		out.Bands[i] = CalibrationBand{Lo: seg[0], Hi: seg[1], N: counts[i]}
-		if total > 0 {
-			out.Bands[i].Share = float64(counts[i]) / float64(total)
-		}
-		if counts[i] > 0 {
-			out.Bands[i].UnderRate = float64(unders[i]) / float64(counts[i])
-		}
-		if counts[i] < calMinSamples {
-			out.SampleShort = true
-		}
-	}
 	if total > 0 && !out.SampleShort {
 		out.Suggested = suggest(score, out.Bands)
 	}
@@ -270,6 +260,91 @@ func calibrateScore(score string, turns []*calTurn, cfg Config) ScoreCalibration
 		out.ProjEscalateRate, out.ProjUnderRateKept = escalateAndKeep(values, under, *out.Suggested, higher)
 	}
 	return out
+}
+
+// bandsFor is the §5.3 table for one score: the five fixed segments with
+// their sample counts, shares and under-tier rates.
+func bandsFor(score string, turns []*calTurn) ([]CalibrationBand, bool) {
+	bands := make([]CalibrationBand, len(calBands))
+	short := false
+	total := 0
+	for _, t := range turns {
+		if _, ok := t.value(score); ok {
+			total++
+		}
+	}
+	for i, seg := range calBands {
+		bands[i] = CalibrationBand{Lo: seg[0], Hi: seg[1]}
+	}
+	for _, t := range turns {
+		v, ok := t.value(score)
+		if !ok {
+			continue
+		}
+		b := bandOf(v)
+		bands[b].N++
+		if t.label(score) {
+			bands[b].UnderRate++
+		}
+	}
+	for i := range bands {
+		if bands[i].N > 0 {
+			bands[i].UnderRate /= float64(bands[i].N)
+		}
+		if total > 0 {
+			bands[i].Share = float64(bands[i].N) / float64(total)
+		}
+		if bands[i].N < calMinSamples {
+			short = true
+		}
+	}
+	return bands, short
+}
+
+// armScoreStats is the §6.2 monitoring block for one arm: the score bands,
+// the escalation rates by reason (would_review counts shadow hits), and
+// the under-tier rate among the turns that were not escalated.
+func armScoreStats(events []Event, since time.Time, sessions map[string]bool) (map[string][]CalibrationBand, map[string]float64, float64) {
+	turns := calTurnsForSessions(events, since, sessions)
+	bands := map[string][]CalibrationBand{}
+	for _, score := range []string{"tier", "dissatisfied", "review"} {
+		b, _ := bandsFor(score, turns)
+		bands[score] = b
+	}
+	rates := map[string]float64{}
+	if n := len(turns); n > 0 {
+		for _, reason := range []string{"R3-escalate", "R3-tools", "R3-review"} {
+			c := 0
+			for _, t := range turns {
+				if t.reason == reason {
+					c++
+				}
+			}
+			rates[reason] = float64(c) / float64(n)
+		}
+		w := 0
+		for _, t := range turns {
+			if t.wouldReview {
+				w++
+			}
+		}
+		rates["would_review"] = float64(w) / float64(n)
+	}
+	kept, keptUnder := 0, 0
+	for _, t := range turns {
+		if strings.HasPrefix(t.reason, "R3-") {
+			continue
+		}
+		kept++
+		if t.label("tier") {
+			keptUnder++
+		}
+	}
+	keptRate := 0.0
+	if kept > 0 {
+		keptRate = float64(keptUnder) / float64(kept)
+	}
+	return bands, rates, keptRate
 }
 
 // bandOf indexes calBands by value, 0 = the highest segment.

@@ -77,7 +77,7 @@ func TestPRStatesViaGhAndFallbacks(t *testing.T) {
 func TestRenderTextAndJSON(t *testing.T) {
 	rep := Aggregate(ReportInput{
 		Events: []Event{
-			ev("decide", "r1", at(time.Hour), func(e *Event) { e.Arm, e.Tier, e.Harness = "router", "fast", "codex" }),
+			ev("decide", "r1", at(time.Hour), func(e *Event) { e.Arm, e.Tier, e.Harness, e.Agent = "router", "fast", "codex", "main" }),
 			ev("shadow", "c1", at(time.Hour), func(e *Event) { e.Arm, e.Tier, e.ShadowTier = "control", "performance", "fast" }),
 			ev("feedback", "r1", at(30*time.Minute), func(e *Event) { e.Extra = "pr_created https://github.com/a/b/pull/1" }),
 		},
@@ -98,6 +98,8 @@ func TestRenderTextAndJSON(t *testing.T) {
 		"merged-PR sessions",
 		"hint hit rate",
 		"样本不足",
+		"升档率",
+		"未升档轮次的选低率",
 	} {
 		if !strings.Contains(text.String(), want) {
 			t.Fatalf("render missing %q:\n%s", want, text.String())

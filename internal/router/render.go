@@ -36,6 +36,11 @@ func Render(w io.Writer, rep Report) {
 		row("  (control: router's pick)", func(a ArmReport) string { return dist(a.ShadowDistribution) })
 	}
 
+	if rowHasEscalation(rep) {
+		row("升档率", func(a ArmReport) string { return pctMap(a.EscalateRates) })
+		row("未升档轮次的选低率", func(a ArmReport) string { return fmt.Sprintf("%.1f%%", a.UnderRateKept*100) })
+	}
+
 	row("PR sessions", func(a ArmReport) string {
 		return fmt.Sprintf("%d (%.0f%%)", a.PRSessions, pct(a.PRSessions, a.Sessions))
 	})
@@ -189,6 +194,29 @@ func RenderCalibrate(w io.Writer, cals []ScoreCalibration) {
 		}
 		fmt.Fprintln(w)
 	}
+}
+
+// rowHasEscalation reports whether either arm has SP7 monitoring data, so
+// an old ledger's report keeps its original shape.
+func rowHasEscalation(rep Report) bool {
+	return len(rep.Router.EscalateRates) > 0 || len(rep.Control.EscalateRates) > 0
+}
+
+// pctMap prints an arm's escalation rates, in a stable order.
+func pctMap(m map[string]float64) string {
+	if len(m) == 0 {
+		return "-"
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s %.0f%%", k, m[k]*100))
+	}
+	return strings.Join(parts, " ")
 }
 
 func scoreName(s string) string {
