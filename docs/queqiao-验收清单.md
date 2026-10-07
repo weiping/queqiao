@@ -243,6 +243,19 @@ queqiao router calibrate --score review     # 只看复核分数
 queqiao router calibrate --csv > /tmp/cal.csv   # 逐轮明细，人工核对标签准不准
 ```
 
+### 真机结果（2026-10-07，SP7 分支网关 + 用户真实配置）
+
+| Agent | 结果 |
+| --- | --- |
+| Claude Code | ✅ `claude -p` 一轮：`decide`（`source:jev`、`classified_tier:fast`、`tier_confidence:0.99`）+ `review` 事件（带 CC 真实 `turn_id`）。shadow 下第二轮 `would_review:true` 且**不升档**；act 下第二轮 `R3-review`、fast→balanced、`unresolved:0.97`、`dissatisfied:0.06`（唯一原因是复核） |
+| Pi | ✅ `pi -p` 一轮（用 worktree 版扩展，`PI_CODING_AGENT_DIR` 指向临时目录，未改用户安装）：`decide` + `review` 事件（`harness:pi`，`unresolved:0.66` → 低于 0.7 不升档，符合预期） |
+| Codex | ⚠️ `codex exec` 下 **Stop hook 执行了**（输出 `hook: Stop Completed`），但 UserPromptSubmit hook 未产出（无状态文件、无 codex 档 decide），因此 Stop 无 prompt 可配、**不发复核**；按真实 payload 手动串 `queqiao hook user-prompt` → `queqiao hook stop` 则产出 `review` 事件（`harness:codex`，`unresolved:0.96`）。结论：交互式/受信任 hook 场景可用，`codex exec` 下不发 |
+
+两个真机观察（都不是 SP7 缺陷，但会影响观感）：
+
+1. **分类器冷启动**：Jev 首次调用可能超过 `classify_timeout_ms`(1500)，那一轮落 `R8-default`；客户端 1.5s 预算同时超时 → 首轮也可能没有复核。热机后 <400ms 正常。首轮验收前先跑一次预热请求。
+2. **重启网关要按 PID kill**：进程命令行是 `./queqiao serve`，`pkill -f '/tmp/qq-sp7/queqiao serve'` 匹配不到，新进程 bind 失败而旧实例继续服务（表现为「改了 act 却毫无变化」）。用 `kill $(lsof -tiTCP:3425 -sTCP:LISTEN)`。
+
 ### 3. act：同一请求的下一轮应升档
 
 ```bash
