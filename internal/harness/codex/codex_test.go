@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/yetone/magpie/internal/harness"
 )
@@ -209,5 +211,109 @@ func TestPostBashFindsPRLinkAnywhere(t *testing.T) {
 	PostBash(context.Background(), []byte(`{"session_id":"s","output":"no links here"}`), c2)
 	if len(f2.posts) != 0 {
 		t.Fatalf("posts: %v", f2.posts)
+	}
+}
+
+// ---- SP7: the Stop hook's end-of-turn review ----
+
+// TestStopPostsReview: UserPrompt leaves this turn's prompt behind, Stop
+// pairs it with the final answer and posts the review.
+func TestStopPostsReview(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/qq-fast"})
+	prompt := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"t9","prompt":"read ./no-such-file.md and summarise","model":"group/queqiao"}`)
+	if _, err := UserPrompt(context.Background(), prompt, c); err != nil {
+		t.Fatal(err)
+	}
+	stop := []byte(`{"hook_event_name":"Stop","session_id":"s1","turn_id":"t9","last_assistant_message":"I could not read it."}`)
+	out, err := Stop(context.Background(), stop, c)
+	if err != nil || out != nil {
+		t.Fatalf("out=%v err=%v", out, err)
+	}
+	rev := f.at("/v1/queqiao/review")
+	if len(rev) != 1 {
+		t.Fatalf("reviews: %d", len(rev))
+	}
+	for k, want := range map[string]any{
+		"session": "s1",
+		"harness": "codex",
+		"turn_id": "t9",
+		"prompt":  "read ./no-such-file.md and summarise",
+		"answer":  "I could not read it.",
+	} {
+		if rev[0][k] != want {
+			t.Fatalf("%s: got %v, want %v", k, rev[0][k], want)
+		}
+	}
+}
+
+// TestStopWithoutPromptStateIsSilent: no state file (gateway mode, a
+// pinned turn), no answer, or a different turn — nothing is posted.
+func TestStopWithoutPromptStateIsSilent(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/qq-fast"})
+	for _, stdin := range []string{
+		`{"hook_event_name":"Stop","session_id":"nobody","turn_id":"t1","last_assistant_message":"ok"}`,
+		`{"hook_event_name":"Stop","session_id":"s1","turn_id":"t1"}`,
+		`not json at all`,
+	} {
+		if out, err := Stop(context.Background(), []byte(stdin), c); out != nil || err != nil {
+			t.Fatalf("stdin %s: out=%v err=%v", stdin, out, err)
+		}
+	}
+	// a state file from another turn does not pair with this answer
+	if _, err := UserPrompt(context.Background(), []byte(`{"session_id":"s1","turn_id":"t1","prompt":"old","model":"group/queqiao"}`), c); err != nil {
+		t.Fatal(err)
+	}
+	Stop(context.Background(), []byte(`{"hook_event_name":"Stop","session_id":"s1","turn_id":"t2","last_assistant_message":"new answer"}`), c)
+	if got := len(f.at("/v1/queqiao/review")); got != 0 {
+		t.Fatalf("stale state still posted %d reviews", got)
+	}
+}
+
+// TestStopGatewayDownExitsQuietly: an unreachable gateway costs less than
+// the 1s review budget and never errors.
+func TestStopGatewayDownExitsQuietly(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	c := &harness.Client{Base: "http://127.0.0.1:1", HTTP: http.DefaultClient}
+	if _, err := UserPrompt(context.Background(), []byte(`{"session_id":"s1","turn_id":"t1","prompt":"hi","model":"group/queqiao"}`), c); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	out, err := Stop(context.Background(), []byte(`{"hook_event_name":"Stop","session_id":"s1","turn_id":"t1","last_assistant_message":"ok"}`), c)
+	if out != nil || err != nil {
+		t.Fatalf("out=%v err=%v", out, err)
+	}
+	if elapsed := time.Since(start); elapsed > 1500*time.Millisecond {
+		t.Fatalf("Stop waited %v on a dead gateway", elapsed)
+	}
+}
+
+// TestCodexHooksJSONHasStop: the shipped hooks file carries the Stop hook
+// the CLI's `queqiao hook stop` serves.
+func TestCodexHooksJSONHasStop(t *testing.T) {
+	b, err := os.ReadFile("../../../clients/codex/hooks/hooks.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hooks struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Type    string `json:"type"`
+				Command string `json:"command"`
+				Timeout int    `json:"timeout"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(b, &hooks); err != nil {
+		t.Fatalf("hooks.json: %v", err)
+	}
+	stops := hooks.Hooks["Stop"]
+	if len(stops) != 1 || len(stops[0].Hooks) != 1 {
+		t.Fatalf("Stop hooks: %+v", stops)
+	}
+	got := stops[0].Hooks[0]
+	if got.Type != "command" || got.Command != "queqiao hook stop --harness codex" || got.Timeout != 2 {
+		t.Fatalf("Stop hook: %+v", got)
 	}
 }

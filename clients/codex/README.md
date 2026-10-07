@@ -54,3 +54,10 @@ Then three steps inside Codex:
   default.)
 - Status message but wrong tier: `queqiao router status` shows the
   config and recent decisions.
+
+## SP7: the Stop hook needs re-trusting
+
+queqiao 0.1.x adds a `Stop` hook (the end-of-turn review). Codex treats
+changed hook content as untrusted, so after upgrading run `/hooks` once and
+approve the `queqiao hook stop --harness codex` entry — until then Codex
+skips it, and the router simply gets no reviews (no errors).

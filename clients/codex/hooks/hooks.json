@@ -24,6 +24,17 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "queqiao hook stop --harness codex",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "^Bash$",
