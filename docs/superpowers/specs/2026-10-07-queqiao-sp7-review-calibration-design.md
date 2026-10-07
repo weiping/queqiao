@@ -189,6 +189,18 @@ Review *ReviewVerdict // 上一轮的复核结果；nil 表示没有复核、复
 - `max_tokens` 保持 400（总体规格 §5.4 的实测修订）。
 - 复核在普通模型路径下用同样的写法，schema 为 `{unresolved, confidence}`。
 
+## 执行结果（2026-10-07）
+
+已实现并测试（分支 `qq/sp7-review`，12 个提交，每个任务一次 TDD 循环）：
+
+- Task 0 spike：S14 Pi `agent_end` 成立；S15 Codex `Stop` 成立；S16 Jev 复核可分离（解决组 0.26 vs 未解决组 0.95，p50 361ms）；S17 部分——Kimi 支持结构化输出，**DeepSeek 明确 400**（故退回路径必需），GLM 配额用尽未测。
+- Task 1–4：配置（`review`、`overrides`）、R3 三来源（`R3-escalate`/`R3-tools`/`R3-review`）、事件记全分数、普通模型结构化输出（含 `#plain` 退回标记）。
+- Task 5：`POST /v1/queqiao/review`（202/204/400）、后台复核、晚到丢弃、读一次、钉档会话跳过。
+- Task 6–7：`queqiao router calibrate` 与报表的升档来源/未升档选低率。
+- Task 8–10：三个 harness 的轮末发包（Claude Code mod、Pi 扩展、Codex Stop hook）。Pi 扩展尚未发新版到 npm。
+
+真机验收（§3.2 的三个 Agent 各跑一轮）待在验收清单里逐条执行——见 `docs/queqiao-验收清单.md` 的 SP7 一节。
+
 ## 5. 记全分数与校准（G7.2、G7.4）
 
 ### 5.1 事件字段

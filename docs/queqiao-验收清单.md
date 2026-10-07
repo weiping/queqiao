@@ -199,3 +199,60 @@ export XDG_CONFIG_HOME=$XDG XDG_CACHE_HOME=$ISO/cache
 ```
 
 已知波动（2026-10-05 实测）：copilot 全系 400（账号侧）、anthropic/gemini provider 在配置里是关闭状态、zhipu 有 5h/周额度、kimi 部分模型需高等级订阅。可用的稳定成员：`minimax-cn/MiniMax-M2.7[-highspeed]`、`kimi-code-cn/k3`、`deepseek/deepseek-flash`（思考型，仅作分类器备选）。
+
+---
+
+## SP7：轮末复核与置信度校准
+
+默认 `"review": {"mode": "off"}`，回复不会被发出去。开启前请在 `~/.config/queqiao/router.json` 里改。
+
+### 1. shadow：复核在跑，路由不动
+
+```bash
+python3 - <<'PY'
+import json, pathlib
+p = pathlib.Path.home()/".config/queqiao/router.json"
+c = json.loads(p.read_text())
+c.setdefault("review", {})["mode"] = "shadow"
+p.write_text(json.dumps(c, indent=2, ensure_ascii=False))
+PY
+queqiao router status          # 应打印 review: shadow
+```
+
+三个 Agent 各发一轮故意做不成的请求（例：「读取 ./no-such-file.md 并总结」），然后：
+
+```bash
+# 应出现 kind=review 的事件，带 unresolved / review_confidence / turn_id
+grep '"kind":"review"' ~/.config/queqiao/router.jsonl | tail -3
+# decide 事件里应有 would_review:true（shadow 命中）与 tier_confidence / dissatisfied
+grep '"kind":"decide"' ~/.config/queqiao/router.jsonl | tail -3
+```
+
+| 检查 | 期望 |
+| --- | --- |
+| Claude Code（`turn.complete`） | 一条 `review` 事件，`harness:"claude-code"` |
+| Pi（`agent_end`） | 一条 `review` 事件，`harness:"pi"` |
+| Codex（`Stop` hook） | 一条 `review` 事件，`harness:"codex"`；升级后需先在 `/hooks` 重新信任 Stop |
+| 本轮耗时 | 与 `off` 时无可见差别（复核在后台） |
+
+### 2. calibrate：看阈值站不站得住
+
+```bash
+queqiao router calibrate                    # 三张表 + 建议阈值（样本 <30 的段标「样本不足」）
+queqiao router calibrate --score review     # 只看复核分数
+queqiao router calibrate --csv > /tmp/cal.csv   # 逐轮明细，人工核对标签准不准
+```
+
+### 3. act：同一请求的下一轮应升档
+
+```bash
+# 把 review.mode 改成 "act"，再发一轮「still wrong, please redo the task」
+grep '"kind":"decide"' ~/.config/queqiao/router.jsonl | tail -1   # reason 应为 R3-review，tier 升一档
+queqiao router report --since 1d                                  # 升档率 / 未升档轮次的选低率两行有数
+```
+
+### 回滚
+
+```bash
+# 把 review.mode 改回 "off"（或删掉整个 review 段）即可；复核不再发出，历史事件不受影响
+```
