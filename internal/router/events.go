@@ -26,6 +26,17 @@ type Event struct {
 	Confidence float64 `json:"confidence,omitempty"`
 	LatencyMs  int     `json:"latency_ms,omitempty"`
 	Extra      string  `json:"extra,omitempty"` // feedback kind/value, free-form
+
+	// SP7 §5.1: the raw scores behind a decision. Pointers so a failed or
+	// absent reading is null (omitted) while a real 0 is written.
+	TurnID           string   `json:"turn_id,omitempty"`
+	ClassifiedTier   Tier     `json:"classified_tier,omitempty"`
+	TierConfidence   *float64 `json:"tier_confidence,omitempty"`
+	Dissatisfied     *float64 `json:"dissatisfied,omitempty"`
+	WouldReview      bool     `json:"would_review,omitempty"`
+	Unresolved       *float64 `json:"unresolved,omitempty"`
+	ReviewConfidence *float64 `json:"review_confidence,omitempty"`
+	Classifier       string   `json:"classifier,omitempty"`
 }
 
 var (

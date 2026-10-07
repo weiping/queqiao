@@ -199,3 +199,73 @@ export XDG_CONFIG_HOME=$XDG XDG_CACHE_HOME=$ISO/cache
 ```
 
 已知波动（2026-10-05 实测）：copilot 全系 400（账号侧）、anthropic/gemini provider 在配置里是关闭状态、zhipu 有 5h/周额度、kimi 部分模型需高等级订阅。可用的稳定成员：`minimax-cn/MiniMax-M2.7[-highspeed]`、`kimi-code-cn/k3`、`deepseek/deepseek-flash`（思考型，仅作分类器备选）。
+
+---
+
+## SP7：轮末复核与置信度校准
+
+默认 `"review": {"mode": "off"}`，回复不会被发出去。开启前请在 `~/.config/queqiao/router.json` 里改。
+
+### 1. shadow：复核在跑，路由不动
+
+```bash
+python3 - <<'PY'
+import json, pathlib
+p = pathlib.Path.home()/".config/queqiao/router.json"
+c = json.loads(p.read_text())
+c.setdefault("review", {})["mode"] = "shadow"
+p.write_text(json.dumps(c, indent=2, ensure_ascii=False))
+PY
+queqiao router status          # 应打印 review: shadow
+```
+
+三个 Agent 各发一轮故意做不成的请求（例：「读取 ./no-such-file.md 并总结」），然后：
+
+```bash
+# 应出现 kind=review 的事件，带 unresolved / review_confidence / turn_id
+grep '"kind":"review"' ~/.config/queqiao/router.jsonl | tail -3
+# decide 事件里应有 would_review:true（shadow 命中）与 tier_confidence / dissatisfied
+grep '"kind":"decide"' ~/.config/queqiao/router.jsonl | tail -3
+```
+
+| 检查 | 期望 |
+| --- | --- |
+| Claude Code（`turn.complete`） | 一条 `review` 事件，`harness:"claude-code"` |
+| Pi（`agent_end`） | 一条 `review` 事件，`harness:"pi"` |
+| Codex（`Stop` hook） | 一条 `review` 事件，`harness:"codex"`；升级后需先在 `/hooks` 重新信任 Stop |
+| 本轮耗时 | 与 `off` 时无可见差别（复核在后台） |
+
+### 2. calibrate：看阈值站不站得住
+
+```bash
+queqiao router calibrate                    # 三张表 + 建议阈值（样本 <30 的段标「样本不足」）
+queqiao router calibrate --score review     # 只看复核分数
+queqiao router calibrate --csv > /tmp/cal.csv   # 逐轮明细，人工核对标签准不准
+```
+
+### 真机结果（2026-10-07，SP7 分支网关 + 用户真实配置）
+
+| Agent | 结果 |
+| --- | --- |
+| Claude Code | ✅ `claude -p` 一轮：`decide`（`source:jev`、`classified_tier:fast`、`tier_confidence:0.99`）+ `review` 事件（带 CC 真实 `turn_id`）。shadow 下第二轮 `would_review:true` 且**不升档**；act 下第二轮 `R3-review`、fast→balanced、`unresolved:0.97`、`dissatisfied:0.06`（唯一原因是复核） |
+| Pi | ✅ `pi -p` 一轮（用 worktree 版扩展，`PI_CODING_AGENT_DIR` 指向临时目录，未改用户安装）：`decide` + `review` 事件（`harness:pi`，`unresolved:0.66` → 低于 0.7 不升档，符合预期） |
+| Codex | ⚠️ `codex exec` 下 **Stop hook 执行了**（输出 `hook: Stop Completed`），但 UserPromptSubmit hook 未产出（无状态文件、无 codex 档 decide），因此 Stop 无 prompt 可配、**不发复核**；按真实 payload 手动串 `queqiao hook user-prompt` → `queqiao hook stop` 则产出 `review` 事件（`harness:codex`，`unresolved:0.96`）。结论：交互式/受信任 hook 场景可用，`codex exec` 下不发 |
+
+两个真机观察（都不是 SP7 缺陷，但会影响观感）：
+
+1. **分类器冷启动**：Jev 首次调用可能超过 `classify_timeout_ms`(1500)，那一轮落 `R8-default`；客户端 1.5s 预算同时超时 → 首轮也可能没有复核。热机后 <400ms 正常。首轮验收前先跑一次预热请求。
+2. **重启网关要按 PID kill**：进程命令行是 `./queqiao serve`，`pkill -f '/tmp/qq-sp7/queqiao serve'` 匹配不到，新进程 bind 失败而旧实例继续服务（表现为「改了 act 却毫无变化」）。用 `kill $(lsof -tiTCP:3425 -sTCP:LISTEN)`。
+
+### 3. act：同一请求的下一轮应升档
+
+```bash
+# 把 review.mode 改成 "act"，再发一轮「still wrong, please redo the task」
+grep '"kind":"decide"' ~/.config/queqiao/router.jsonl | tail -1   # reason 应为 R3-review，tier 升一档
+queqiao router report --since 1d                                  # 升档率 / 未升档轮次的选低率两行有数
+```
+
+### 回滚
+
+```bash
+# 把 review.mode 改回 "off"（或删掉整个 review 段）即可；复核不再发出，历史事件不受影响
+```

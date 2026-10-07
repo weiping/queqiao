@@ -23,6 +23,10 @@ import (
 // Budget is the HTTP budget a /turn call gets, matching §6.6/§6.9.
 const Budget = 1500 * time.Millisecond
 
+// ReviewBudget is the budget an end-of-turn review gets (SP7 §3.5): the
+// answer is already delivered, so this is the only wait it may cost.
+const ReviewBudget = time.Second
+
 // Client talks to the queqiao gateway from a hook process.
 type Client struct {
 	Base string
@@ -58,6 +62,13 @@ func (c *Client) Feedback(ctx context.Context, body map[string]any) {
 	tctx, cancel := context.WithTimeout(ctx, Budget)
 	defer cancel()
 	_ = c.post(tctx, "/v1/queqiao/feedback", body, nil)
+}
+
+// Review posts an end-of-turn review; errors are swallowed (SP7 §3.5).
+func (c *Client) Review(ctx context.Context, body map[string]any) {
+	tctx, cancel := context.WithTimeout(ctx, ReviewBudget)
+	defer cancel()
+	_ = c.post(tctx, "/v1/queqiao/review", body, nil)
 }
 
 // Lineage marks a derived session; best effort like Feedback.

@@ -381,3 +381,88 @@ func TestRouterInitPiWithoutPi(t *testing.T) {
 		t.Fatal("router init made ~/.pi with no Pi here")
 	}
 }
+
+// SP7: init writes the review defaults so a fresh config has them visible.
+func TestRouterInitWritesReviewDefaults(t *testing.T) {
+	routerHome(t)
+	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(routerJSONPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"review"`, `"mode": "off"`, `"review_min": 0.7`, `"review_confidence_min": 0.5`, `"timeout_ms": 5000`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("router.json lacks %s:\n%s", want, raw)
+		}
+	}
+}
+
+// writeCalibrateConfig writes a valid router.json beside the synthetic
+// event log, since calibrate reads the current thresholds from it.
+func writeCalibrateConfig(t *testing.T) {
+	t.Helper()
+	cfg := appdir.Config()
+	if err := os.MkdirAll(cfg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"tiers":{"fast":{"group":"g","claude_alias":"f"},"balanced":{"group":"g","claude_alias":"b"},"performance":{"group":"g","claude_alias":"p"}}}`
+	if err := os.WriteFile(filepath.Join(cfg, "router.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRouterCalibrateCSV(t *testing.T) {
+	now := time.Now().UTC()
+	at := func(d time.Duration) string { return now.Add(-d).Format(time.RFC3339) }
+	synthReportFiles(t,
+		[]string{
+			`{"kind":"decide","t":"` + at(3*time.Hour) + `","session":"r1","harness":"codex","agent":"main","arm":"router","turn_id":"t1","tier":"fast","classified_tier":"fast","tier_confidence":0.31,"reason":"R5"}`,
+			`{"kind":"decide","t":"` + at(time.Hour) + `","session":"r1","harness":"codex","agent":"main","arm":"router","turn_id":"t2","tier":"balanced","classified_tier":"fast","tier_confidence":0.95,"dissatisfied":0.9,"reason":"R3-review"}`,
+		}, nil)
+	writeCalibrateConfig(t)
+
+	var buf bytes.Buffer
+	if err := routerCalibrateTo(&buf, []string{"--csv"}); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	want := "session,turn_id,harness,agent,tier,tier_confidence,dissatisfied,unresolved,under_tiered"
+	if lines[0] != want {
+		t.Fatalf("header = %q, want %q", lines[0], want)
+	}
+	if len(lines) != 3 {
+		t.Fatalf("rows = %d, want 2:\n%s", len(lines)-1, buf.String())
+	}
+	if !strings.HasPrefix(lines[1], "r1,t1,codex,main,fast,0.310,") {
+		t.Fatalf("first row: %q", lines[1])
+	}
+	for _, l := range lines[1:] {
+		if strings.Contains(l, " ") {
+			t.Fatalf("CSV row carries prose: %q", l)
+		}
+	}
+}
+
+func TestRouterCalibrateText(t *testing.T) {
+	now := time.Now().UTC()
+	at := func(d time.Duration) string { return now.Add(-d).Format(time.RFC3339) }
+	synthReportFiles(t,
+		[]string{`{"kind":"decide","t":"` + at(time.Hour) + `","session":"r1","harness":"codex","agent":"main","arm":"router","turn_id":"t1","tier":"fast","classified_tier":"fast","tier_confidence":0.31,"reason":"R5"}`},
+		nil)
+	writeCalibrateConfig(t)
+	var buf bytes.Buffer
+	if err := routerCalibrateTo(&buf, []string{"--score", "tier"}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, want := range []string{"标签只反映用户表达出来的不满", "档位置信度", "升档率", "未升档轮次的选低率"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("calibrate text missing %q:\n%s", want, out)
+		}
+	}
+	if err := routerCalibrateTo(&buf, []string{"--score", "nope"}); err == nil {
+		t.Fatal("--score nope was accepted")
+	}
+}

@@ -9,7 +9,8 @@ import (
 )
 
 /**
- * `queqiao hook <user-prompt|pre-agent|post-bash> --harness <name>` (§6.6).
+ * `queqiao hook <user-prompt|pre-agent|post-bash|stop> --harness <name>`
+ * (§6.6, SP7 §3.5).
  * Only codex has command hooks today; --harness keeps the door open for
  * the next one without re-trusting existing hook commands.
  */
@@ -45,8 +46,10 @@ func hookCmd(args []string) error {
 		h = codex.PreAgent
 	case "post-bash":
 		h = codex.PostBash
+	case "stop":
+		h = codex.Stop
 	default:
-		return fmt.Errorf("queqiao hook takes user-prompt, pre-agent or post-bash, not %q", sub)
+		return fmt.Errorf("queqiao hook takes user-prompt, pre-agent, post-bash or stop, not %q", sub)
 	}
 	// hooks always end 0, even on failure — main's error path must not run
 	os.Exit(harness.Run(h))

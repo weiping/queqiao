@@ -157,7 +157,7 @@ func TestR3EscalateOnToolFailures(t *testing.T) {
 		wantTier   Tier
 		wantReason string
 	}{
-		{"half failures with enough calls escalates", 4, 2, TierPerformance, "R3-escalate"},
+		{"half failures with enough calls escalates", 4, 2, TierPerformance, "R3-tools"},
 		{"fewer than 3 calls does not escalate", 2, 2, TierBalanced, "R7-carry"},
 		{"minority failures does not escalate", 5, 2, TierBalanced, "R7-carry"},
 	}
@@ -171,7 +171,7 @@ func TestR3EscalateOnToolFailures(t *testing.T) {
 				Now:          time.Now(),
 			}, testCfg)
 			wantNext := TurnState{Tier: tt.wantTier}
-			if tt.wantReason == "R3-escalate" {
+			if tt.wantReason == "R3-tools" {
 				wantNext.EscalatedLeft = testCfg.EscalateTurns
 			}
 			assertDecision(t, d, tt.wantTier, tt.wantReason, wantNext)
@@ -405,4 +405,54 @@ func TestSubagentStatelessness(t *testing.T) {
 		}, testCfg)
 		assertDecision(t, d, TierFast, "R1-fixed", TurnState{Tier: TierFast})
 	})
+}
+
+// SP7: the three R3 triggers and their reasons, and shadow.
+func TestR3Sources(t *testing.T) {
+	prev := &TurnState{Tier: TierFast}
+	cfg := PolicyConfig{
+		DefaultTier: TierBalanced, TierMin: 0.4, DissatisfiedMin: 0.7,
+		ReviewMin: 0.7, ReviewConfMin: 0.5, EscalateTurns: 2,
+	}
+	fast := &Verdict{Tier: TierFast, TierConfidence: 0.9}
+	cases := []struct {
+		name   string
+		in     PolicyInput
+		mode   string
+		want   Tier
+		reason string
+		review bool
+	}{
+		{"tools failing only", PolicyInput{Agent: "main", Prev: prev, Classified: fast, ToolCalls: 4, ToolFailures: 2}, "act", TierBalanced, "R3-tools", false},
+		{"review hits", PolicyInput{Agent: "main", Prev: prev, Classified: fast, Review: &ReviewVerdict{Unresolved: 0.8, Confidence: 0.6}}, "act", TierBalanced, "R3-review", false},
+		{"review confidence too low", PolicyInput{Agent: "main", Prev: prev, Classified: fast, Review: &ReviewVerdict{Unresolved: 0.8, Confidence: 0.4}}, "act", TierFast, "R6-adopt", false},
+		{"shadow does not escalate", PolicyInput{Agent: "main", Prev: prev, Classified: fast, Review: &ReviewVerdict{Unresolved: 0.8, Confidence: 0.6}}, "shadow", TierFast, "R6-adopt", true},
+		{"off never reviews", PolicyInput{Agent: "main", Prev: prev, Classified: fast, Review: &ReviewVerdict{Unresolved: 0.8, Confidence: 0.6}}, "off", TierFast, "R6-adopt", false},
+		{"dissatisfied wins over review", PolicyInput{Agent: "main", Prev: prev, Classified: &Verdict{Tier: TierFast, TierConfidence: 0.9, Dissatisfied: 0.9}, Review: &ReviewVerdict{Unresolved: 0.8, Confidence: 0.6}}, "act", TierBalanced, "R3-escalate", false},
+		{"first turn never reviews", PolicyInput{Agent: "main", Classified: fast, Review: &ReviewVerdict{Unresolved: 0.8, Confidence: 0.6}}, "act", TierFast, "R6-adopt", false},
+		{"capped at performance", PolicyInput{Agent: "main", Prev: &TurnState{Tier: TierPerformance}, Classified: &Verdict{Tier: TierPerformance, TierConfidence: 0.9}, Review: &ReviewVerdict{Unresolved: 0.9, Confidence: 0.9}}, "act", TierPerformance, "R3-review", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := cfg
+			c.ReviewMode = tc.mode
+			d := Choose(tc.in, c)
+			if d.Tier != tc.want || d.Reason != tc.reason || d.WouldReview != tc.review {
+				t.Fatalf("got tier=%s reason=%s wouldReview=%v; want tier=%s reason=%s wouldReview=%v",
+					d.Tier, d.Reason, d.WouldReview, tc.want, tc.reason, tc.review)
+			}
+		})
+	}
+}
+
+// R3's escalation bookkeeping is the same for every source.
+func TestR3SourcesKeepEscalateTurns(t *testing.T) {
+	prev := &TurnState{Tier: TierFast}
+	cfg := PolicyConfig{DefaultTier: TierBalanced, TierMin: 0.4, DissatisfiedMin: 0.7,
+		ReviewMin: 0.7, ReviewConfMin: 0.5, EscalateTurns: 2, ReviewMode: "act"}
+	d := Choose(PolicyInput{Agent: "main", Prev: prev, Classified: &Verdict{Tier: TierFast, TierConfidence: 0.9},
+		Review: &ReviewVerdict{Unresolved: 0.8, Confidence: 0.6}}, cfg)
+	if d.Next.EscalatedLeft != 2 {
+		t.Fatalf("EscalatedLeft = %d, want 2", d.Next.EscalatedLeft)
+	}
 }

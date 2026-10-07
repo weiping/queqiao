@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -195,5 +196,65 @@ func TestPolicyConfigConversion(t *testing.T) {
 	}
 	if pc.FixedAgents["Explore"] != TierFast {
 		t.Fatalf("pc fixed agents: %+v", pc.FixedAgents)
+	}
+}
+
+// ---------------------------------------------------------------- SP7
+
+// A router.json from before SP7 loads unchanged: the new fields take their
+// defaults rather than erroring.
+func TestOldConfigGetsReviewDefaults(t *testing.T) {
+	cfg, err := Load(writeGlobal(t, validJSON), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Thresholds.ReviewMin != 0.7 || cfg.Thresholds.ReviewConfidenceMin != 0.5 {
+		t.Fatalf("thresholds: %+v", cfg.Thresholds)
+	}
+	if cfg.Review.Mode != "off" || cfg.Review.TimeoutMs != 5000 || cfg.Review.MaxAnswerChars != 6000 {
+		t.Fatalf("review: %+v", cfg.Review)
+	}
+}
+
+func TestReviewModeValidated(t *testing.T) {
+	bad := strings.Replace(validJSON, `"experiment"`, `"review": { "mode": "maybe" }, "experiment"`, 1)
+	if _, err := Load(writeGlobal(t, bad), ""); err == nil || !strings.Contains(err.Error(), "review.mode") {
+		t.Fatalf("err: %v", err)
+	}
+}
+
+// overrides: an entry writing both harness and agent outranks one writing
+// a single field; single-field entries apply in order among themselves.
+func TestOverrideOrder(t *testing.T) {
+	withOverrides := strings.Replace(validJSON,
+		`"thresholds": { "tier_min": 0.4, "dissatisfied_min": 0.7 }`,
+		`"thresholds": { "tier_min": 0.4, "dissatisfied_min": 0.7, "overrides": [
+			{ "agent": "sub", "tier_min": 0.5 },
+			{ "harness": "codex", "agent": "sub", "tier_min": 0.6 },
+			{ "harness": "codex", "review_min": 0.65 } ] }`, 1)
+	cfg, err := Load(writeGlobal(t, withOverrides), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.PolicyConfigFor("codex", "Explore").TierMin; got != 0.6 {
+		t.Fatalf("codex/sub tier_min = %v, want 0.6 (both-fields entry wins)", got)
+	}
+	if got := cfg.PolicyConfigFor("codex", "Explore").ReviewMin; got != 0.65 {
+		t.Fatalf("codex/sub review_min = %v, want 0.65", got)
+	}
+	if got := cfg.PolicyConfigFor("pi", "Explore").TierMin; got != 0.5 {
+		t.Fatalf("pi/sub tier_min = %v, want 0.5 (agent-only entry)", got)
+	}
+	if got := cfg.PolicyConfigFor("pi", "main").TierMin; got != 0.4 {
+		t.Fatalf("pi/main tier_min = %v, want 0.4 (no match)", got)
+	}
+}
+
+func TestOverrideThresholdRange(t *testing.T) {
+	bad := strings.Replace(validJSON,
+		`"thresholds": { "tier_min": 0.4, "dissatisfied_min": 0.7 }`,
+		`"thresholds": { "tier_min": 0.4, "dissatisfied_min": 0.7, "overrides": [ { "harness": "codex", "review_min": 1.2 } ] }`, 1)
+	if _, err := Load(writeGlobal(t, bad), ""); err == nil {
+		t.Fatal("out-of-range override accepted")
 	}
 }

@@ -242,3 +242,50 @@ func abs(x float64) float64 {
 	}
 	return x
 }
+
+// SP7 §6.2: an arm's report carries the escalation rates by source and the
+// under-tier rate among the turns that were not escalated.
+func TestReportEscalationRatesAndKeptUnderRate(t *testing.T) {
+	now := time.Now().UTC()
+	clock := now.Add(-time.Hour)
+	events := []Event{}
+	add := func(turnID, reason string, diss float64, hasDiss, wouldReview bool) {
+		clock = clock.Add(time.Minute)
+		ev := Event{Kind: "decide", Time: clock.Format(time.RFC3339), Session: "s1",
+			Harness: "codex", Agent: "main", Arm: "router", TurnID: turnID,
+			Tier: TierFast, ClassifiedTier: TierFast, Reason: reason, WouldReview: wouldReview,
+			Classifier: "typeset/jev-latest"}
+		c := 0.9
+		ev.TierConfidence = &c
+		if hasDiss {
+			ev.Dissatisfied = &diss
+		}
+		events = append(events, ev)
+	}
+	add("t1", "R3-escalate", 0, false, false)
+	add("t2", "R3-tools", 0, false, false)
+	add("t3", "R3-review", 0, false, false)
+	add("t4", "R3-review", 0, false, false)
+	// the six kept turns; t5 carries the shadow review hit, and t5..t7 are
+	// labelled under-tiered by the next turns' dissatisfaction
+	add("t5", "R6-adopt", 0, false, true)
+	add("t6", "R6-adopt", 0.9, true, false)
+	add("t7", "R6-adopt", 0.9, true, false)
+	add("t8", "R6-adopt", 0.9, true, false)
+	add("t9", "R6-adopt", 0, false, false)
+	add("t10", "R6-adopt", 0, false, false)
+
+	rep := Aggregate(ReportInput{Events: events, Now: now, Since: 24 * time.Hour})
+	if got := rep.Router.EscalateRates["R3-review"]; got != 0.2 {
+		t.Fatalf("R3-review rate = %v, want 0.2", got)
+	}
+	if got := rep.Router.EscalateRates["would_review"]; got != 0.1 {
+		t.Fatalf("would_review rate = %v, want 0.1", got)
+	}
+	if rep.Router.UnderRateKept != 0.5 {
+		t.Fatalf("UnderRateKept = %v, want 0.5", rep.Router.UnderRateKept)
+	}
+	if len(rep.Router.ScoreBands["tier"]) != 5 {
+		t.Fatalf("score bands: %+v", rep.Router.ScoreBands)
+	}
+}

@@ -17,6 +17,10 @@ type sessionState struct {
 	toolFailures int
 	lastAt       time.Time
 	parent       string // set by MarkDerived / lineage
+
+	turns   int            // committed turns (Commit increments)
+	pending *ReviewVerdict // a review that has not been read yet (SP7 §3.2)
+	pinned  bool           // the user chose the model by hand (SP7 §3.2)
 }
 
 // Sessions keeps per-session router state in memory: the last committed
@@ -64,8 +68,62 @@ func (s *Sessions) Commit(key string, t TurnState) {
 	defer s.mu.Unlock()
 	st := s.state(key)
 	st.tier = t
+	st.turns++
 	st.lastAt = sessionClock()
 	s.evictLocked(st.lastAt)
+}
+
+// Turn reports how many turns the session has committed: the review of
+// turn N is only valid while Turn is still N (SP7 §3.2).
+func (s *Sessions) Turn(key string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if st, ok := s.m[key]; ok {
+		return st.turns
+	}
+	return 0
+}
+
+// PutReview files a review for turn, and drops it when the session has
+// moved on (that turn is over and no later turn may be judged by it).
+func (s *Sessions) PutReview(key string, turn int, v ReviewVerdict) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, ok := s.m[key]
+	if !ok || st.turns != turn {
+		return
+	}
+	rv := v
+	st.pending = &rv
+}
+
+// TakeReview returns the unread review and clears it (§3.2: read once).
+func (s *Sessions) TakeReview(key string) *ReviewVerdict {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, ok := s.m[key]
+	if !ok || st.pending == nil {
+		return nil
+	}
+	v := *st.pending
+	st.pending = nil
+	return &v
+}
+
+// MarkPinned records that the user picked the model by hand, so the
+// session is left alone until it goes idle (SP7 §3.2).
+func (s *Sessions) MarkPinned(session string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state(session).pinned = true
+}
+
+// Pinned reports whether the session was pinned by hand.
+func (s *Sessions) Pinned(session string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, ok := s.m[session]
+	return ok && st.pinned
 }
 
 // Observe records what the gateway saw of a request: the session's tool

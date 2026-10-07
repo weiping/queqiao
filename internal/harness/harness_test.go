@@ -76,6 +76,34 @@ func TestFeedbackAndLineageNeverErrorOutward(t *testing.T) {
 	c.Lineage(context.Background(), map[string]any{"session": "s"})
 }
 
+// SP7 §3.5: Review posts to /review and never errors outward, even when
+// the gateway is gone.
+func TestReviewPostsAndSwallowsErrors(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/queqiao/review" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(204)
+	}))
+	defer srv.Close()
+	c := &Client{Base: srv.URL, HTTP: srv.Client()}
+	c.Review(context.Background(), map[string]any{"session": "s1", "answer": "ok"})
+	if got["session"] != "s1" || got["answer"] != "ok" {
+		t.Fatalf("posted: %v", got)
+	}
+
+	down := &Client{Base: "http://127.0.0.1:1", HTTP: http.DefaultClient}
+	done := make(chan struct{})
+	go func() { defer close(done); down.Review(context.Background(), map[string]any{"session": "s1"}) }()
+	select {
+	case <-done:
+	case <-time.After(2 * ReviewBudget):
+		t.Fatal("Review did not return within its budget")
+	}
+}
+
 func TestRunAlwaysExitsZero(t *testing.T) {
 	for name, h := range map[string]Handler{
 		"error":  func(context.Context, []byte, *Client) ([]byte, error) { return nil, io.ErrUnexpectedEOF },

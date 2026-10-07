@@ -51,6 +51,13 @@ type ArmReport struct {
 	CacheWriteCost       float64
 	TotalCost            float64
 	UnpricedRequests     int
+
+	// SP7 §6.2: the score bands behind the arm's decisions, the escalation
+	// rate of each R3 source (and of shadow-mode review hits), and the
+	// under-tier rate among the turns that were not escalated.
+	ScoreBands    map[string][]CalibrationBand
+	EscalateRates map[string]float64
+	UnderRateKept float64
 }
 
 // Report is both arms plus the comparison the §9 text asks for.
@@ -211,6 +218,13 @@ func Aggregate(in ReportInput) Report {
 		rep.CacheWriteCost = cacheWrite[name]
 		rep.TotalCost = total[name]
 		rep.UnpricedRequests = unpriced[name]
+		mine := map[string]bool{}
+		for s, a := range armOf {
+			if a == name {
+				mine[s] = true
+			}
+		}
+		rep.ScoreBands, rep.EscalateRates, rep.UnderRateKept = armScoreStats(in.Events, since, mine)
 		return rep
 	}
 

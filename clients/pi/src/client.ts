@@ -24,6 +24,16 @@ export interface Feedback {
   value?: string
 }
 
+/** The end-of-turn review's body (SP7 §3.3). */
+export interface ReviewBody {
+  session: string
+  turnId?: string
+  prompt: string
+  answer: string
+  toolCalls?: number
+  toolFailures?: number
+}
+
 /** The budget §6.8 gives the /turn call, in ms. */
 export const TURN_BUDGET_MS = 1500
 
@@ -50,6 +60,27 @@ export class QueqiaoClient {
     const out = (await this.post("/v1/queqiao/turn", body, TURN_BUDGET_MS)) as TurnResponse | null
     if (out === null || typeof out.tier !== "string" || typeof out.group !== "string") return null
     return out
+  }
+
+  /**
+   * POST /v1/queqiao/review; fire-and-forget (SP7 §3.5). The answer has
+   * already been delivered, so nothing waits on the gateway here.
+   */
+  review(body: ReviewBody): void {
+    const payload: Record<string, unknown> = {
+      harness: "pi",
+      session: body.session,
+      prompt: body.prompt,
+      answer: body.answer,
+    }
+    if (body.turnId !== undefined) payload.turn_id = body.turnId
+    if (body.toolCalls !== undefined) payload.tool_calls = body.toolCalls
+    if (body.toolFailures !== undefined) payload.tool_failures = body.toolFailures
+    try {
+      void fetch(this.base + "/v1/queqiao/review", this.init(payload)).catch(() => {})
+    } catch {
+      // a review that never arrives just means no R3-review next turn
+    }
   }
 
   /** POST /v1/queqiao/feedback; fire-and-forget. */

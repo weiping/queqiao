@@ -14,6 +14,28 @@ const PROVIDER = "magpie"
 const PR_LINK = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/
 const SUBAGENT_TOOLS = new Set(["subagent", "dispatch_agent"]) // S12
 
+type AgentMessageLite = { role?: string; content?: unknown }
+
+// lastAssistantText is S14's reading of the turn's final assistant text:
+// a plain string, or the text parts of a content array joined.
+function lastAssistantText(messages: AgentMessageLite[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m?.role !== "assistant") continue
+    if (typeof m.content === "string") return m.content
+    if (Array.isArray(m.content)) {
+      const parts = m.content as Array<{ type?: string; text?: string }>
+      const text = parts
+        .filter((p) => p?.type === "text" && typeof p.text === "string")
+        .map((p) => p.text as string)
+        .join("")
+      return text === "" ? null : text
+    }
+    return null
+  }
+  return null
+}
+
 export default function (pi: ExtensionAPI): void {
   const client = new QueqiaoClient(process.env.QUEQIAO_URL ?? "http://127.0.0.1:3425")
 
@@ -22,6 +44,7 @@ export default function (pi: ExtensionAPI): void {
   let parent: string | null = null
   let parentSent = false
   let lastTier: string | null = null
+  let lastPrompt = "" // this turn's words, for the end-of-turn review (SP7)
   let lastAutoModel = "" // our own setModel, told apart from a manual switch
   let manualPinned = false
 
@@ -39,6 +62,7 @@ export default function (pi: ExtensionAPI): void {
     }
     parentSent = false
     lastTier = null
+    lastPrompt = ""
     lastAutoModel = ""
     manualPinned = false
   })
@@ -51,6 +75,7 @@ export default function (pi: ExtensionAPI): void {
   pi.on("before_agent_start", async (event, ctx: ExtensionContext) => {
     const prompt = event.prompt ?? ""
     if (prompt === "" || session === "" || manualPinned) return
+    lastPrompt = prompt
     const out = await client.turn({
       session,
       prompt,
@@ -65,6 +90,16 @@ export default function (pi: ExtensionAPI): void {
     lastAutoModel = model.id
     lastTier = out.tier
     await pi.setModel(model)
+  })
+
+  // SP7 §3.5: after a routed main turn that did not run on performance,
+  // ask the gateway to judge whether the answer left the request open.
+  // Fire and forget: nothing here waits on the gateway.
+  pi.on("agent_end", (event) => {
+    if (manualPinned || session === "" || lastTier === null || lastTier === "performance") return
+    const answer = lastAssistantText((event as { messages?: AgentMessageLite[] }).messages ?? [])
+    if (answer === null) return
+    client.review({ session, prompt: lastPrompt, answer })
   })
 
   pi.on("model_select", (event) => {

@@ -17,10 +17,34 @@ type TierCfg struct {
 	Criteria    string `json:"criteria"`
 }
 
-// Thresholds are the policy's numeric cut-offs, both in [0, 1].
+// Thresholds are the policy's numeric cut-offs, all in [0, 1], plus the
+// per-harness and per-agent overrides SP7 adds (§6.1).
 type Thresholds struct {
-	TierMin         float64 `json:"tier_min"`
-	DissatisfiedMin float64 `json:"dissatisfied_min"`
+	TierMin             float64             `json:"tier_min"`
+	DissatisfiedMin     float64             `json:"dissatisfied_min"`
+	ReviewMin           float64             `json:"review_min"`
+	ReviewConfidenceMin float64             `json:"review_confidence_min"`
+	Overrides           []ThresholdOverride `json:"overrides,omitempty"`
+}
+
+// ThresholdOverride replaces the threshold fields it writes, for one
+// harness, one agent kind (main/sub/gateway), or both. An entry writing
+// both outranks one writing a single field.
+type ThresholdOverride struct {
+	Harness             string   `json:"harness,omitempty"`
+	Agent               string   `json:"agent,omitempty"`
+	TierMin             *float64 `json:"tier_min,omitempty"`
+	DissatisfiedMin     *float64 `json:"dissatisfied_min,omitempty"`
+	ReviewMin           *float64 `json:"review_min,omitempty"`
+	ReviewConfidenceMin *float64 `json:"review_confidence_min,omitempty"`
+}
+
+// ReviewConfig is router.json's review section: the end-of-turn review's
+// mode, its timeout, and how much of an answer it reads (§6.1).
+type ReviewConfig struct {
+	Mode           string `json:"mode"`
+	TimeoutMs      int    `json:"timeout_ms"`
+	MaxAnswerChars int    `json:"max_answer_chars"`
 }
 
 // ExperimentConfig decides how sessions split between the router and a
@@ -45,6 +69,7 @@ type Config struct {
 	CacheTTLSeconds   int              `json:"cache_ttl_seconds"`
 	FixedAgents       map[string]Tier  `json:"fixed_agents"`
 	Experiment        ExperimentConfig `json:"experiment"`
+	Review            ReviewConfig     `json:"review"`
 }
 
 // defaultFixedAgents is §4.6's list, used when router.json omits it.
@@ -99,6 +124,21 @@ func (c *Config) defaults() {
 	if c.Thresholds.DissatisfiedMin == 0 {
 		c.Thresholds.DissatisfiedMin = 0.7
 	}
+	if c.Thresholds.ReviewMin == 0 {
+		c.Thresholds.ReviewMin = 0.7
+	}
+	if c.Thresholds.ReviewConfidenceMin == 0 {
+		c.Thresholds.ReviewConfidenceMin = 0.5
+	}
+	if c.Review.Mode == "" {
+		c.Review.Mode = ReviewOff
+	}
+	if c.Review.TimeoutMs == 0 {
+		c.Review.TimeoutMs = 5000
+	}
+	if c.Review.MaxAnswerChars == 0 {
+		c.Review.MaxAnswerChars = 6000
+	}
 	if c.EscalateTurns == 0 {
 		c.EscalateTurns = 2
 	}
@@ -130,8 +170,29 @@ func (c Config) validate() error {
 	default:
 		return fmt.Errorf("default_tier: %q is not a tier", c.DefaultTier)
 	}
-	if th := c.Thresholds; th.TierMin < 0 || th.TierMin > 1 || th.DissatisfiedMin < 0 || th.DissatisfiedMin > 1 {
-		return fmt.Errorf("thresholds out of [0,1]: %+v", th)
+	th := c.Thresholds
+	for name, v := range map[string]float64{
+		"tier_min": th.TierMin, "dissatisfied_min": th.DissatisfiedMin,
+		"review_min": th.ReviewMin, "review_confidence_min": th.ReviewConfidenceMin,
+	} {
+		if v < 0 || v > 1 {
+			return fmt.Errorf("thresholds.%s %v out of [0,1]", name, v)
+		}
+	}
+	for i, o := range th.Overrides {
+		for name, v := range map[string]*float64{
+			"tier_min": o.TierMin, "dissatisfied_min": o.DissatisfiedMin,
+			"review_min": o.ReviewMin, "review_confidence_min": o.ReviewConfidenceMin,
+		} {
+			if v != nil && (*v < 0 || *v > 1) {
+				return fmt.Errorf("thresholds.overrides[%d].%s %v out of [0,1]", i, name, *v)
+			}
+		}
+	}
+	switch c.Review.Mode {
+	case ReviewOff, ReviewShadow, ReviewAct:
+	default:
+		return fmt.Errorf("review.mode %q is not one of off, shadow, act", c.Review.Mode)
 	}
 	if p := c.Experiment.RouterPercent; p < 0 || p > 100 {
 		return fmt.Errorf("experiment.router_percent %d out of [0,100]", p)
@@ -179,14 +240,66 @@ func ProjectCriteria(cwd string) map[Tier]string {
 	return out
 }
 
-// PolicyConfig projects the config onto what Choose takes.
-func (c Config) PolicyConfig() PolicyConfig {
-	return PolicyConfig{
+// Review modes (§6.1).
+const (
+	ReviewOff    = "off"
+	ReviewShadow = "shadow"
+	ReviewAct    = "act"
+)
+
+// PolicyConfig projects the config onto what Choose takes, with the
+// thresholds this harness and agent kind get (§6.1): the base values, then
+// the overrides — single-field entries in order, then entries writing both
+// harness and agent, so a specific one outranks a general one.
+func (c Config) PolicyConfigFor(harness, agent string) PolicyConfig {
+	kind := agent
+	if kind != "main" && kind != "gateway" {
+		kind = "sub"
+	}
+	pc := PolicyConfig{
 		FixedAgents:     c.FixedAgents,
 		DefaultTier:     c.DefaultTier,
 		TierMin:         c.Thresholds.TierMin,
 		DissatisfiedMin: c.Thresholds.DissatisfiedMin,
+		ReviewMin:       c.Thresholds.ReviewMin,
+		ReviewConfMin:   c.Thresholds.ReviewConfidenceMin,
+		ReviewMode:      c.Review.Mode,
 		EscalateTurns:   c.EscalateTurns,
 		CacheTTL:        time.Duration(c.CacheTTLSeconds) * time.Second,
 	}
+	apply := func(o ThresholdOverride) {
+		if o.Harness != "" && o.Harness != harness {
+			return
+		}
+		if o.Agent != "" && o.Agent != kind {
+			return
+		}
+		if o.TierMin != nil {
+			pc.TierMin = *o.TierMin
+		}
+		if o.DissatisfiedMin != nil {
+			pc.DissatisfiedMin = *o.DissatisfiedMin
+		}
+		if o.ReviewMin != nil {
+			pc.ReviewMin = *o.ReviewMin
+		}
+		if o.ReviewConfidenceMin != nil {
+			pc.ReviewConfMin = *o.ReviewConfidenceMin
+		}
+	}
+	for _, o := range c.Thresholds.Overrides {
+		if o.Harness == "" || o.Agent == "" {
+			apply(o)
+		}
+	}
+	for _, o := range c.Thresholds.Overrides {
+		if o.Harness != "" && o.Agent != "" {
+			apply(o)
+		}
+	}
+	return pc
 }
+
+// PolicyConfig is PolicyConfigFor with no harness and the main agent — the
+// pre-SP7 shape, still what a plain Choose call gets.
+func (c Config) PolicyConfig() PolicyConfig { return c.PolicyConfigFor("", "main") }

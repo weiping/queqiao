@@ -59,6 +59,85 @@ const bodies = (fetchMock: ReturnType<typeof vi.fn>, path: string) =>
     .filter((c) => String(c[0]).endsWith(path))
     .map((c) => JSON.parse(String((c as unknown[])[1] ? (c[1] as RequestInit).body : "")) as Record<string, unknown>)
 
+describe("queqiao extension (SP7 end-of-turn review)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    vi.stubEnv("QUEQIAO_URL", "http://gw")
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("agent_end posts one review carrying the turn's prompt and answer", async () => {
+    const f = fakePi()
+    gw(fetchMock, [{ tier: "fast", group: "group/qq-fast" }])
+    ;(await import("../extensions/queqiao.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "what license is this repo?" })
+    await f.fire("agent_end", {
+      type: "agent_end",
+      messages: [
+        { role: "user", content: "what license is this repo?" },
+        { role: "assistant", content: [{ type: "text", text: "It is " }, { type: "text", text: "MIT." }] },
+      ],
+    })
+    await vi.waitFor(() => expect(bodies(fetchMock, "/v1/queqiao/review").length).toBe(1))
+    expect(bodies(fetchMock, "/v1/queqiao/review")[0]).toMatchObject({
+      session: "s-pi-1",
+      harness: "pi",
+      prompt: "what license is this repo?",
+      answer: "It is MIT.",
+    })
+  })
+
+  it("a manually pinned session posts no review", async () => {
+    const f = fakePi()
+    gw(fetchMock, [{ tier: "fast", group: "group/qq-fast" }])
+    ;(await import("../extensions/queqiao.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "hello" })
+    f.fire("model_select", { source: "user", model: { id: "other/m" }, previousModel: { id: "magpie/group/qq-fast" } })
+    await f.fire("agent_end", { type: "agent_end", messages: [{ role: "assistant", content: "ok" }] })
+    expect(bodies(fetchMock, "/v1/queqiao/review").length).toBe(0)
+  })
+
+  it("a performance-tier turn posts no review", async () => {
+    const f = fakePi()
+    gw(fetchMock, [{ tier: "performance", group: "group/qq-balanced" }])
+    ;(await import("../extensions/queqiao.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "hello" })
+    await f.fire("agent_end", { type: "agent_end", messages: [{ role: "assistant", content: "ok" }] })
+    expect(bodies(fetchMock, "/v1/queqiao/review").length).toBe(0)
+  })
+
+  it("an unreachable gateway does not throw out of agent_end", async () => {
+    const f = fakePi()
+    let down = false
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).endsWith("/v1/queqiao/turn")) {
+        return new Response(JSON.stringify({ tier: "fast", group: "group/qq-fast" }), { status: 200 })
+      }
+      if (down) throw new Error("connect ECONNREFUSED")
+      return new Response("{}", { status: 200 })
+    })
+    ;(await import("../extensions/queqiao.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "hello" })
+    down = true // the gateway goes away between the turn and its review
+    const rejections: unknown[] = []
+    const onRejection = (reason: unknown) => rejections.push(reason)
+    process.on("unhandledRejection", onRejection)
+    expect(() =>
+      f.fire("agent_end", { type: "agent_end", messages: [{ role: "assistant", content: "ok" }] }),
+    ).not.toThrow()
+    await new Promise((r) => setTimeout(r, 20))
+    process.off("unhandledRejection", onRejection)
+    expect(rejections).toEqual([])
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).endsWith("/v1/queqiao/review"))).toBe(true)
+  })
+})
+
 describe("queqiao extension", () => {
   let fetchMock: ReturnType<typeof vi.fn>
   beforeEach(() => {
@@ -72,7 +151,7 @@ describe("queqiao extension", () => {
     const f = fakePi()
     ;(await import("../extensions/queqiao.js")).default(f.pi as never)
     expect(f.registered().sort()).toEqual(
-      ["before_agent_start", "before_provider_headers", "model_select", "session_start", "tool_call", "tool_result"].sort(),
+      ["agent_end", "before_agent_start", "before_provider_headers", "model_select", "session_start", "tool_call", "tool_result"].sort(),
     )
   })
 

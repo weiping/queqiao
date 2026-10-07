@@ -2,9 +2,11 @@ package router
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -81,6 +83,7 @@ func Register(mux *http.ServeMux, deps *Deps) {
 		deps.Log = Append
 	}
 	mux.HandleFunc("POST /v1/queqiao/turn", deps.turn)
+	mux.HandleFunc("POST /v1/queqiao/review", deps.review)
 	mux.HandleFunc("POST /v1/queqiao/feedback", deps.feedback)
 	mux.HandleFunc("GET /v1/queqiao/session", deps.session)
 	mux.HandleFunc("POST /v1/queqiao/lineage", deps.lineage)
@@ -139,8 +142,13 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 		}
 	}
 
+	var review *ReviewVerdict
+	if in.Agent == "main" {
+		review = d.Sessions.TakeReview(in.Key)
+	}
 	decision := Choose(PolicyInput{
 		Agent:        in.Agent,
+		Review:       review,
 		PlanMode:     in.PlanMode,
 		Classified:   classified,
 		Prev:         prev,
@@ -166,10 +174,28 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 	if classified != nil {
 		res.Confidence = classified.TierConfidence
 	}
+	turnID := in.TurnID
+	if turnID == "" {
+		turnID = generatedTurnID()
+	}
 	ev := Event{
 		Kind: "decide", Session: in.Session, Harness: in.Harness, Agent: in.Agent,
 		Tier: decision.Tier, Reason: decision.Reason, Source: source,
 		Arm: arm, Confidence: res.Confidence, LatencyMs: res.LatencyMs,
+		TurnID: turnID, WouldReview: decision.WouldReview,
+	}
+	if classified != nil {
+		ev.ClassifiedTier, ev.Classifier = classified.Tier, classified.Source
+		c := classified.TierConfidence
+		ev.TierConfidence = &c
+		if prev != nil {
+			v := classified.Dissatisfied
+			ev.Dissatisfied = &v
+		}
+	}
+	if review != nil {
+		u, c := review.Unresolved, review.Confidence
+		ev.Unresolved, ev.ReviewConfidence = &u, &c
 	}
 	if arm == "control" {
 		res.Shadow, res.Tier = true, cfg.Experiment.ControlTier
@@ -177,6 +203,15 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 	}
 	d.log(ev)
 	return res
+}
+
+// generatedTurnID names a turn the harness did not: "gw-" and 8 hex chars.
+func generatedTurnID() string {
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("gw-%d", time.Now().UnixNano()&0xffffffff)
+	}
+	return "gw-" + hex.EncodeToString(b[:])
 }
 
 // classifySource names where a verdict came from (§6.4's source field).
@@ -274,6 +309,9 @@ func (d *Deps) feedback(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil || req.Session == "" || req.Kind == "" {
 		http.Error(w, "session and kind are required", http.StatusBadRequest)
 		return
+	}
+	if req.Kind == "manual_model_switch" {
+		d.Sessions.MarkPinned(req.Session)
 	}
 	ev := Event{Kind: "feedback", Session: req.Session, Extra: req.Kind}
 	if req.Value != "" {

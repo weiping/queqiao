@@ -64,6 +64,8 @@ queqiao serve                         # 启动网关，默认 127.0.0.1:3425
 queqiao router status                 # 检查配置、映射和最近的决策
 queqiao router check                  # 只查配置：成员有没有厂商服务、上下文窗口够不够
 queqiao router check --yes            # 再对每个成员发真实的带工具请求（会计费）
+queqiao router calibrate              # 三个分数各自的选低率与建议阈值（先跑 shadow 攒样本）
+queqiao router report --since 14d     # 线上实验报表：成本、合并率、升档来源、未升档轮次的选低率
 ```
 
 预设里有模型没有任何已配置的厂商提供时，`router init` 不会把它写进组里；某一档一个都解析不了就先借用最近一档的成员（performance 借 balanced），并打印 `queqiao group set qq-perf models=…` 提示你换成自己的模型。
@@ -182,7 +184,13 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
   "default_tier": "balanced",
   "classifier": "local",
   "classify_timeout_ms": 1500,
-  "thresholds": { "tier_min": 0.4, "dissatisfied_min": 0.7 },
+  "thresholds": {
+    "tier_min": 0.4,
+    "dissatisfied_min": 0.7,
+    "review_min": 0.7,
+    "review_confidence_min": 0.5
+  },
+  "review": { "mode": "off", "timeout_ms": 15000, "max_answer_chars": 6000 },
   "escalate_turns": 2,
   "cache_ttl_seconds": 300,
   "fixed_agents": { "Explore": "fast", "Plan": "performance" },
@@ -201,6 +209,12 @@ queqiao 的路由配置有两处：网关里的四个路由组（存在 `~/.conf
 | `classify_timeout_ms` | `1500` | 分类超时；超时该轮不落新档，下一轮补偿 |
 | `thresholds.tier_min` | `0.4` | 分类结果的最低置信度（R5） |
 | `thresholds.dissatisfied_min` | `0.7` | 「用户在说上一轮不对」的判定阈值（R3 升档） |
+| `thresholds.review_min` | `0.7` | 轮末复核判「没解决」的阈值（R3 升档，`review.mode` 非 `off` 时才有用） |
+| `thresholds.review_confidence_min` | `0.5` | 复核自身的置信度下限，低于它不算命中 |
+| `thresholds.overrides` | — | 按 harness 或 agent 覆盖上面几个阈值，例如 `[{"harness":"codex","tier_min":0.5}]`；同时写 harness 和 agent 的条目优先于只写一个的 |
+| `review.mode` | `off` | 轮末复核：`off` 不问；`shadow` 只记 `would_review` 不影响路由；`act` 命中 R3 升档 |
+| `review.timeout_ms` | `15000` | 后台复核的超时（不影响本轮回复，回复早已发出） |
+| `review.max_answer_chars` | `6000` | 送审的回复上限，超出保留前 2000 和后 4000 字 |
 | `escalate_turns` | `2` | 升档后保持的轮数（R4） |
 | `cache_ttl_seconds` | `300` | 降档迟滞：距上次请求超过它才允许立即降档（R6） |
 | `fixed_agents` | 见下 | 固定档位的子代理类型（R1）：`Explore`、`statusline-setup`、`claude-code-guide`、`explorer` → `fast`；`Plan` → `performance` |
@@ -231,6 +245,16 @@ queqiao provider add typesafe <api-key>
 不想直连 TypeSafe 还有两个中继预设：`vercel-jev`（Vercel AI Gateway，分类器写 `vercel-jev/typesafe-ai/jev`）和 `cloudflare-jev`（Cloudflare Workers AI，写 `cloudflare-jev/typesafe/jev`）。
 
 时延提示：实测本机到 TypeSafe 的请求在 300–1500ms 之间波动，偶发超时时该轮不落新档、下一轮自动补偿（spec §5.7）。如果网络到 TypeSafe 不稳定，用本地小模型更稳。
+
+### 轮末复核与置信度校准
+
+默认 `"review": {"mode": "off"}`——**默认关闭**，因为开启后每轮的回复会被发给分类器厂商（走你已配置的 classifier 渠道）。想用它，按这三步走：
+
+1. `"mode": "shadow"`：复核照常发出，但只把 `would_review` 记进 `~/.config/queqiao/router.jsonl`，路由行为一点不变。跑几天，攒样本。
+2. `queqiao router calibrate`：看三个分数（档位置信度、不满分数、复核分数）各自的选低率和建议阈值。样本不足 30 的分段会标「样本不足」。标签只反映**用户表达出来的不满**，所以顶部有提示；要更准的判断用 `queqiao router calibrate --csv` 导出逐轮明细人工核对。
+3. 数字站得住再切 `"mode": "act"`：复核命中时下一轮按 R3 升档，`router.jsonl` 的 decide 事件里 reason 会是 `R3-review`。
+
+复核在后台跑，本轮回复不等它；结果晚到（下一轮已经开始）就丢弃，不会配错轮次。
 
 ### 项目级覆盖
 
