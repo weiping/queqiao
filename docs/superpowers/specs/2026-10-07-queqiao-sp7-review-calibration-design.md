@@ -189,34 +189,6 @@ Review *ReviewVerdict // 上一轮的复核结果；nil 表示没有复核、复
 - `max_tokens` 保持 400（总体规格 §5.4 的实测修订）。
 - 复核在普通模型路径下用同样的写法，schema 为 `{unresolved, confidence}`。
 
-## 执行结果（2026-10-07 完成）
-
-**产出**：PR [#19](https://github.com/weiping/queqiao/pull/19)（15 个提交，`qq/sp7-review` → `queqiao`），merge commit `8f774d71`；CI 三平台全绿（macos 18m55s / ubuntu 16m14s / windows 2m58s + Socket Security）。发布 `qq-v0.1.4`（16 资产）、Pi 扩展 `@weiping/pi-queqiao@0.1.2`、两个插件清单 0.1.1。
-
-**实现**（逐任务 TDD，每任务一次提交）：
-
-- **Task 0 spike**：S14 Pi `agent_end` 成立；S15 Codex `Stop` 成立；S16 Jev 复核可分离（解决组 0.26 vs 未解决组 0.95，差 0.690 ≥ 0.3，p50 361ms）；S17 部分——Kimi 合法 JSON，**DeepSeek 明确 400**（退回路径因此必需），GLM 配额用尽未测。
-- **Task 1–4**：`review` / `thresholds.overrides` / `review_*` 阈值；R3 三来源 `R3-escalate` > `R3-tools` > `R3-review`；事件记全分数（指针语义：真 0 写出、读不到省略）；普通模型结构化输出 + `#plain` 退回标记。
-- **Task 5**：`POST /v1/queqiao/review`（202/204/400）、后台复核、晚到丢弃、只读一次、钉档会话跳过；`-race` 干净。
-- **Task 6–7**：`queqiao router calibrate`（五段、2×/+0.10 双条件、样本 <30 标不足、`--csv`）与报表的升档来源 / 未升档选低率。
-- **Task 8–10**：三个 harness 的轮末发包（Claude Code `turn.complete`、Pi `agent_end`、Codex `Stop` hook），全部 fire-and-forget。
-
-**验证**：`claude plugin test` 26 pass、`npx vitest run` 30 pass、Go 全量仅插件宿主用例红（本分支对 `internal/plugin`、`internal/gui`、`host.js` 零 diff，且该用例在干净 `origin/queqiao` 上同样失败 → 环境性）。
-
-**真机验收**（SP7 二进制服务用户真实配置，三 Agent 各一轮）：Claude Code ✅（`decide` 记全分数 + `review` 事件带真实 `turn_id`；shadow 下 `would_review:true` 不升档；act 下 `R3-review`、fast→balanced、`unresolved:0.97`）；Pi ✅（`harness:pi`、`unresolved:0.66` → 不升档）；Codex ⚠️（`codex exec` 下 `Stop` 执行但 `UserPromptSubmit` 未产出状态文件 → 不发复核；手动按真实 payload 串起则产出 `harness:codex`、`unresolved:0.96` 的 `review` 事件）。
-
-**设计上值得记住的一条**：Jev 冷启动可能超过 `classify_timeout_ms`(1500)，那一轮落 `R8-default`——它不是错误，但首个请求的复核会缺失（热机后 <400ms）。
-
-**执行中的偏离**（完整清单见执行台账 `.superpowers/sdd/2026-10-07-queqiao-sp7-review/progress.md`）：
-
-1. S17 的模型 id 在本机不存在 → 改用本机等价模型；GLM 配额待复测。
-2. §5.3 要求「report_test 增加一条：`R3-tools`/`R3-review` 与 `R3-escalate` 的档位分布相同」——实测 `report.go` 不读 `Reason`，该断言空虚；以「更新两处既有断言 + grep 确认无生产代码依赖旧 reason」代之，按来源的统计留给 Task 7。
-3. Task 4 之后三个既有 plain 分类测试会回归（schema 优先）→ 让它们的假 ask 对 `response_format` 返回错误，即「厂商拒绝」这一现实情形。
-4. Task 5 的测试日志闭包在后台复核 goroutine 下有 data race（生产 `Append` 有锁）→ 测试改用带锁记录器。
-5. Task 10 计划提到「hooks.json 通过现有 Schema 校验」，但仓库内没有该 schema → 改为解析 JSON 断言 Stop 的 type/command/timeout；并加了计划未要求的 `turn_id` 错配守卫。
-
-## 5. 记全分数与校准（G7.2、G7.4）
-
 ## 5. 记全分数与校准（G7.2、G7.4）
 
 ### 5.1 事件字段
@@ -359,3 +331,29 @@ queqiao router calibrate [--since 14d] [--score tier|dissatisfied|review] [--har
 - §1.3 第一行的理由改为：生成模型自报置信度在 Agent 主请求上不可行（流式、工具调用、改变返回格式、副作用不可重放），分数改由 Jev 在轮末给出，见 SP7。
 - §5.2 的 R3 行注明 SP7 增加条件 (c) 与 Reason 拆分。
 - §11 的子项目表增加 `SP7-review`，依赖 SP2–SP6 全部完成；执行顺序在 SP5 之后。
+
+## 执行结果（2026-10-07 完成）
+
+**产出**：PR [#19](https://github.com/weiping/queqiao/pull/19)（15 个提交，`qq/sp7-review` → `queqiao`），merge commit `8f774d71`；CI 三平台全绿（macos 18m55s / ubuntu 16m14s / windows 2m58s + Socket Security）。发布 `qq-v0.1.4`（16 资产）、Pi 扩展 `@weiping/pi-queqiao@0.1.2`、两个插件清单 0.1.1。
+
+**实现**（逐任务 TDD，每任务一次提交）：
+
+- **Task 0 spike**：S14 Pi `agent_end` 成立；S15 Codex `Stop` 成立；S16 Jev 复核可分离（解决组 0.26 vs 未解决组 0.95，差 0.690 ≥ 0.3，p50 361ms）；S17 部分——Kimi 合法 JSON，**DeepSeek 明确 400**（退回路径因此必需），GLM 配额用尽未测。
+- **Task 1–4**：`review` / `thresholds.overrides` / `review_*` 阈值；R3 三来源 `R3-escalate` > `R3-tools` > `R3-review`；事件记全分数（指针语义：真 0 写出、读不到省略）；普通模型结构化输出 + `#plain` 退回标记。
+- **Task 5**：`POST /v1/queqiao/review`（202/204/400）、后台复核、晚到丢弃、只读一次、钉档会话跳过；`-race` 干净。
+- **Task 6–7**：`queqiao router calibrate`（五段、2×/+0.10 双条件、样本 <30 标不足、`--csv`）与报表的升档来源 / 未升档选低率。
+- **Task 8–10**：三个 harness 的轮末发包（Claude Code `turn.complete`、Pi `agent_end`、Codex `Stop` hook），全部 fire-and-forget。
+
+**验证**：`claude plugin test` 26 pass、`npx vitest run` 30 pass、Go 全量仅插件宿主用例红（本分支对 `internal/plugin`、`internal/gui`、`host.js` 零 diff，且该用例在干净 `origin/queqiao` 上同样失败 → 环境性）。
+
+**真机验收**（SP7 二进制服务用户真实配置，三 Agent 各一轮）：Claude Code ✅（`decide` 记全分数 + `review` 事件带真实 `turn_id`；shadow 下 `would_review:true` 不升档；act 下 `R3-review`、fast→balanced、`unresolved:0.97`）；Pi ✅（`harness:pi`、`unresolved:0.66` → 不升档）；Codex ⚠️（`codex exec` 下 `Stop` 执行但 `UserPromptSubmit` 未产出状态文件 → 不发复核；手动按真实 payload 串起则产出 `harness:codex`、`unresolved:0.96` 的 `review` 事件）。
+
+**设计上值得记住的一条**：Jev 冷启动可能超过 `classify_timeout_ms`(1500)，那一轮落 `R8-default`——它不是错误，但首个请求的复核会缺失（热机后 <400ms）。
+
+**执行中的偏离**（完整清单见执行台账 `.superpowers/sdd/2026-10-07-queqiao-sp7-review/progress.md`）：
+
+1. S17 的模型 id 在本机不存在 → 改用本机等价模型；GLM 配额待复测。
+2. §5.3 要求「report_test 增加一条：`R3-tools`/`R3-review` 与 `R3-escalate` 的档位分布相同」——实测 `report.go` 不读 `Reason`，该断言空虚；以「更新两处既有断言 + grep 确认无生产代码依赖旧 reason」代之，按来源的统计留给 Task 7。
+3. Task 4 之后三个既有 plain 分类测试会回归（schema 优先）→ 让它们的假 ask 对 `response_format` 返回错误，即「厂商拒绝」这一现实情形。
+4. Task 5 的测试日志闭包在后台复核 goroutine 下有 data race（生产 `Append` 有锁）→ 测试改用带锁记录器。
+5. Task 10 计划提到「hooks.json 通过现有 Schema 校验」，但仓库内没有该 schema → 改为解析 JSON 断言 Stop 的 type/command/timeout；并加了计划未要求的 `turn_id` 错配守卫。
