@@ -19,6 +19,19 @@
 | S12 | pi 1.0.0 + pi-subagents · 2026-10-04 | ① 父会话：`session_start` 的 reason 为 "startup"（**非 "fork"**），但 header 的 `parentSession` 字段暴露父会话文件路径（/Users/…/sessions/…/<id>.jsonl）→ 可经 header 读父会话，不靠 reason；② pi-subagents 子代理工具名是 `subagent`/`dispatch_agent`（**非 "Agent"**），参数为 `context`（enum: fresh/fork/profile），**无 `inherit_context`**（fork 语义 = context:"fork"）；③ inherit_context 场景在本版本不存在，无法验证前缀共享/命中缓存 | 不成立（reason=="fork" 与 inherit_context 两项假设均不成立） | 备选：父会话溯源改用 header.parentSession（或 /lineage+firstWords）；子代理钉档改为监听 `subagent` 工具 + 处理 `context` 枚举 | `docs/superpowers/spikes/logs/pi.jsonl`；pi-subagents 的 schemas.js `context` 参数定义 |
 | S13 | codex-cli 0.160.0 · 2026-10-04 | spawn_agent **无 `fork_context` 参数**（0.160 实际参数含 subagent_kind/forked_from_thread_id 等，模型无法传 fork_context，改传 model=group/qq-balanced）；该子代理请求 metadata 的 parent_thread_id 确实指向父线程（01a105a8…）；因子代理带 model 不被钉档，请求以 group/qq-balanced 到达 | 不成立（fork_context 钉档路径在本版本不存在） | 备选：删去第 5.6 节第 2 步，fork 子代理按网关模式路由；parent_thread_id 元数据可用作父线程溯源 | `docs/superpowers/spikes/logs/codex.jsonl` |
 
+## SP7（S14–S17）· 2026-10-07
+
+| 编号 | 条件 | 实测 | 判定 | 方案 | 证据 |
+| --- | --- | --- | --- | --- | --- |
+| S14 | Pi 的轮末事件名与最后一条 assistant 消息文本 | pi（`@earendil-works/pi-coding-agent`，本机 2026-10-07）：轮末事件为 `agent_end`，事件带 `messages: AgentMessage[]`（实测 roles 为 system/user/assistant）；最后一条 assistant 的文本取 `messages.filter(m => m.role === "assistant").at(-1)`，其 `content` 为字符串时直接取，为数组时取 `type === "text"` 各段拼接。临时扩展 + `pi -p "回答一个字：好"` 实测输出 `messages=3 lastAssistantText="好"` | 成立 | 主方案（Task 9 保留） | 本机实测；扩展用 `PI_CODING_AGENT_DIR` 指向临时 agent 目录加载 |
+| S15 | Codex `Stop` hook 的输入字段与空输出 | codex-cli 0.160.0：`Stop` hook 受支持。输入字段：`session_id`、`turn_id`、`transcript_path`、`cwd`、`hook_event_name:"Stop"`、`model`、`permission_mode`、`stop_hook_active`、以及**`last_assistant_message`**（实测值 "Hi"）。hook 输出 `{}` 被接受；`transcript_path` 存在（可作退路）。实测命令：`CODEX_HOME=<tmp> codex exec --dangerously-bypass-hook-trust --skip-git-repo-check "say hi in one word"` | 成立 | 主方案（Task 10 保留，字段名 `last_assistant_message`） | 本机实测；隔离 CODEX_HOME 需带上 config.toml + model_catalog_json 才有可用 provider |
+| S16 | Jev 对（请求，回复）的分数是否分得开 | Jev `typesafe/jev-latest`（经本机网关 `/v1/systemone`）：20 组（10 明显解决 / 10 明显没解决）× 3 次，题 name `unresolved`、type `noul`、instructions 照 SP7 spec §3.4。解决组 `noul` 中位 **0.260**、均值 0.258；未解决组中位 **0.950**、均值 0.936；**中位数差 0.690**（判定线 0.3）。时延 p50 **361ms**、max 1708ms（在 review timeout 5000ms 内） | 成立 | 主方案；SP7 spec §2.2 第 3 条作为完成标准保留 | 本机实测脚本 `/tmp/s16.py`（未入库）；响应形如 `{"answers":{"unresolved":{"type":"noul","noul":0.95}}}` |
+| S17 | 常用 flash 档模型是否接受 spec §4 的 `json_schema` | 经本机网关 `/v1/chat/completions` 发 spec §4 的 `response_format`（`strict: true`）：`kimi-code-cn/kimi-for-coding` **返回合法 JSON** `{"tier":"performance","confidence":0.9,"dissatisfied":0}`；`deepseek/deepseek-flash` **HTTP 400**「This response_format type is unavailable now」→ 必须走退回路径；`zhipu/glm-5.3-flash` **HTTP 429**（每周配额用尽，2026-10-11 重置），本次未能判定 | 部分成立 | 主方案 + 退回路径（Task 4 的退回不是防御性代码，是 deepseek 这类厂商的现实要求）；GLM 待配额恢复后复测 | 本机实测脚本 `/tmp/s17.py`（未入库） |
+
+**S17 的实践结论**：结构化输出在支持的厂商可用（Kimi ✓），明确不支持的厂商会 400（DeepSeek），因此 Task 4/5 的「退回老提示词并在进程内记住」是必需品，且退回时的 `classifier` 标 `#plain` 让校准能分开统计这两类样本。
+
+**Task 0 对后续任务的门禁**：S14、S15 成立 → Task 9（Pi）、Task 10（Codex）保留；S16 成立 → Task 2/5 的 `ReviewMin=0.7`、`ReviewConfMin=0.5` 默认值有实测支撑（0.95 的未解决分数 > 0.7，0.26 的解决分数 < 0.7，两者都在 0.5 置信度线附近可分辨）；S17 部分成立 → Task 4 的退回路径按 spec §4 原样实现，GLM 复测列为遗留。
+
 ## 总结：各子项目受影响的 spec 章节
 
 - **SP2-router-core**：§5.3（Jev 分类器）——S5 备选：`classify_timeout_ms` 提高到 1500，默认分类器换延迟更低的本地小模型（本机 → Jev p95=13783ms ≫ 1000ms）。
