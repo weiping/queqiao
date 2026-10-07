@@ -58,8 +58,8 @@ jobs:
       - name: SHA-256 checksums
         run: |
           cd dist
-          shasum -a 256 queqiao-cli-* > checksums.txt
-          shasum -a 256 queqiao-windows-*.exe | sed 's/$/ ; app/' >> checksums.txt
+          # shasum -c checksums.txt must parse every line: no annotations
+          shasum -a 256 queqiao-cli-* queqiao-windows-*.exe > checksums.txt
           cat checksums.txt
 
       - name: Publish the release
