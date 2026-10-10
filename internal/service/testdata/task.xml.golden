@@ -27,7 +27,7 @@
   <Actions Context="Author">
     <Exec>
       <Command>/opt/q/queqiao</Command>
-      <Arguments>serve</Arguments>
+      <Arguments>serve --detach</Arguments>
     </Exec>
   </Actions>
 </Task>

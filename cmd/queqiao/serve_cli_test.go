@@ -75,3 +75,16 @@ func TestServeReloadsRouterJSON(t *testing.T) {
 		t.Fatalf("config error kept after a good reload: %v", router.ConfigError())
 	}
 }
+
+// serve takes --detach (the Windows task passes it) and nothing else.
+func TestServeArgs(t *testing.T) {
+	if d, err := serveArgs(nil); err != nil || d {
+		t.Fatalf("no args: %v %v", d, err)
+	}
+	if d, err := serveArgs([]string{"--detach"}); err != nil || !d {
+		t.Fatalf("--detach: %v %v", d, err)
+	}
+	if _, err := serveArgs([]string{"--listen", "x"}); err == nil {
+		t.Fatal("unknown flag accepted")
+	}
+}

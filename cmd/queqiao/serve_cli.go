@@ -25,8 +25,9 @@ import (
 // endpoints and the proxy to official magpie. A router.json that can't be
 // loaded leaves it passing everything through, and says why.
 func serveCmd(args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("serve takes no arguments (router.json's listen and magpie_url set the addresses)")
+	detach, err := serveArgs(args)
+	if err != nil {
+		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -34,7 +35,15 @@ func serveCmd(args []string) error {
 	// for the service, which has none
 	logf := service.NewDailyLog(filepath.Join(fsutil.ConfigDir(), "logs"), 7)
 	defer logf.Close()
-	log.SetOutput(io.MultiWriter(os.Stderr, logf))
+	if detach {
+		// the Windows task's console: let it go, so no window stays open
+		// (closing it would end queqiaod); the log file is the output
+		detachConsole()
+		log.SetOutput(logf)
+	} else {
+		// the file first: a write MultiWriter can't make stops the rest
+		log.SetOutput(io.MultiWriter(logf, os.Stderr))
+	}
 	r := newReloader(filepath.Join(fsutil.ConfigDir(), "router.json"))
 	log.Printf("queqiaod on %s, magpie at %s", r.listen, r.target)
 	return proxy.Serve(ctx, r.listen, r)
@@ -106,6 +115,17 @@ func stampOf(path string) string {
 		return ""
 	}
 	return fmt.Sprintf("%d %d", st.Size(), st.ModTime().UnixNano())
+}
+
+// serveArgs reads serve's one flag, --detach (the Windows task's).
+func serveArgs(args []string) (detach bool, err error) {
+	for _, a := range args {
+		if a != "--detach" {
+			return false, fmt.Errorf("serve takes only --detach (router.json's listen and magpie_url set the addresses)")
+		}
+		detach = true
+	}
+	return detach, nil
 }
 
 // queqiaodDeps loads router.json into what queqiaod runs on; deps is nil

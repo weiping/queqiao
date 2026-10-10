@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -31,13 +32,18 @@ type Manager struct {
 	Home      string
 	ConfigDir string
 	UID       int
+	User      string // Windows: DOMAIN\user, whose logon starts the task
 	Run       func(ctx context.Context, name string, args ...string) ([]byte, error)
 }
 
 // New is the Manager for this computer.
 func New() *Manager {
 	home, _ := os.UserHomeDir()
-	return &Manager{GOOS: runtime.GOOS, Home: home, ConfigDir: fsutil.ConfigDir(), UID: os.Getuid(), Run: run}
+	m := &Manager{GOOS: runtime.GOOS, Home: home, ConfigDir: fsutil.ConfigDir(), UID: os.Getuid(), Run: run}
+	if u, err := user.Current(); err == nil {
+		m.User = u.Username
+	}
+	return m
 }
 
 func run(ctx context.Context, name string, args ...string) ([]byte, error) {
@@ -46,11 +52,21 @@ func run(ctx context.Context, name string, args ...string) ([]byte, error) {
 
 // Unit is the file Install writes for goos, and where.
 func Unit(goos, home, configDir, exe string) (path string, content []byte) {
+	return UnitFor(goos, home, configDir, exe, "")
+}
+
+// UnitFor is Unit for a user: on Windows the task is that user's (its
+// logon starts it, it runs as them).
+func UnitFor(goos, home, configDir, exe, user string) (path string, content []byte) {
 	switch goos {
 	case "darwin":
 		return filepath.Join(home, "Library", "LaunchAgents", Label+".plist"), []byte(fmt.Sprintf(plist, Label, xmlEscape(exe)))
 	case "windows":
-		return filepath.Join(configDir, Name+"-task.xml"), []byte(fmt.Sprintf(taskXML, xmlEscape(exe)))
+		uid := ""
+		if user != "" {
+			uid = "\n      <UserId>" + xmlEscape(user) + "</UserId>"
+		}
+		return filepath.Join(configDir, Name+"-task.xml"), []byte(fmt.Sprintf(taskXML, uid, uid, xmlEscape(exe)))
 	default:
 		return filepath.Join(home, ".config", "systemd", "user", Name+".service"), []byte(fmt.Sprintf(systemdUnit, exe))
 	}
@@ -97,11 +113,11 @@ const taskXML = `<?xml version="1.0" encoding="UTF-16"?>
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>
-      <Enabled>true</Enabled>
+      <Enabled>true</Enabled>%s
     </LogonTrigger>
   </Triggers>
   <Principals>
-    <Principal id="Author">
+    <Principal id="Author">%s
       <LogonType>InteractiveToken</LogonType>
       <RunLevel>LeastPrivilege</RunLevel>
     </Principal>
@@ -119,7 +135,7 @@ const taskXML = `<?xml version="1.0" encoding="UTF-16"?>
   <Actions Context="Author">
     <Exec>
       <Command>%s</Command>
-      <Arguments>serve</Arguments>
+      <Arguments>serve --detach</Arguments>
     </Exec>
   </Actions>
 </Task>
@@ -132,7 +148,7 @@ func xmlEscape(s string) string {
 
 // Install writes the unit and starts it; installing again replaces it.
 func (m *Manager) Install(ctx context.Context, exe string) error {
-	path, content := Unit(m.GOOS, m.Home, m.ConfigDir, exe)
+	path, content := UnitFor(m.GOOS, m.Home, m.ConfigDir, exe, m.User)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -217,8 +233,10 @@ func (m *Manager) Status(ctx context.Context) (running bool, detail string, err 
 		out, err = m.Run(ctx, "launchctl", "print", "gui/"+strconv.Itoa(m.UID)+"/"+Label)
 		return err == nil && strings.Contains(string(out), "state = running"), firstLine(out, "state ="), nil
 	case "windows":
-		out, err = m.Run(ctx, "schtasks", "/Query", "/TN", Name, "/FO", "LIST")
-		return err == nil && strings.Contains(string(out), "Running"), firstLine(out, "Status"), nil
+		// State is an enum name, the same on every Windows language
+		out, err = m.Run(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-ScheduledTask -TaskName "+Name+").State")
+		s := strings.TrimSpace(string(out))
+		return err == nil && s == "Running", s, nil
 	default:
 		out, err = m.Run(ctx, "systemctl", "--user", "is-active", Name+".service")
 		s := strings.TrimSpace(string(out))

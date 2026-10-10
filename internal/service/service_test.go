@@ -25,7 +25,7 @@ func TestUnitContent(t *testing.T) {
 		{"linux", "queqiao.service.golden", "/home/u/.config/systemd/user/queqiao.service",
 			[]string{"ExecStart=/opt/q/queqiao serve", "Restart=on-failure", "WantedBy=default.target"}},
 		{"windows", "task.xml.golden", "/home/u/.config/queqiao/queqiao-task.xml",
-			[]string{"<LogonTrigger>", "<Command>/opt/q/queqiao</Command>", "<Arguments>serve</Arguments>"}},
+			[]string{"<LogonTrigger>", "<Command>/opt/q/queqiao</Command>", "<Arguments>serve --detach</Arguments>"}},
 	}
 	for _, c := range cases {
 		path, content := Unit(c.goos, "/home/u", "/home/u/.config/queqiao", "/opt/q/queqiao")
@@ -150,5 +150,41 @@ func TestRestartPerPlatform(t *testing.T) {
 		if err := m.Restart(context.Background()); err != nil || len(calls) != 0 {
 			t.Errorf("%s uninstalled: %v %v", goos, calls, err)
 		}
+	}
+}
+
+// On Windows the task starts at this user's logon only, as this user (a
+// trigger with no user means anyone's, which needs an administrator), and
+// serve detaches from the console Task Scheduler gives it, so no window
+// stays open for the user to close.
+func TestWindowsTaskIsTheUsersAndDetached(t *testing.T) {
+	_, b := UnitFor("windows", `C:\Users\u`, `C:\Users\u\.config\queqiao`, `C:\q\queqiao.exe`, `PC\u`)
+	x := string(b)
+	for _, want := range []string{"<UserId>PC\\u</UserId>", "<Arguments>serve --detach</Arguments>"} {
+		if strings.Count(x, want) == 0 {
+			t.Errorf("task lacks %s:\n%s", want, x)
+		}
+	}
+	if strings.Count(x, "<UserId>PC\\u</UserId>") != 2 {
+		t.Errorf("want the user on the trigger and the principal:\n%s", x)
+	}
+}
+
+// Status reads the task's state from Get-ScheduledTask, whose State is the
+// same word on every Windows language (schtasks' table is translated).
+func TestWindowsStatusReadsTaskState(t *testing.T) {
+	home := t.TempDir()
+	var asked string
+	m := &Manager{GOOS: "windows", Home: home, ConfigDir: home,
+		Run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			asked = name + " " + strings.Join(args, " ")
+			return []byte("Running\r\n"), nil
+		}}
+	path, content := Unit("windows", home, home, "/q")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	os.WriteFile(path, content, 0o644)
+	running, detail, err := m.Status(context.Background())
+	if err != nil || !running || !strings.Contains(asked, "Get-ScheduledTask") {
+		t.Fatalf("running %v detail %q err %v asked %q", running, detail, err, asked)
 	}
 }
