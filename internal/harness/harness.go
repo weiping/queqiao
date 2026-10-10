@@ -54,12 +54,41 @@ func NewClient() *Client {
 		base = "http://127.0.0.1:3426"
 	}
 	c := &Client{Base: base, HTTP: http.DefaultClient}
-	// the hook runs beside mbridge: router.json says how long a turn may
-	// take (SP10); unreadable means the old 1500 ms
-	if cfg, err := router.Load(filepath.Join(fsutil.ConfigDir(), "router.json"), ""); err == nil {
+	// SP10: how long a turn may take. The running mbridge says first (its
+	// router.json may differ from the one on disk); router.json beside the
+	// hook second; neither means the old 1500 ms.
+	if ms, ok := c.askBudget(); ok {
+		c.TurnBudget = time.Duration(ms) * time.Millisecond
+	} else if cfg, err := router.Load(filepath.Join(fsutil.ConfigDir(), "router.json"), ""); err == nil {
 		c.TurnBudget = time.Duration(cfg.TurnBudgetMs()) * time.Millisecond
 	}
 	return c
+}
+
+// probeBudget is how long askBudget may take.
+const probeBudget = 300 * time.Millisecond
+
+// askBudget reads turn_budget_ms from GET /v1/bridge/router, held to
+// [1500, 8000] like the other clients.
+func (c *Client) askBudget() (int, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), probeBudget)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.Base+"/v1/bridge/router", nil)
+	if err != nil {
+		return 0, false
+	}
+	res, err := c.HTTP.Do(req)
+	if err != nil {
+		return 0, false
+	}
+	defer res.Body.Close()
+	var out struct {
+		TurnBudgetMs *int `json:"turn_budget_ms"`
+	}
+	if res.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&out) != nil || out.TurnBudgetMs == nil {
+		return 0, false
+	}
+	return min(8000, max(1500, *out.TurnBudgetMs)), true
 }
 
 // Turn posts a /turn request and parses the reply. The ctx or the budget
