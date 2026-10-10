@@ -10,7 +10,7 @@ on:
   schedule:
     - cron: '17 1 * * *' # 09:17 Beijing
   push:
-    branches: [queqiao]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 

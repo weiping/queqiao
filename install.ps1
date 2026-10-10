@@ -1,5 +1,5 @@
 # queqiao installer for Windows:
-#   irm https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/weiping/queqiao/main/install.ps1 | iex
 #
 # queqiao runs beside official magpie (https://github.com/yetone/magpie):
 # install magpie first. This downloads queqiao from the latest GitHub

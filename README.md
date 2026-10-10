@@ -4,7 +4,7 @@
 
 queqiao 和官方 [magpie](https://github.com/yetone/magpie) 并排运行：magpie 是本地模型网关，queqiao 是它旁边的路由器（后台进程 queqiaod，默认 `127.0.0.1:3426`）。名字取自“鹊桥”：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。queqiao 不含、也不修改 magpie 的代码，先装官方 magpie，再装 queqiao。
 
-> **状态：** 自 SP8（2026-10-10）起 queqiao 不再是 magpie 的 fork，`main` 分支的上游镜像已停止同步，只作历史参考。qq-v0.1.x 的用户用 `queqiao migrate` 把数据交还官方 magpie。设计见 [`docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md`](docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md)。
+> **状态：** 自 SP8（2026-10-10）起 queqiao 不再是 magpie 的 fork，原来的上游镜像分支改名为 `archive/magpie-mirror`，已停止同步，开发主干是 `main`。qq-v0.1.x 的用户用 `queqiao migrate` 把数据交还官方 magpie。设计见 [`docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md`](docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md)。
 
 ## 要做什么
 
@@ -34,13 +34,13 @@ queqiao 和官方 [magpie](https://github.com/yetone/magpie) 并排运行：magp
 2. **再装 queqiao**（下载经 SHA-256 校验，装进 `~/.local/bin`，并注册登录时启动的 queqiaod）：
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.sh | sh
+   curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/main/install.sh | sh
    ```
 
    Windows（PowerShell）：
 
    ```powershell
-   irm https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.ps1 | iex
+   irm https://raw.githubusercontent.com/weiping/queqiao/main/install.ps1 | iex
    ```
 
    指定版本或目录：`… | sh -s -- --version qq-v0.2.0 --bin-dir ~/bin`；不想开机启动加 `--no-service`，之后手动 `queqiao serve`。升级用 `queqiao update`。
@@ -221,9 +221,9 @@ Claude Code 插件的地址另有 `gateway_url` 设置（`claude plugin install 
 
 | 分支 | 用途 |
 | --- | --- |
-| `queqiao`（默认分支） | 开发主干 |
-| `main` | SP8 之前的上游 magpie 镜像，已停止同步，只作历史参考 |
-| `qq/<名字>` | 功能分支，完成后 PR 合回 `queqiao` |
+| `main`（默认分支） | 开发主干 |
+| `archive/magpie-mirror` | SP8 之前的上游 magpie 镜像，已停止同步，只作历史参考 |
+| `qq/<名字>` | 功能分支，完成后 PR 合回 `main` |
 | `qq-v*` 标签 | 推送后构建六个二进制（darwin、linux、windows 的 amd64 和 arm64）和 `checksums.txt` 并发布 Release |
 
 queqiao 和 magpie 之间只走公开接口（HTTP、CLI、usage CSV），全部集中在 `internal/magpie`。CI 每天拿官方最新的 magpie 跑契约测试（`contract/`），接口变了会自动开 issue。
