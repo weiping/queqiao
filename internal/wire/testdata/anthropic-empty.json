@@ -1,0 +1,9 @@
+{
+ "path": "/v1/messages",
+ "headers": {},
+ "body": {
+  "model": "group/queqiao",
+  "max_tokens": 10,
+  "messages": []
+ }
+}

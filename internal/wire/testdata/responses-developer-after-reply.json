@@ -1,0 +1,67 @@
+{
+ "path": "/v1/responses",
+ "headers": {},
+ "body": {
+  "model": "group/queqiao",
+  "input": [
+   {
+    "type": "message",
+    "role": "user",
+    "content": [
+     {
+      "type": "input_text",
+      "text": "hi"
+     }
+    ]
+   },
+   {
+    "type": "message",
+    "role": "assistant",
+    "content": [
+     {
+      "type": "output_text",
+      "text": "yo"
+     }
+    ]
+   },
+   {
+    "type": "message",
+    "role": "developer",
+    "content": [
+     {
+      "type": "input_text",
+      "text": "model changed"
+     },
+     {
+      "type": "input_text",
+      "text": " to fast"
+     }
+    ]
+   },
+   {
+    "type": "message",
+    "role": "user",
+    "content": [
+     {
+      "type": "input_text",
+      "text": "go on"
+     }
+    ]
+   },
+   {
+    "type": "reasoning",
+    "summary": [],
+    "content": []
+   },
+   {
+    "type": "agent_message",
+    "content": [
+     {
+      "type": "input_text",
+      "text": "task for sub"
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,33 @@
+{
+ "path": "/v1/chat/completions",
+ "headers": {},
+ "body": {
+  "model": "group/queqiao",
+  "messages": [
+   {
+    "role": "user",
+    "content": "first"
+   },
+   {
+    "role": "assistant",
+    "content": "ok"
+   },
+   {
+    "role": "user",
+    "content": [
+     {
+      "type": "file",
+      "file": {
+       "filename": "r.pdf",
+       "file_data": "data:application/pdf;base64,AAAA"
+      }
+     }
+    ]
+   },
+   {
+    "role": "user",
+    "content": "<system-reminder>note</system-reminder>second question"
+   }
+  ]
+ }
+}

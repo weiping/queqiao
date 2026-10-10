@@ -1,0 +1,20 @@
+{
+ "path": "/v1/chat/completions",
+ "headers": {
+  "x-session-id": "chat-s1"
+ },
+ "body": {
+  "model": "group/queqiao",
+  "stream": true,
+  "messages": [
+   {
+    "role": "system",
+    "content": "You are a coding agent."
+   },
+   {
+    "role": "user",
+    "content": "list the files here"
+   }
+  ]
+ }
+}
