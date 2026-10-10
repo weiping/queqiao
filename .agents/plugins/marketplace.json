@@ -1,11 +1,11 @@
 {
-  "name": "queqiao",
+  "name": "magpie-bridge",
   "interface": {
-    "displayName": "queqiao"
+    "displayName": "Magpie Bridge"
   },
   "plugins": [
     {
-      "name": "queqiao-router-codex",
+      "name": "magpie-bridge-codex",
       "source": {
         "source": "local",
         "path": "./clients/codex"

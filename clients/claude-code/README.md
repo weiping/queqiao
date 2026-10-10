@@ -1,16 +1,16 @@
-# queqiao-router (Claude Code)
+# magpie-bridge (Claude Code)
 
-Route every Claude Code turn across queqiao's model tiers — `fast` for
+Route every Claude Code turn across mbridge's model tiers — `fast` for
 questions and small changes, `balanced` for ordinary work, `performance`
 for hard, multi-file or unknown-cause work — decided per turn by the
-queqiao gateway's classifier.
+mbridge gateway's classifier.
 
 ## What it does
 
-- `turn.start`: sends the prompt to the gateway (`POST /v1/queqiao/turn`,
+- `turn.start`: sends the prompt to the gateway (`POST /v1/bridge/turn`,
   1500 ms budget) and records the tier it picks.
-- `turn.step`: rewrites requests still on the routing group `group/queqiao`
-  to this turn's tier group (`group/qq-fast` / `qq-balanced` / `qq-perf`).
+- `turn.step`: rewrites requests still on the routing group `group/mbridge`
+  to this turn's tier group (`group/mb-fast` / `mb-balanced` / `mb-perf`).
   Anything else — a model you pinned with `/model`, a tier group a
   subagent already chose — passes through untouched.
 - `agent.spawn`: picks a tier for subagents started from scratch
@@ -20,29 +20,29 @@ queqiao gateway's classifier.
   `/model` switches back to the gateway.
 
 If the gateway is down, or any call fails, the mod gets out of the way:
-requests go out as `group/queqiao` and the gateway's own fallback mode
+requests go out as `group/mbridge` and the gateway's own fallback mode
 routes them (or they fail like any other request would).
 
 ## Requirements
 
 - Claude Code **v2.1.287 or newer** (mod hooks).
-- Official magpie running (its gateway on `127.0.0.1:3425`), and queqiaod
-  running (`queqiao service install`, or `queqiao serve`) on this machine.
-- Routing groups and `router.json` set up (`queqiao router init`).
+- Official magpie running (its gateway on `127.0.0.1:3425`), and mbridge
+  running (`mbridge service install`, or `mbridge serve`) on this machine.
+- Routing groups and `router.json` set up (`mbridge router init`).
 
-Not required: Node, Python, or `queqiao` on `PATH` — the mod talks to
-queqiaod over HTTP only. Claude Code's own requests go straight to magpie,
-the mod switching the model to `group/qq-<tier>` each turn.
+Not required: Node, Python, or `mbridge` on `PATH` — the mod talks to
+mbridge over HTTP only. Claude Code's own requests go straight to magpie,
+the mod switching the model to `group/mb-<tier>` each turn.
 
 ## Install
 
 ```sh
-claude plugin marketplace add weiping/queqiao
-claude plugin install queqiao-router@queqiao
+claude plugin marketplace add weiping/magpie-bridge
+claude plugin install magpie-bridge@magpie-bridge
 ```
 
-The gateway URL defaults to `http://127.0.0.1:3426` (queqiaod); change it in the
-plugin's `gateway_url` setting if queqiaod listens elsewhere.
+The gateway URL defaults to `http://127.0.0.1:3426` (mbridge); change it in the
+plugin's `gateway_url` setting if mbridge listens elsewhere.
 
 ## Known limitations
 

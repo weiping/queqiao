@@ -1,10 +1,10 @@
 import { atom, read, update, type Register } from 'claude-code'
 
 /**
- * queqiao-router: routes each Claude Code turn across queqiao's tiers
- * (fast / balanced / performance) by asking the queqiao gateway at
+ * magpie-bridge: routes each Claude Code turn across mbridge's tiers
+ * (fast / balanced / performance) by asking the mbridge gateway at
  * turn.start and rewriting the model at turn.step. Fail-safe throughout:
- * the worst outcome of any failure is a request left as group/queqiao,
+ * the worst outcome of any failure is a request left as group/mbridge,
  * which the gateway's own fallback mode routes.
  *
  * State lives in $.state (atoms), not module variables, so it survives
@@ -17,16 +17,16 @@ import { atom, read, update, type Register } from 'claude-code'
 type Tier = 'fast' | 'balanced' | 'performance'
 type Turn = { turnId: string; tier: Tier; group: string }
 
-const stTurn = atom({ plugin: 'queqiao-router', key: 'turn' }, null as Turn | null)
-const stMainTier = atom({ plugin: 'queqiao-router', key: 'mainTier' }, null as Tier | null)
-const stAgentTier = atom({ plugin: 'queqiao-router', key: 'agentTier' }, {} as Record<string, Tier>)
-const stToolStats = atom({ plugin: 'queqiao-router', key: 'toolStats' }, { calls: 0, failures: 0 })
-const stDerived = atom({ plugin: 'queqiao-router', key: 'derived' }, { is: false, checked: false })
-const stPlanMode = atom({ plugin: 'queqiao-router', key: 'planMode' }, false)
-const stCwd = atom({ plugin: 'queqiao-router', key: 'cwd' }, null as string | null)
-const stStored = atom({ plugin: 'queqiao-router', key: 'stored' }, false)
+const stTurn = atom({ plugin: 'magpie-bridge', key: 'turn' }, null as Turn | null)
+const stMainTier = atom({ plugin: 'magpie-bridge', key: 'mainTier' }, null as Tier | null)
+const stAgentTier = atom({ plugin: 'magpie-bridge', key: 'agentTier' }, {} as Record<string, Tier>)
+const stToolStats = atom({ plugin: 'magpie-bridge', key: 'toolStats' }, { calls: 0, failures: 0 })
+const stDerived = atom({ plugin: 'magpie-bridge', key: 'derived' }, { is: false, checked: false })
+const stPlanMode = atom({ plugin: 'magpie-bridge', key: 'planMode' }, false)
+const stCwd = atom({ plugin: 'magpie-bridge', key: 'cwd' }, null as string | null)
+const stStored = atom({ plugin: 'magpie-bridge', key: 'stored' }, false)
 // SP7 §3.5: this turn's user words, kept for the end-of-turn review
-const stPrompt = atom({ plugin: 'queqiao-router', key: 'prompt' }, null as string | null)
+const stPrompt = atom({ plugin: 'magpie-bridge', key: 'prompt' }, null as string | null)
 
 // §5.8: the same hash on both the storing side and the looking-up side
 function fnv1a(s: string): string {
@@ -63,7 +63,7 @@ async function parentFromStore($: any, hash: string, own: string): Promise<strin
   return undefined
 }
 
-const ROUTING_GROUP = 'group/queqiao'
+const ROUTING_GROUP = 'group/mbridge'
 const TURN_BUDGET_MS = 1500
 
 // §5.5 step 3 / R1: subagent types with a fixed tier (matches the Go
@@ -80,7 +80,7 @@ const FIXED_AGENT: Record<string, Tier> = {
 const TIER_ALIAS: Record<Tier, string> = { fast: 'haiku', balanced: 'sonnet', performance: 'opus' }
 
 // §5.8: a pinned agent's tier → its tier group (router init's §4.4 ids)
-const tierGroup = (tier: Tier): string => 'group/qq-' + tier
+const tierGroup = (tier: Tier): string => 'group/mb-' + tier
 
 export const register: Register = (on, options) => {
   const gateway = String(options.gateway_url ?? 'http://127.0.0.1:3426').replace(/\/$/, '')
@@ -89,11 +89,11 @@ export const register: Register = (on, options) => {
     if (typeof e.cwd === 'string' && e.cwd !== '') await update($, stCwd, () => e.cwd)
     // one reachability probe; being down changes nothing else
     try {
-      const res = await $.http.fetch(gateway + '/v1/queqiao/router', { method: 'GET' })
+      const res = await $.http.fetch(gateway + '/v1/bridge/router', { method: 'GET' })
       if (!res.ok) throw new Error(String(res.status))
     } catch {
       try {
-        await $.ui.status('queqiao: queqiaod 未运行')
+        await $.ui.status('mbridge: 未运行')
       } catch {
         // ui.status refused; nothing more to do
       }
@@ -145,7 +145,7 @@ export const register: Register = (on, options) => {
         await update($, stTurn, () => ({ turnId: e.turnId, tier: decided.tier, group: decided.group }))
         await update($, stMainTier, () => decided.tier)
         try {
-          await $.ui.status(`queqiao: ${decided.tier} · ${decided.reason}`)
+          await $.ui.status(`mbridge: ${decided.tier} · ${decided.reason}`)
         } catch {
           // status is cosmetic
         }
@@ -176,7 +176,7 @@ export const register: Register = (on, options) => {
       if (e.tool === 'Bash') {
         const m = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.exec(text)
         if (m !== null) {
-          await post($, gateway, '/v1/queqiao/feedback', { session: await sessionOf($), kind: 'pr_created', value: m[0] })
+          await post($, gateway, '/v1/bridge/feedback', { session: await sessionOf($), kind: 'pr_created', value: m[0] })
         }
       }
     }
@@ -185,7 +185,7 @@ export const register: Register = (on, options) => {
 
   on('classic.PostModelSwitch', async ($, e, next) => {
     if (e.source === 'command' || e.source === 'picker') {
-      await post($, gateway, '/v1/queqiao/feedback', {
+      await post($, gateway, '/v1/bridge/feedback', {
         session: await sessionOf($),
         kind: 'manual_model_switch',
         value: `${e.from_model}→${e.to_model}`,
@@ -225,7 +225,7 @@ export const register: Register = (on, options) => {
       const prompt = await read($, stPrompt)
       if (turn !== null && turn.tier !== 'performance' && prompt !== null) {
         const stats = await read($, stToolStats)
-        void post($, gateway, '/v1/queqiao/review', {
+        void post($, gateway, '/v1/bridge/review', {
           session: await sessionOf($),
           harness: 'claude-code',
           turn_id: e.turnId,
@@ -314,7 +314,7 @@ async function decideTurn(
 ): Promise<{ tier: Tier; group: string; reason: string } | null> {
   try {
     const res = await Promise.race([
-      $.http.fetch(gateway + '/v1/queqiao/turn', {
+      $.http.fetch(gateway + '/v1/bridge/turn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

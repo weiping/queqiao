@@ -1,6 +1,6 @@
 ---
 name: repo-scout
-description: Read-only code search scout. Finds definitions, usages, and patterns without editing anything; maps to queqiao's fast tier.
+description: Read-only code search scout. Finds definitions, usages, and patterns without editing anything; maps to mbridge's fast tier.
 model: haiku
 tools: Read, Grep, Glob
 ---

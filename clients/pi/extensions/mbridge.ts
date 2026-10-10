@@ -1,9 +1,9 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent"
-import { QueqiaoClient } from "../src/client.js"
+import { MbridgeClient } from "../src/client.js"
 import { idsFrom } from "../src/session.js"
 
 /**
- * pi-queqiao: routes each Pi turn across queqiao's tiers (§6.8).
+ * pi-magpie-bridge: routes each Pi turn across mbridge's tiers (§6.8).
  *
  * before_agent_start asks the gateway which tier this prompt deserves and
  * switches Pi's model when the tier moved; every failure keeps the model
@@ -37,7 +37,7 @@ function lastAssistantText(messages: AgentMessageLite[]): string | null {
 }
 
 export default function (pi: ExtensionAPI): void {
-  const client = new QueqiaoClient(process.env.QUEQIAO_URL ?? "http://127.0.0.1:3426")
+  const client = new MbridgeClient(process.env.MBRIDGE_URL ?? "http://127.0.0.1:3426")
 
   // per-session memory; rebuilt at every session_start
   let session = ""
@@ -47,7 +47,7 @@ export default function (pi: ExtensionAPI): void {
   let lastPrompt = "" // this turn's words, for the end-of-turn review (SP7)
   let lastAutoModel = "" // our own setModel, told apart from a manual switch
   let manualPinned = false
-  // SP8: the main session's tool results since the last /turn; queqiaod no
+  // SP8: the main session's tool results since the last /turn; mbridge no
   // longer sees Pi's requests, so Pi reports them (R3's tool rule)
   let tools: { calls: number; failures: number } | null = null
   let downShown = false
@@ -91,14 +91,14 @@ export default function (pi: ExtensionAPI): void {
     })
     tools = { calls: 0, failures: 0 }
     if (parent !== null) parentSent = true
-    // queqiaod down: the model stays as it is, and the status says why
+    // mbridge down: the model stays as it is, and the status says why
     const status = (ctx as { ui?: { setStatus?: (k: string, t: string | undefined) => void } }).ui?.setStatus
     if (out === null) {
-      if (!downShown) status?.("queqiao", "queqiao: queqiaod 未运行")
+      if (!downShown) status?.("mbridge", "mbridge: 未运行")
       downShown = true
       return
     }
-    if (downShown) status?.("queqiao", undefined)
+    if (downShown) status?.("mbridge", undefined)
     downShown = false
     if (out.tier === lastTier) return
     const model = ctx.modelRegistry.find(PROVIDER, out.group)
@@ -159,7 +159,7 @@ export default function (pi: ExtensionAPI): void {
     if (task === undefined) return
     const out = await client.turn({ session, prompt: task, agent: "subagent", cwd: process.cwd() })
     if (out === null) return
-    // out.group is the tier's real group id (qq-perf, not qq-performance)
+    // out.group is the tier's real group id (mb-perf, not mb-performance)
     e.input.model = `${PROVIDER}/${out.group}`
   })
 }

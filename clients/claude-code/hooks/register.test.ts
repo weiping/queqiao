@@ -6,7 +6,7 @@ function fakeGateway(on: any, turns: Array<{ tier: string; group: string; reason
   let n = 0
   on('http.fetch', (_$: unknown, e: { url: string; init?: { method?: string; body?: string } }) => {
     calls.push({ url: e.url, method: e.init?.method, body: e.init?.body })
-    if (e.url.endsWith('/v1/queqiao/turn')) {
+    if (e.url.endsWith('/v1/bridge/turn')) {
       const t = turns[Math.min(n, turns.length - 1)]
       n++
       return {
@@ -29,7 +29,7 @@ function stubBasics(on: any) {
 }
 
 test('turn.start calls /turn with the right fields and turn.step rewrites the routing group', async ($, on) => {
-  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5-classified' }])
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5-classified' }])
   const { status } = stubBasics(on)
   const clock = mock.clock(on)
   void clock
@@ -46,7 +46,7 @@ test('turn.start calls /turn with the right fields and turn.step rewrites the ro
   await $.turn.start({ turnId: 't1', text: 'what license is this repo?' })
 
   expect(calls.length).toBe(1)
-  expect(calls[0].url).toBe('http://127.0.0.1:3426/v1/queqiao/turn')
+  expect(calls[0].url).toBe('http://127.0.0.1:3426/v1/bridge/turn')
   const body = JSON.parse(calls[0].body ?? '{}')
   expect(body).toMatchObject({
     harness: 'claude-code',
@@ -58,17 +58,17 @@ test('turn.start calls /turn with the right fields and turn.step rewrites the ro
     tool_failures: 0,
     store_hint: false,
   })
-  expect(status).toContain('queqiao: fast · R5-classified')
+  expect(status).toContain('mbridge: fast · R5-classified')
 
   // main-loop step on the routing group → this turn's tier group
-  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/queqiao', messageCount: 1 })
+  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1 })
   let step = await stream.next()
   while (step.done !== true) step = await stream.next()
-  expect(seen).toEqual(['group/qq-fast'])
+  expect(seen).toEqual(['group/mb-fast'])
 })
 
 test('turn.step leaves pinned models and effort alone', async ($, on) => {
-  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5' }])
   stubBasics(on)
   mock.clock(on)
   on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
@@ -80,12 +80,12 @@ test('turn.step leaves pinned models and effort alone', async ($, on) => {
 
   await $.turn.start({ turnId: 't1', text: 'go' })
   // user pinned /model opus; a subagent already chose a tier group
-  for (const model of ['group/qq-perf', 'claude-sonnet-5']) {
+  for (const model of ['group/mb-perf', 'claude-sonnet-5']) {
     const stream = $.turn.step({ turnId: 't1', index: 0, model, messageCount: 1 })
     let step = await stream.next()
     while (step.done !== true) step = await stream.next()
   }
-  expect(seen.map((s) => s.model)).toEqual(['group/qq-perf', 'claude-sonnet-5'])
+  expect(seen.map((s) => s.model)).toEqual(['group/mb-perf', 'claude-sonnet-5'])
   void calls
 })
 
@@ -101,11 +101,11 @@ test('a /turn failure clears the turn and steps pass through', async ($, on) => 
   })
 
   await $.turn.start({ turnId: 't1', text: 'hello' })
-  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/queqiao', messageCount: 1 })
+  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1 })
   let step = await stream.next()
   while (step.done !== true) step = await stream.next()
 
-  expect(seen).toEqual(['group/queqiao']) // untouched: gateway fallback mode
+  expect(seen).toEqual(['group/mbridge']) // untouched: gateway fallback mode
   expect(status.filter((s) => s.includes('fast'))).toEqual([])
 })
 
@@ -125,16 +125,16 @@ test('the 1500ms timer wins the race when /turn hangs', async ($, on) => {
   const started = $.turn.start({ turnId: 't1', text: 'hello' })
   await clock.advance(1600)
   await started
-  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/queqiao', messageCount: 1 })
+  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1 })
   let step = await stream.next()
   while (step.done !== true) step = await stream.next()
 
-  expect(seen).toEqual(['group/queqiao'])
-  expect(status.filter((s) => s.includes('queqiao:')).length).toBe(0)
+  expect(seen).toEqual(['group/mbridge'])
+  expect(status.filter((s) => s.includes('mbridge:')).length).toBe(0)
 })
 
 test('empty-text turns skip /turn and keep the previous tier', async ($, on) => {
-  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5' }])
   stubBasics(on)
   mock.clock(on)
   on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
@@ -148,10 +148,10 @@ test('empty-text turns skip /turn and keep the previous tier', async ($, on) => 
   await $.turn.start({ turnId: 't2', text: '' }) // continuation turn
 
   expect(calls.length).toBe(1)
-  const stream = $.turn.step({ turnId: 't2', index: 0, model: 'group/queqiao', messageCount: 1 })
+  const stream = $.turn.step({ turnId: 't2', index: 0, model: 'group/mbridge', messageCount: 1 })
   let step = await stream.next()
   while (step.done !== true) step = await stream.next()
-  expect(seen).toEqual(['group/qq-fast'])
+  expect(seen).toEqual(['group/mb-fast'])
 })
 
 test('session.start with the gateway up stays quiet', async ($, on) => {
@@ -171,7 +171,7 @@ test('session.start with the gateway down reports it once', async ($, on) => {
   on('http.fetch', () => ({ deny: 'down' }))
 
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work/repo' })
-  expect(status).toEqual(['queqiao: queqiaod 未运行'])
+  expect(status).toEqual(['mbridge: 未运行'])
 })
 
 // ---- Task 3: subagents ----
@@ -184,7 +184,7 @@ function spawnBasics(on: any) {
 }
 
 test('agent.spawn: fork and preset models pass through (dead-code branch per S3)', async ($, on) => {
-  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5' }])
   spawnBasics(on)
   const spawns: Array<{ model?: string }> = []
   on('agent.spawn', (_$: unknown, e: { prompt: string; subagentType: string; model?: string; fork?: boolean }) => {
@@ -199,7 +199,7 @@ test('agent.spawn: fork and preset models pass through (dead-code branch per S3)
 })
 
 test('agent.spawn: R1 types map straight to an alias', async ($, on) => {
-  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5' }])
   spawnBasics(on)
   const models: Array<string | undefined> = []
   on('agent.spawn', (_$: unknown, e: { prompt: string; subagentType: string; model?: string }) => {
@@ -215,8 +215,8 @@ test('agent.spawn: R1 types map straight to an alias', async ($, on) => {
 
 test('agent.spawn: other types ask the gateway with prompt and agent', async ($, on) => {
   const calls = fakeGateway(on, [
-    { tier: 'balanced', group: 'group/qq-balanced', reason: 'R5' },
-    { tier: 'performance', group: 'group/qq-perf', reason: 'R5' },
+    { tier: 'balanced', group: 'group/mb-balanced', reason: 'R5' },
+    { tier: 'performance', group: 'group/mb-perf', reason: 'R5' },
   ])
   spawnBasics(on)
   const models: Array<string | undefined> = []
@@ -227,7 +227,7 @@ test('agent.spawn: other types ask the gateway with prompt and agent', async ($,
 
   await $.agent.spawn({ prompt: 'fix the flaky test in rules_test.go', subagentType: 'general-purpose' })
   const body = JSON.parse(calls[0].body ?? '{}')
-  expect(calls[0].url).toBe('http://127.0.0.1:3426/v1/queqiao/turn')
+  expect(calls[0].url).toBe('http://127.0.0.1:3426/v1/bridge/turn')
   expect(body).toMatchObject({ harness: 'claude-code', session: 's-1', agent: 'general-purpose', store_hint: false })
   expect(models).toEqual(['sonnet'])
 })
@@ -247,8 +247,8 @@ test('agent.spawn: gateway failure leaves the spawn unchanged', async ($, on) =>
 
 test('agentId steps pin at the main tier and stay pinned when the main tier moves', async ($, on) => {
   const calls = fakeGateway(on, [
-    { tier: 'fast', group: 'group/qq-fast', reason: 'R5' },
-    { tier: 'balanced', group: 'group/qq-balanced', reason: 'R6' },
+    { tier: 'fast', group: 'group/mb-fast', reason: 'R5' },
+    { tier: 'balanced', group: 'group/mb-balanced', reason: 'R6' },
   ])
   spawnBasics(on)
   const seen: string[] = []
@@ -259,17 +259,17 @@ test('agentId steps pin at the main tier and stay pinned when the main tier move
 
   await $.turn.start({ turnId: 't1', text: 'quick question' }) // → fast
   const step = async (agentId?: string) => {
-    const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/queqiao', messageCount: 1, ...(agentId ? { agentId } : {}) })
+    const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1, ...(agentId ? { agentId } : {}) })
     let s = await stream.next()
     while (s.done !== true) s = await stream.next()
   }
-  await step() // main → qq-fast
+  await step() // main → mb-fast
   await step('a1') // first sight of a1 → pinned fast
   await $.turn.start({ turnId: 't2', text: 'no wait, refactor everything instead' }) // → balanced
-  await step() // main moved to qq-balanced
+  await step() // main moved to mb-balanced
   await step('a1') // a1 stays pinned
 
-  expect(seen).toEqual(['main:group/qq-fast', 'a1:group/qq-fast', 'main:group/qq-balanced', 'a1:group/qq-fast'])
+  expect(seen).toEqual(['main:group/mb-fast', 'a1:group/mb-fast', 'main:group/mb-balanced', 'a1:group/mb-fast'])
   void calls
 })
 
@@ -283,18 +283,18 @@ test('agentId steps pass through when no turn has ever succeeded', async ($, on)
   })
 
   await $.turn.start({ turnId: 't1', text: 'hi' })
-  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/queqiao', messageCount: 1, agentId: 'a1' })
+  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1, agentId: 'a1' })
   let s = await stream.next()
   while (s.done !== true) s = await stream.next()
 
-  expect(seen).toEqual(['group/queqiao'])
+  expect(seen).toEqual(['group/mbridge'])
 })
 
 // ---- Task 4: feedback ----
 
 // tool.call answers the engine gives back, one per call (default: ok)
 function feedbackBasics(on: any, toolAnswers: Array<{ text: string; isError?: boolean }> = []) {
-  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5' }])
   const { status } = stubBasics(on)
   mock.clock(on)
   let n = 0
@@ -341,41 +341,41 @@ test('tool.call stats reset after being reported', async ($, on) => {
 })
 
 test('a Bash tool result with a PR link sends pr_created', async ($, on) => {
-  const { calls } = feedbackBasics(on, [{ text: 'Opened: https://github.com/weiping/queqiao/pull/6' }])
+  const { calls } = feedbackBasics(on, [{ text: 'Opened: https://github.com/weiping/magpie-bridge/pull/6' }])
   await $.tool.call({ tool: 'Bash', command: 'gh pr create', agentId: undefined })
-  const fb = calls.find((c: { url: string }) => c.url.endsWith('/v1/queqiao/feedback'))
+  const fb = calls.find((c: { url: string }) => c.url.endsWith('/v1/bridge/feedback'))
   expect(fb).toBeDefined()
   expect(JSON.parse(fb.body)).toEqual({
     session: 's-1',
     kind: 'pr_created',
-    value: 'https://github.com/weiping/queqiao/pull/6',
+    value: 'https://github.com/weiping/magpie-bridge/pull/6',
   })
 })
 
 test('no PR link, no feedback event', async ($, on) => {
   const { calls } = feedbackBasics(on, [{ text: 'done' }])
   await $.tool.call({ tool: 'Bash', command: 'ls', agentId: undefined })
-  expect(calls.find((c: { url: string }) => c.url.endsWith('/v1/queqiao/feedback'))).toBeUndefined()
+  expect(calls.find((c: { url: string }) => c.url.endsWith('/v1/bridge/feedback'))).toBeUndefined()
 })
 
 test('classic.PostModelSwitch reports command and picker switches only', async ($, on) => {
   const { calls } = feedbackBasics(on)
   for (const source of ['command', 'picker', 'sdk', 'auto', 'resume']) {
-    await $.classic.PostModelSwitch({ from_model: 'group/queqiao', to_model: 'group/qq-perf', source })
+    await $.classic.PostModelSwitch({ from_model: 'group/mbridge', to_model: 'group/mb-perf', source })
   }
   const events = calls
-    .filter((c: { url: string }) => c.url.endsWith('/v1/queqiao/feedback'))
+    .filter((c: { url: string }) => c.url.endsWith('/v1/bridge/feedback'))
     .map((c: { body?: string }) => JSON.parse(c.body ?? '{}'))
   expect(events).toEqual([
-    { session: 's-1', kind: 'manual_model_switch', value: 'group/queqiao→group/qq-perf' },
-    { session: 's-1', kind: 'manual_model_switch', value: 'group/queqiao→group/qq-perf' },
+    { session: 's-1', kind: 'manual_model_switch', value: 'group/mbridge→group/mb-perf' },
+    { session: 's-1', kind: 'manual_model_switch', value: 'group/mbridge→group/mb-perf' },
   ])
 })
 
 // ---- Task 5: derived sessions (/fork, /branch) ----
 
 function derivedBasics(on: any, opts: { firstUser?: string; derived?: boolean } = {}) {
-  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/qq-fast', reason: 'R5' }])
+  const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5' }])
   stubBasics(on)
   const clock = mock.clock(on)
   const store = new Map<string, unknown>()
@@ -482,13 +482,13 @@ function fnv1a(s: string): string {
 function reviewGateway(on: any, tier: string) {
   const reviews: Array<Record<string, unknown>> = []
   on('http.fetch', (_$: unknown, e: { url: string; init?: { body?: string } }) => {
-    if (e.url.endsWith('/v1/queqiao/review')) {
+    if (e.url.endsWith('/v1/bridge/review')) {
       reviews.push(JSON.parse(e.init?.body ?? '{}') as Record<string, unknown>)
       return { value: new Promise(() => {}) } // never resolves
     }
-    if (e.url.endsWith('/v1/queqiao/turn')) {
+    if (e.url.endsWith('/v1/bridge/turn')) {
       return {
-        value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ tier, group: 'group/qq-' + tier, reason: 'R5-classified' }) },
+        value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ tier, group: 'group/mb-' + tier, reason: 'R5-classified' }) },
       }
     }
     return { value: { status: 200, ok: true, headers: {}, text: '{}' } }
@@ -527,13 +527,13 @@ test('aborted, performance, subagent and gateway-mode turns post no review', asy
   const reviews: Array<Record<string, unknown>> = []
   let mode: 'fast' | 'performance' | 'down' = 'fast'
   on('http.fetch', (_$: unknown, e: { url: string; init?: { body?: string } }) => {
-    if (e.url.endsWith('/v1/queqiao/review')) {
+    if (e.url.endsWith('/v1/bridge/review')) {
       reviews.push(JSON.parse(e.init?.body ?? '{}') as Record<string, unknown>)
       return { value: new Promise(() => {}) }
     }
     if (mode === 'down') return { value: { status: 503, ok: false, headers: {}, text: '' } }
     return {
-      value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ tier: mode, group: 'group/qq-' + mode, reason: 'R5-classified' }) },
+      value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ tier: mode, group: 'group/mb-' + mode, reason: 'R5-classified' }) },
     }
   })
   stubBasics(on)
