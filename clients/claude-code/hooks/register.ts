@@ -80,7 +80,8 @@ const FIXED_AGENT: Record<string, Tier> = {
 const TIER_ALIAS: Record<Tier, string> = { fast: 'haiku', balanced: 'sonnet', performance: 'opus' }
 
 // §5.8: a pinned agent's tier → its tier group (router init's §4.4 ids)
-const tierGroup = (tier: Tier): string => 'group/mb-' + tier
+const TIER_GROUP: Record<Tier, string> = { fast: 'group/mb-fast', balanced: 'group/mb-balanced', performance: 'group/mb-perf' }
+const tierGroup = (tier: Tier): string => TIER_GROUP[tier]
 
 export const register: Register = (on, options) => {
   const gateway = String(options.gateway_url ?? 'http://127.0.0.1:3426').replace(/\/$/, '')

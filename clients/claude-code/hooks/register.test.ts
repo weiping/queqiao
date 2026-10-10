@@ -273,6 +273,25 @@ test('agentId steps pin at the main tier and stay pinned when the main tier move
   void calls
 })
 
+test('a subagent that inherits the performance tier goes to group/mb-perf', async ($, on) => {
+  fakeGateway(on, [{ tier: 'performance', group: 'group/mb-perf', reason: 'R6' }])
+  spawnBasics(on)
+  const seen: string[] = []
+  on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string; agentId?: string }) {
+    seen.push((e.agentId ?? 'main') + ':' + e.model)
+    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+
+  await $.turn.start({ turnId: 't1', text: 'refactor everything' }) // → performance
+  for (const agentId of [undefined, 'a1', 'a1']) {
+    const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1, ...(agentId ? { agentId } : {}) })
+    let s = await stream.next()
+    while (s.done !== true) s = await stream.next()
+  }
+
+  expect(seen).toEqual(['main:group/mb-perf', 'a1:group/mb-perf', 'a1:group/mb-perf'])
+})
+
 test('agentId steps pass through when no turn has ever succeeded', async ($, on) => {
   on('http.fetch', () => ({ deny: 'down' }))
   spawnBasics(on)
