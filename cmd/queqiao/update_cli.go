@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
