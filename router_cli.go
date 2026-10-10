@@ -16,7 +16,7 @@ import (
 	"github.com/yetone/magpie/internal/agent"
 	"github.com/yetone/magpie/internal/appdir"
 	"github.com/yetone/magpie/internal/catalog"
-	"github.com/yetone/magpie/internal/codexcat"
+	"github.com/yetone/magpie/internal/codexcfg"
 	"github.com/yetone/magpie/internal/edit"
 	"github.com/yetone/magpie/internal/magpie"
 	"github.com/yetone/magpie/internal/provider"
@@ -149,6 +149,8 @@ func routerInit(args []string) error {
 			"explorer": router.TierFast,
 		},
 		Experiment: router.ExperimentConfig{Enabled: false, RouterPercent: 50, ControlTier: router.TierPerformance, Salt: hex.EncodeToString(salt)},
+		Listen:     "127.0.0.1:3426",
+		MagpieURL:  "http://127.0.0.1:3425",
 	}
 	b, _ := json.MarshalIndent(cfg, "", "  ")
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -164,7 +166,7 @@ func routerInit(args []string) error {
 	}
 
 	// 3) Codex (§4.5)
-	if err := routerInitCodex(); err != nil {
+	if err := routerInitCodex(cfg.Listen); err != nil {
 		fmt.Println(amber.Render("!"), "codex:", err)
 	}
 	// 4) Claude Code (§4.5)
@@ -184,63 +186,19 @@ var codexHome = func() string {
 	return filepath.Join(home, ".codex")
 }
 
-// routerInitCodex points Codex at the router group and writes the model
-// catalog the router group needs to be selectable (§4.5).
-func routerInitCodex() error {
-	dir := codexHome()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+// routerInitCodex writes queqiao's Codex profile (~/.codex/queqiao.config.toml
+// and its model catalog) pointing at queqiaod on listen (SP8 §5.6);
+// config.toml is magpie's and the user's.
+func routerInitCodex(listen string) error {
+	changed, err := codexcfg.Init(codexHome(), "http://"+listen+"/v1")
+	for _, f := range changed {
+		fmt.Println(muted.Render("  write"), f)
+	}
+	if err != nil {
 		return err
 	}
-	// the catalog: the router group + the three tier groups
-	var ms []catalog.Model
-	for _, id := range []string{"group/queqiao", "group/qq-fast", "group/qq-balanced", "group/qq-perf"} {
-		ms = append(ms, catalog.Model{ID: id, Name: id})
-	}
-	catPath := filepath.Join(dir, "queqiao-models.json")
-	fmt.Println(muted.Render("  write"), catPath)
-	if err := edit.WriteAtomic(catPath, codexcat.Catalog(ms)); err != nil {
-		return err
-	}
-	// config.toml: root scalars — replace if present, else prepend
-	path := filepath.Join(dir, "config.toml")
-	return codexConfigKeys(path, catPath)
-}
-
-// codexConfigKeys sets the three root keys of Codex's config.toml,
-// preserving everything else (root scalars live before the first table).
-func codexConfigKeys(path, catPath string) error {
-	b, _ := edit.Read(path)
-	lines := strings.Split(string(b), "\n")
-	sets := map[string]string{
-		"model":              `"group/queqiao"`,
-		"model_provider":     `"magpie"`,
-		"model_catalog_json": fmt.Sprintf("%q", catPath),
-	}
-	wrote := map[string]bool{}
-	for i, l := range lines {
-		trim := strings.TrimSpace(l)
-		if strings.HasPrefix(trim, "[") {
-			break // root scalars end at the first table
-		}
-		for key, value := range sets {
-			if strings.HasPrefix(trim, key+" =") || strings.HasPrefix(trim, key+"=") {
-				lines[i] = key + " = " + value
-				wrote[key] = true
-			}
-		}
-	}
-	var top []string
-	for key, value := range sets {
-		if !wrote[key] {
-			top = append(top, key+" = "+value)
-		}
-	}
-	if len(top) > 0 {
-		lines = append(top, lines...)
-	}
-	fmt.Println(muted.Render("  edit"), path, "→", "model=group/queqiao, model_provider=magpie")
-	fmt.Println(amber.Render("!"), "restart Codex to see the router group")
-	return edit.WriteAtomic(path, []byte(strings.Join(lines, "\n")))
+	fmt.Println(amber.Render("!"), "start Codex with `codex -p queqiao` to use the router")
+	return nil
 }
 
 // tierGroup names each tier's routing group (§4.4).

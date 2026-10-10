@@ -156,39 +156,24 @@ func TestRouterInitClaudeCodeEnv(t *testing.T) {
 	}
 }
 
-func TestCodexConfigKeys(t *testing.T) {
+// router init's Codex step writes queqiao's own profile file and leaves
+// config.toml to magpie (SP8 §5.6).
+func TestRouterInitCodexWritesProfile(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
-	// an existing config with unrelated content keeps it
+	old := codexHome
+	codexHome = func() string { return dir }
+	t.Cleanup(func() { codexHome = old })
 	existing := "[model_providers.magpie]\nname = \"magpie\"\nbase_url = \"http://127.0.0.1:3425/v1\"\n"
-	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte(existing), 0o644)
+	if err := routerInitCodex("127.0.0.1:3426"); err != nil {
 		t.Fatal(err)
 	}
-	if err := codexConfigKeys(path, dir+"/queqiao-models.json"); err != nil {
-		t.Fatal(err)
+	if b, _ := os.ReadFile(filepath.Join(dir, "config.toml")); string(b) != existing {
+		t.Fatalf("config.toml changed:\n%s", b)
 	}
-	b, _ := os.ReadFile(path)
-	s := string(b)
-	for _, want := range []string{
-		`model = "group/queqiao"`,
-		`model_provider = "magpie"`,
-		"[model_providers.magpie]",
-	} {
-		if !strings.Contains(s, want) {
-			t.Fatalf("missing %q in:\n%s", want, s)
-		}
-	}
-	// keys land before the first table
-	if strings.Index(s, "model = ") > strings.Index(s, "[model_providers") {
-		t.Fatal("model key landed inside a table")
-	}
-	// idempotent: second run changes nothing
-	if err := codexConfigKeys(path, dir+"/queqiao-models.json"); err != nil {
-		t.Fatal(err)
-	}
-	b2, _ := os.ReadFile(path)
-	if string(b2) != s {
-		t.Fatal("not idempotent")
+	b, err := os.ReadFile(filepath.Join(dir, "queqiao.config.toml"))
+	if err != nil || !strings.Contains(string(b), `base_url = "http://127.0.0.1:3426/v1"`) {
+		t.Fatalf("profile %s (%v)", b, err)
 	}
 }
 
