@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -120,12 +122,29 @@ func routerInit(args []string) error {
 		{"mb-perf", resolved[router.TierPerformance]},
 		{"mbridge", []string{"group/mb-balanced", "group/mb-perf", "group/mb-fast"}},
 	}
+	// a group already in magpie is the user's (tuned members, a rename by
+	// hand): init keeps it unless --force. Not knowing which exist is not
+	// "none exist".
+	have := map[string]bool{}
+	if !force {
+		ids, err := mc.Groups(ctx)
+		if err != nil {
+			return fmt.Errorf("reading magpie's groups: %v", err)
+		}
+		for _, id := range ids {
+			have[id] = true
+		}
+	}
 	for _, g := range groups {
-		if len(g.members) == 0 {
+		if !have[g.id] && len(g.members) == 0 {
 			return fmt.Errorf("group %s has no members (preset %q): add a provider serving one to magpie first", g.id, presetID)
 		}
 	}
 	for _, g := range groups {
+		if have[g.id] {
+			fmt.Println(muted.Render("  kept"), "group", g.id, muted.Render("(already in magpie; --force puts the preset's members back)"))
+			continue
+		}
 		if err := mc.GroupAdd(ctx, g.id, g.members); err != nil {
 			return err
 		}
@@ -134,8 +153,11 @@ func routerInit(args []string) error {
 
 	// 2) router.json (§4.6), §4.1's default criteria, classifier local
 	p := routerJSONPath()
+	keepJSON := false
 	if _, err := os.Stat(p); err == nil && !force {
-		return fmt.Errorf("%s exists; pass --force to overwrite", p)
+		keepJSON = true
+	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
 	}
 	salt := make([]byte, 8)
 	_, _ = rand.Read(salt)
@@ -166,14 +188,22 @@ func routerInit(args []string) error {
 		Listen:     "127.0.0.1:3426",
 		MagpieURL:  "http://127.0.0.1:3425",
 	}
-	b, _ := json.MarshalIndent(cfg, "", "  ")
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
+	if keepJSON {
+		// the agents below are wired to where the user's file listens
+		if have, err := router.Load(p, ""); err == nil && have.Listen != "" {
+			cfg.Listen = have.Listen
+		}
+		fmt.Println(muted.Render("  kept"), p, muted.Render("(--force writes the defaults over it)"))
+	} else {
+		b, _ := json.MarshalIndent(cfg, "", "  ")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return err
+		}
+		if err := fsutil.WriteAtomic(p, append(b, '\n')); err != nil {
+			return err
+		}
+		fmt.Println(green.Render("✓"), "wrote", p)
 	}
-	if err := fsutil.WriteAtomic(p, append(b, '\n')); err != nil {
-		return err
-	}
-	fmt.Println(green.Render("✓"), "wrote", p)
 
 	if groupsOnly {
 		return nil
