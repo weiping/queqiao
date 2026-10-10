@@ -1,7 +1,7 @@
 # SP9 设计：英文名改为 Magpie Bridge
 
 - 日期：2026-10-10
-- 状态：设计已确认，待书面审阅
+- 状态：书面审阅通过（2026-10-10）
 - 上位规格：[`2026-10-10-queqiao-sp8-standalone-design.md`](2026-10-10-queqiao-sp8-standalone-design.md)（下称“SP8 规格”）。本文只改名字，不改行为。
 
 ## 1. 为什么改
@@ -73,6 +73,19 @@ SP8 里只为 qq-v0.1.x 用户服务的代码一并删除：
 2. PR 合并后，作者在 GitHub 把仓库改名为 `magpie-bridge`，并确认默认分支是 `main`。
 3. 作者推送 `v0.2.0` 标签，发布 `@weiping/pi-magpie-bridge@0.2.0`。
 4. 作者按 SP8 的本地验证清单（换成新名字）做真机验收。
+
+### 5.1 作者本机的一次性收尾（不写成代码）
+
+作者卸载 qq-v0.1.x 并把数据拷回 `~/.config/magpie` 后，magpie 里还留着 queqiao 时期的四个分组。用官方 magpie 改名，保留调好的成员和顺序（2026-10-10 用 magpie 0.1.1154 验证过，路由组引用的子分组会跟着改）：
+
+```sh
+magpie group set qq-fast     id=mb-fast     name=mb-fast
+magpie group set qq-balanced id=mb-balanced name=mb-balanced
+magpie group set qq-perf     id=mb-perf     name=mb-perf
+magpie group set queqiao     id=mbridge     name=mbridge
+```
+
+指向旧分组 id 的 Agent 先改回普通模型（`magpie claude <模型>`，Codex、Pi 同理），装好 `mbridge` 后执行 `mbridge router init` 再接回 `group/mbridge` 和 `group/mb-balanced`。
 
 模块路径在仓库改名之前就写成新名字：本仓库内的编译和测试不依赖远程地址；对外的 `go install` 和插件市场地址在仓库改名后才生效，这一步排在发版之前。
 
