@@ -27,6 +27,7 @@ const stCwd = atom({ plugin: 'magpie-bridge', key: 'cwd' }, null as string | nul
 const stStored = atom({ plugin: 'magpie-bridge', key: 'stored' }, false)
 // SP7 §3.5: this turn's user words, kept for the end-of-turn review
 const stPrompt = atom({ plugin: 'magpie-bridge', key: 'prompt' }, null as string | null)
+const stTurnBudget = atom({ plugin: 'magpie-bridge', key: 'turnBudget' }, null as number | null)
 
 // §5.8: the same hash on both the storing side and the looking-up side
 function fnv1a(s: string): string {
@@ -64,7 +65,11 @@ async function parentFromStore($: any, hash: string, own: string): Promise<strin
 }
 
 const ROUTING_GROUP = 'group/mbridge'
-const TURN_BUDGET_MS = 1500
+const TURN_BUDGET_MS = 1500 // without word from mbridge (SP10)
+
+// SP10: mbridge's turn_budget_ms, held to [1500, 8000] (hooks stop at 10 s)
+const clampBudget = (ms: unknown): number | null =>
+  typeof ms === 'number' && Number.isFinite(ms) ? Math.min(8000, Math.max(1500, Math.round(ms))) : null
 
 // §5.5 step 3 / R1: subagent types with a fixed tier (matches the Go
 // side's fixed_agents).
@@ -98,6 +103,14 @@ export const register: Register = (on, options) => {
     try {
       const res = await $.http.fetch(gateway + '/v1/bridge/router', { method: 'GET' })
       if (!res.ok) throw new Error(String(res.status))
+      // SP10: how long a turn may wait; an older mbridge says nothing
+      let budget: number | null = null
+      try {
+        budget = clampBudget((JSON.parse(res.text) as { turn_budget_ms?: unknown }).turn_budget_ms)
+      } catch {
+        budget = null
+      }
+      await update($, stTurnBudget, () => budget)
     } catch {
       try {
         await $.ui.status('mbridge: 未运行')
@@ -136,7 +149,7 @@ export const register: Register = (on, options) => {
         const hash = await firstUserHash($)
         if (hash !== null) parentSession = await parentFromStore($, hash, session)
       }
-      const decided = await decideTurn($, gateway, {
+      const decided = await decideTurn($, gateway, (await read($, stTurnBudget)) ?? TURN_BUDGET_MS, {
         harness: 'claude-code',
         session,
         prompt: e.text,
@@ -211,7 +224,7 @@ export const register: Register = (on, options) => {
     if (fixed !== undefined) return next({ ...e, model: TIER_ALIAS[fixed] })
     // 4. ask the gateway; failure leaves the spawn unchanged
     const session = await $.session.id()
-    const decided = await decideTurn($, gateway, {
+    const decided = await decideTurn($, gateway, (await read($, stTurnBudget)) ?? TURN_BUDGET_MS, {
       harness: 'claude-code',
       session,
       prompt: e.prompt,
@@ -317,10 +330,11 @@ async function post($: any, gateway: string, path: string, body: unknown): Promi
   }
 }
 
-/** The /turn call raced against TURN_BUDGET_MS; null on failure/timeout. */
+/** The /turn call raced against budgetMs; null on failure/timeout. */
 async function decideTurn(
   $: any,
   gateway: string,
+  budgetMs: number,
   body: Record<string, unknown>,
 ): Promise<{ tier: Tier; group: string; reason: string } | null> {
   try {
@@ -330,7 +344,7 @@ async function decideTurn(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
-      $.clock.sleep(TURN_BUDGET_MS).then(() => 'timeout' as const),
+      $.clock.sleep(budgetMs).then(() => 'timeout' as const),
     ])
     if (res === 'timeout') return null
     if (!res.ok) return null
