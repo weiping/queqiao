@@ -35,12 +35,12 @@ follows it.
   status.
 - **Claude Code mod:** reads `turn_budget_ms` from the reachability probe it
   already makes at `session.start` and keeps it in `$.state` (`turnBudget`).
-  Without it (an older mbridge, or the probe failed) the mod waits 1500 ms
-  as before.
+  An older mbridge that reports no budget means 1500 ms, as before. A failed
+  probe means the next turn asks again (see below).
 - **Pi extension:** does the same at `session_start`, with one GET.
-- **Codex hook:** runs as `mbridge hook`, on the same machine as mbridge, so
-  it reads `router.json` itself; no extra request per turn. If the file
-  can't be read, it waits 1500 ms.
+- **Codex hook:** runs as `mbridge hook`, once per event. Each run asks the
+  running mbridge for the budget (see below), with `router.json` as the
+  fallback; if neither answers, it waits 1500 ms.
 - **Clients clamp too.** Each client applies the same [1500, 8000] range, so
   a bad value can't make it wait forever or give up sooner than before.
 - **New default `classify_timeout_ms`: 2500** (budget 3000), used both when
@@ -96,5 +96,8 @@ add latency, but it spends about 340 tokens per ping while the user is away.
 - **Claude Code mod:**
   - After a `session.start` whose probe reports 3000, a `/turn` answering at
     2000 ms is used.
-  - Without the probe, the 1500 ms timer still wins.
-- **Pi:** the same two cases.
+  - When mbridge reports no budget, the 1500 ms timer still wins.
+  - A turn with no budget learned yet asks for one before `/turn`.
+  - Out-of-range budgets are clamped.
+- **Pi:** the same cases. The probe also gives up on a hung mbridge within
+  500 ms.
