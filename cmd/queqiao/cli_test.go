@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/weiping/queqiao/internal/migrate"
 	"github.com/weiping/queqiao/internal/service"
 	"io"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/weiping/queqiao/internal/fsutil"
 )
@@ -187,5 +189,31 @@ func TestServiceStatusNotInstalled(t *testing.T) {
 	}
 	if !strings.Contains(out, "not installed") {
 		t.Fatalf("status said %q", out)
+	}
+}
+
+// --dry-run prints the plan and changes nothing; restore without a backup
+// says there is none.
+func TestMigrateDryRunAndRestoreCLI(t *testing.T) {
+	h := t.TempDir()
+	os.MkdirAll(filepath.Join(h, ".config", "queqiao"), 0o755)
+	os.WriteFile(filepath.Join(h, ".config", "queqiao", "providers.json"), []byte("{}"), 0o600)
+	old := migrateEnv
+	migrateEnv = func() migrate.Env {
+		return migrate.Env{Home: h, GOOS: "linux", ConfigHome: filepath.Join(h, ".config"), CacheHome: filepath.Join(h, ".cache"),
+			SystemCache: filepath.Join(h, ".cache"), Now: time.Unix(0, 0),
+			OldGatewayRunning: func(context.Context) bool { return false },
+			MagpieVersion:     func(context.Context) (string, error) { return "v", nil }}
+	}
+	t.Cleanup(func() { migrateEnv = old })
+	out, err := captureStdout(t, func() error { return migrateCmd([]string{"--dry-run"}) })
+	if err != nil || !strings.Contains(out, "providers.json") || !strings.Contains(out, "dry run") {
+		t.Fatalf("dry run: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(h, ".config", "magpie")); err == nil {
+		t.Fatal("dry run made magpie's folder")
+	}
+	if _, err := captureStdout(t, func() error { return migrateCmd([]string{"restore"}) }); err == nil {
+		t.Fatal("restore with no backup succeeded")
 	}
 }
