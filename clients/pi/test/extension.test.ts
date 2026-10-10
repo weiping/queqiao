@@ -176,6 +176,29 @@ describe("mbridge extension", () => {
     )
   })
 
+  it("a turn with no budget learned asks mbridge before /turn (SP10 review)", async () => {
+    let routerCalls = 0
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).endsWith("/v1/bridge/router")) {
+        routerCalls++
+        return routerCalls === 1 ? Promise.reject(new Error("ECONNREFUSED")) : new Response(JSON.stringify({ turn_budget_ms: 3000 }), { status: 200 })
+      }
+      await new Promise((r) => setTimeout(r, 2000)) // a cold Jev
+      return new Response(JSON.stringify({ tier: "fast", group: "group/mb-fast" }), { status: 200 })
+    })
+    const f = fakePi()
+    ;(await import("../extensions/mbridge.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" }) // mbridge not up yet
+    await vi.waitFor(() => expect(routerCalls).toBe(1))
+    vi.useFakeTimers()
+    const turn = f.fire("before_agent_start", { type: "before_agent_start", prompt: "rename a variable" })
+    await vi.advanceTimersByTimeAsync(2200)
+    await turn
+    vi.useRealTimers()
+    expect(routerCalls).toBe(2)
+    expect(f.state.setModelCalls).toEqual(["magpie/group/mb-fast"])
+  })
+
   it("session_start falls back to a generated id and /lineage without a parent", async () => {
     const f = fakePi()
     f.state.sessionId = undefined

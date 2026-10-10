@@ -109,6 +109,16 @@ describe("MbridgeClient", () => {
     vi.useRealTimers()
   })
 
+  it("learnBudget() gives up on a hung mbridge within 500 ms", async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementationOnce(() => new Promise(() => {}))
+    const c = new MbridgeClient("http://gw")
+    const p = c.learnBudget()
+    await vi.advanceTimersByTimeAsync(600)
+    await expect(p).resolves.toBeUndefined()
+    vi.useRealTimers()
+  })
+
   it("turn() returns null on non-200 and on bad json", async () => {
     const c = new MbridgeClient("http://gw")
     fetchMock.mockResolvedValueOnce(new Response("nope", { status: 500 }))
