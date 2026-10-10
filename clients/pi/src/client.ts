@@ -10,6 +10,9 @@ export interface TurnRequest {
   /** Project dir; lets the gateway load .queqiao/router.json criteria. */
   cwd?: string
   parentSession?: string
+  /** The main session's tool results since the last turn (SP8). */
+  toolCalls?: number
+  toolFailures?: number
 }
 
 export interface TurnResponse {
@@ -57,6 +60,8 @@ export class QueqiaoClient {
     }
     if (req.cwd !== undefined) body.cwd = req.cwd
     if (req.parentSession !== undefined) body.parent_session = req.parentSession
+    if (req.toolCalls !== undefined) body.tool_calls = req.toolCalls
+    if (req.toolFailures !== undefined) body.tool_failures = req.toolFailures
     const out = (await this.post("/v1/queqiao/turn", body, TURN_BUDGET_MS)) as TurnResponse | null
     if (out === null || typeof out.tier !== "string" || typeof out.group !== "string") return null
     return out

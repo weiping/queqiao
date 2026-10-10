@@ -258,3 +258,15 @@ func TestOverrideThresholdRange(t *testing.T) {
 		t.Fatal("out-of-range override accepted")
 	}
 }
+
+// A router.json from before SP8 has neither listen nor magpie_url: queqiaod
+// listens on 3426 and finds magpie on 3425.
+func TestOldConfigGetsListenAndMagpieDefaults(t *testing.T) {
+	cfg, err := Load(writeGlobal(t, validJSON), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Listen != "127.0.0.1:3426" || cfg.MagpieURL != "http://127.0.0.1:3425" {
+		t.Fatalf("listen %q magpie %q", cfg.Listen, cfg.MagpieURL)
+	}
+}

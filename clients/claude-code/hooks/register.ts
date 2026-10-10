@@ -83,7 +83,7 @@ const TIER_ALIAS: Record<Tier, string> = { fast: 'haiku', balanced: 'sonnet', pe
 const tierGroup = (tier: Tier): string => 'group/qq-' + tier
 
 export const register: Register = (on, options) => {
-  const gateway = String(options.gateway_url ?? 'http://127.0.0.1:3425').replace(/\/$/, '')
+  const gateway = String(options.gateway_url ?? 'http://127.0.0.1:3426').replace(/\/$/, '')
 
   on('session.start', async ($, e, next) => {
     if (typeof e.cwd === 'string' && e.cwd !== '') await update($, stCwd, () => e.cwd)
@@ -93,7 +93,7 @@ export const register: Register = (on, options) => {
       if (!res.ok) throw new Error(String(res.status))
     } catch {
       try {
-        await $.ui.status('queqiao: 网关未运行')
+        await $.ui.status('queqiao: queqiaod 未运行')
       } catch {
         // ui.status refused; nothing more to do
       }

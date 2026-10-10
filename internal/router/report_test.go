@@ -4,8 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yetone/magpie/internal/catalog"
-	"github.com/yetone/magpie/internal/usage"
+	"github.com/yetone/magpie/internal/magpie"
 )
 
 /**
@@ -19,9 +18,10 @@ import (
 
 var testNow = time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
 
-func priceOf(provider, model string) *catalog.Price {
-	// every priced model: in $1/M, out $2/M, cacheRead $0.1/M, cacheWrite $3/M
-	return &catalog.Price{Input: 1, Output: 2, CacheRead: 0.1, CacheWrite: 3}
+// testCost is what magpie would put in cost_usd at these prices:
+// in $1/M, out $2/M, cacheRead $0.1/M, cacheWrite $3/M.
+func testCost(in, out, cacheR, cacheW int) float64 {
+	return (float64(in)*1 + float64(out)*2 + float64(cacheR)*0.1 + float64(cacheW)*3) / 1e6
 }
 
 func at(off time.Duration) time.Time { return testNow.Add(-off) }
@@ -36,9 +36,10 @@ func ev(kind, session string, t time.Time, mutate func(*Event)) Event {
 	return e
 }
 
-func rec(session string, t time.Time, inTok, outTok, cacheW int) usage.Record {
-	return usage.Record{Session: session, Time: t, Provider: "p", Model: "m",
-		Input: inTok, Output: outTok, CacheWrite: cacheW, Status: 200}
+func rec(session string, t time.Time, inTok, outTok, cacheW int) magpie.UsageRow {
+	return magpie.UsageRow{Session: session, Time: t, Provider: "p", Model: "m",
+		Input: inTok, Output: outTok, CacheWrite: cacheW, Status: 200,
+		CostUSD: testCost(inTok, outTok, 0, cacheW), Priced: true}
 }
 
 func TestAggregateOverSyntheticLedgers(t *testing.T) {
@@ -81,7 +82,7 @@ func TestAggregateOverSyntheticLedgers(t *testing.T) {
 		ev("decide", "sess-old", at(30*24*time.Hour), func(e *Event) { e.Arm, e.Tier = "router", "fast" }),
 	}
 
-	records := []usage.Record{
+	records := []magpie.UsageRow{
 		// r1: 1000 in + 1000 out + 5000 cache write
 		rec(r1, at(59*time.Minute), 1000, 1000, 5000),
 		// r2: 2000 in, 500 out (twice: two requests, one session)
@@ -106,7 +107,6 @@ func TestAggregateOverSyntheticLedgers(t *testing.T) {
 		Events:  events,
 		Now:     testNow,
 		Since:   14 * 24 * time.Hour,
-		PriceOf: priceOf,
 		PRStates: map[string]string{
 			"https://github.com/a/b/pull/1": "MERGED",
 			"https://github.com/a/b/pull/3": "OPEN",
@@ -150,8 +150,10 @@ func TestAggregateOverSyntheticLedgers(t *testing.T) {
 	if r.HintConsumed != 3 || r.GatewayDecides != 1 {
 		t.Fatalf("router hints: %d/%d", r.HintConsumed, r.GatewayDecides)
 	}
-	// cache write share: (5000*3 + 100000*3)/1e6 = 0.315 of total 0.374
-	if got := r.CacheWriteCost / r.TotalCost; abs(got-0.315/0.374) > 1e-9 {
+	// cache write share, estimated from magpie's cost by the cache write's
+	// share of the input-side tokens (magpie's CSV has no per-kind cost):
+	// r1 0.018×5000/6000 = 0.015, r3 0.35×100000/110000 ≈ 0.3182, of 0.374
+	if got := r.CacheWriteCost / r.TotalCost; abs(got-(0.015+0.35*100000/110000)/0.374) > 1e-9 {
 		t.Fatalf("router cache share: %v (%v/%v)", got, r.CacheWriteCost, r.TotalCost)
 	}
 	if r.UnpricedRequests != 0 {
@@ -194,12 +196,14 @@ func TestAggregateExcludesUnpricedAndOldArms(t *testing.T) {
 		ev("decide", "s-a", at(1*time.Hour), func(e *Event) { e.Arm, e.Tier = "router", "fast" }),
 		ev("decide", "s-b", at(1*time.Hour), func(e *Event) { e.Arm, e.Tier = "router", "fast" }),
 	}
-	records := []usage.Record{
+	records := []magpie.UsageRow{
 		rec("s-a", at(59*time.Minute), 1000, 1000, 0), // priced
 		rec("s-b", at(59*time.Minute), 1000, 1000, 0), // priced
 	}
-	in := ReportInput{Records: records, Events: events, Now: testNow, Since: 24 * time.Hour,
-		PriceOf: func(provider, model string) *catalog.Price { return nil }} // nothing priced
+	for i := range records {
+		records[i].CostUSD, records[i].Priced = 0, false // nothing priced
+	}
+	in := ReportInput{Records: records, Events: events, Now: testNow, Since: 24 * time.Hour}
 	rep := Aggregate(in)
 	if rep.Router.Sessions != 2 {
 		t.Fatalf("sessions: %d", rep.Router.Sessions)

@@ -1,0 +1,49 @@
+{
+ "path": "/v1/chat/completions",
+ "headers": {
+  "x-opencode-session": "chat-s2"
+ },
+ "body": {
+  "model": "group/queqiao",
+  "messages": [
+   {
+    "role": "system",
+    "content": "sys"
+   },
+   {
+    "role": "user",
+    "content": [
+     {
+      "type": "text",
+      "text": "read a.txt"
+     },
+     {
+      "type": "image_url",
+      "image_url": {
+       "url": "data:image/png;base64,AAAA"
+      }
+     }
+    ]
+   },
+   {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "read",
+       "arguments": "{\"path\":\"a.txt\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "ENOENT: no such file"
+   }
+  ]
+ }
+}

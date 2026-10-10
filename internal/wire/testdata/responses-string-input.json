@@ -1,0 +1,11 @@
+{
+ "path": "/v1/responses",
+ "headers": {
+  "session_id": "r1",
+  "X-Magpie-Session": "magpie-wins"
+ },
+ "body": {
+  "model": "group/queqiao",
+  "input": "just a string"
+ }
+}

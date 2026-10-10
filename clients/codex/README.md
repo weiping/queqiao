@@ -39,10 +39,13 @@ Then three steps inside Codex:
 ## Requirements
 
 - `queqiao` on `PATH` (the hooks call `queqiao hook …`)
-- the queqiao gateway running (`queqiao serve`), groups and router.json
-  set up (`queqiao router init`); Codex's `model_provider` pointing at
-  the gateway with `model = group/queqiao`
-- the gateway URL from `QUEQIAO_URL` (default `http://127.0.0.1:3425`)
+- official magpie running, and queqiaod running (`queqiao serve`, or the
+  service `queqiao service install` sets up); groups, router.json and
+  Codex's profile set up by `queqiao router init`
+- Codex started as `codex -p queqiao`: the profile
+  (`~/.codex/queqiao.config.toml`) sends its requests through queqiaod
+  with `model = group/queqiao`
+- queqiaod's URL from `QUEQIAO_URL` (default `http://127.0.0.1:3426`)
 
 ## Troubleshooting
 
@@ -50,8 +53,8 @@ Then three steps inside Codex:
   (`which queqiao`) Are the hooks trusted (`/hooks`)? Is the gateway on
   its default port? (Hook subprocesses do not inherit custom
   environment variables, so `QUEQIAO_URL` set in your shell does not
-  reach the hook — the gateway must serve on `127.0.0.1:3425`, the
-  default.)
+  reach the hook — queqiaod must serve on `127.0.0.1:3426`, the
+  default.) Was Codex started with `-p queqiao`?
 - Status message but wrong tier: `queqiao router status` shows the
   config and recent decisions.
 

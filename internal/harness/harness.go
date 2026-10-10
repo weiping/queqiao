@@ -37,7 +37,7 @@ type Client struct {
 func NewClient() *Client {
 	base := os.Getenv("QUEQIAO_URL")
 	if base == "" {
-		base = "http://127.0.0.1:3425"
+		base = "http://127.0.0.1:3426"
 	}
 	return &Client{Base: base, HTTP: http.DefaultClient}
 }

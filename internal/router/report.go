@@ -4,8 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yetone/magpie/internal/catalog"
-	"github.com/yetone/magpie/internal/usage"
+	"github.com/yetone/magpie/internal/magpie"
 )
 
 /**
@@ -21,13 +20,10 @@ import (
 
 // ReportInput is everything Aggregate needs, already loaded.
 type ReportInput struct {
-	Records []usage.Record
+	Records []magpie.UsageRow
 	Events  []Event
 	Now     time.Time
 	Since   time.Duration
-	// PriceOf prices a (provider, model) pair; nil means unpriced — such
-	// requests are excluded from cost metrics and counted instead.
-	PriceOf func(provider, model string) *catalog.Price
 	// PRStates maps a PR URL to its state at report time (OPEN / MERGED /
 	// CLOSED), already resolved by the CLI (gh, feedback fallback).
 	PRStates map[string]string
@@ -171,17 +167,21 @@ func Aggregate(in ReportInput) Report {
 		if !ok {
 			continue
 		}
-		p := in.PriceOf(r.Provider, r.Model)
-		if p == nil {
+		// magpie's own cost; a model it has no price for is counted, not costed
+		if !r.Priced {
 			unpriced[arm]++
 			continue
 		}
-		c := p.Cost(r.Input, r.Output, r.CacheRead, r.CacheWrite)
+		c := r.CostUSD
 		if costByArm[arm] == nil {
 			costByArm[arm] = map[string]float64{}
 		}
 		costByArm[arm][r.Session] += c
-		cacheWrite[arm] += float64(r.CacheWrite) * p.CacheWrite / 1e6
+		// magpie's CSV has no cost per kind of token: the cache write's part
+		// is estimated by its share of the input-side tokens
+		if side := r.Input + r.CacheRead + r.CacheWrite; side > 0 {
+			cacheWrite[arm] += c * float64(r.CacheWrite) / float64(side)
+		}
 		total[arm] += c
 	}
 	for arm, bySession := range costByArm {

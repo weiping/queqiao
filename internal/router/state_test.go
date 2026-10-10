@@ -8,14 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yetone/magpie/internal/gateway"
+	"github.com/yetone/magpie/internal/wire"
 )
-
-func toolResultMsg(isErr bool) gateway.Message {
-	return gateway.Message{Role: "user", Parts: []gateway.Part{
-		{Kind: gateway.ToolResult, CallID: "c1", IsError: isErr, Text: "out"},
-	}}
-}
 
 func TestSessionCommitGet(t *testing.T) {
 	s := NewSessions()
@@ -31,12 +25,7 @@ func TestSessionCommitGet(t *testing.T) {
 
 func TestSessionObserveCountsTools(t *testing.T) {
 	s := NewSessions()
-	req := &gateway.Request{Messages: []gateway.Message{
-		{Role: "user", Parts: []gateway.Part{{Kind: gateway.Text, Text: "hi"}}},
-		toolResultMsg(false),
-		toolResultMsg(true),
-	}}
-	s.Observe("sess", req)
+	s.Observe("sess", wire.ToolStats{Calls: 2, Failures: 1})
 	calls, failures := s.Stats("sess")
 	if calls != 2 || failures != 1 {
 		t.Fatalf("calls %d failures %d", calls, failures)
@@ -184,5 +173,26 @@ func TestAppendWritesLine(t *testing.T) {
 	}
 	if first["kind"] != "decide" || first["tier"] != "balanced" || first["t"] == "" {
 		t.Fatalf("first line: %v", first)
+	}
+}
+
+// SinceLast runs from whichever came last: a decision (Commit) or a
+// request the proxy saw (Observe).
+func TestSinceLastUsesLatestOfDecideAndObserve(t *testing.T) {
+	s := NewSessions()
+	base := time.Now()
+	t.Cleanup(func() { sessionClock = time.Now })
+	sessionClock = func() time.Time { return base }
+	s.Commit("sess", TurnState{Tier: TierFast})
+	sessionClock = func() time.Time { return base.Add(time.Minute) }
+	s.Observe("sess", wire.ToolStats{})
+	sessionClock = func() time.Time { return base.Add(3 * time.Minute) }
+	if got := s.SinceLast("sess"); got != 2*time.Minute {
+		t.Fatalf("after observe: %v", got)
+	}
+	s.Commit("sess", TurnState{Tier: TierFast})
+	sessionClock = func() time.Time { return base.Add(4 * time.Minute) }
+	if got := s.SinceLast("sess"); got != time.Minute {
+		t.Fatalf("after commit: %v", got)
 	}
 }

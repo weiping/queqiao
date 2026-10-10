@@ -353,3 +353,59 @@ describe("queqiao extension: feedback and subagents", () => {
     expect(input).not.toHaveProperty("model")
   })
 })
+
+describe("queqiao extension (SP8)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    vi.stubEnv("QUEQIAO_URL", "http://gw")
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  it("reports tool stats of the previous turn", async () => {
+    const f = fakePi()
+    gw(fetchMock, [{ tier: "fast", group: "group/qq-fast" }])
+    ;(await import("../extensions/queqiao.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "one" })
+    f.fire("tool_result", { toolName: "bash", isError: false, content: [] })
+    f.fire("tool_result", { toolName: "read", isError: true, content: [] })
+    f.fire("tool_result", { toolName: "bash", isError: true, content: [] })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "two" })
+    const t = bodies(fetchMock, "/v1/queqiao/turn")
+    expect(t[0].tool_calls).toBeUndefined()
+    expect(t[1]).toMatchObject({ tool_calls: 3, tool_failures: 2 })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "three" })
+    expect(bodies(fetchMock, "/v1/queqiao/turn")[2]).toMatchObject({ tool_calls: 0, tool_failures: 0 })
+  })
+
+  it("defaults to queqiaod on 3426", async () => {
+    vi.unstubAllEnvs()
+    const f = fakePi()
+    gw(fetchMock, [{ tier: "fast", group: "group/qq-fast" }])
+    ;(await import("../extensions/queqiao.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "one" })
+    expect(String(fetchMock.mock.calls[0][0])).toBe("http://127.0.0.1:3426/v1/queqiao/turn")
+  })
+
+  it("an unreachable queqiaod keeps the model and says so in the status", async () => {
+    const f = fakePi()
+    const statuses: Array<[string, string | undefined]> = []
+    ;(f.ctx as any).ui = { setStatus: (k: string, t: string | undefined) => statuses.push([k, t]) }
+    fetchMock.mockRejectedValue(new Error("ECONNREFUSED"))
+    ;(await import("../extensions/queqiao.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "one" })
+    expect(f.state.setModelCalls).toEqual([])
+    expect(statuses).toContainEqual(["queqiao", "queqiao: queqiaod 未运行"])
+    // back up: the status clears
+    gw(fetchMock, [{ tier: "fast", group: "group/qq-fast" }])
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "two" })
+    expect(statuses[statuses.length - 1]).toEqual(["queqiao", undefined])
+  })
+})

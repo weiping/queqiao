@@ -38,3 +38,12 @@
 - **SP3-claude-code**：§5.5、§5.8、§6.7——S3：CC 2.1.288 无 fork 子代理类型（`subagent_type: "fork"` 报 Agent type 'fork' not found），mod 的 fork 分支删去；S11：`/branch` 无独立 source（报 "fork"），fork/branch 请求复用父会话头。无备选回退（均为主方案成立项）。
 - **SP4-pi**：§5.8、§6.8——S12 备选：父会话溯源改用 header 的 `parentSession` 字段（`session_start.reason` 恒为 startup，非 "fork"）；子代理工具名是 `subagent`/`dispatch_agent`（非 "Agent"），参数是 `context` 枚举（fresh/fork/profile），无 `inherit_context`。
 - **SP6-codex**：§5.6、§6.9、§7——S7：插件须用 legacy `.codex-plugin/plugin.json` 声明 `hooks`（AGENT 格式带 $schema 的 plugin.json 不支持）；S8 备选：网关从 Codex Responses 识别不了工具失败（R3 只由 dissatisfied 触发）、非交互下无 plan mode 标识（恒 bypassPermissions）；S13 备选：`spawn_agent` 无 `fork_context` 参数，删 §5.6 第 2 步。
+
+## SP8（V1–V4，2026-10-10，沙箱）
+
+环境：magpie 由上游 `0d5fdbb2` 源码编译（沙箱访问不到 GitHub Release 下载地址，CI 用官方 Release）；Codex CLI 0.162.1；隔离 HOME。
+
+- **V1 成立，但 spec §5.6 已修订**。`config.toml` 里写入 `[model_providers.queqiao]`、`[profiles.queqiao]` 后执行两次 `magpie codex <模型>`：magpie 只追加了自己的顶层键和 `[model_providers.magpie]`，queqiao 的两张表逐字未动。但 Codex 0.162 的 `-p queqiao` 拒绝加载：“`--profile queqiao` cannot be used while config.toml contains legacy `profile = "queqiao"` or `[profiles.queqiao]` config; move those settings into queqiao.config.toml”。改为把全部设置（含 provider 表）写进 `~/.codex/queqiao.config.toml`，`config.toml` 一行不写；再执行 `magpie codex <模型>`，该文件逐字未动。
+- **V2 部分成立**。官方 magpie `serve` 后，loopback 不带密钥 `POST /v1/systemone` 进入决策 provider 路由（未配置 Jev 时 404 `magpie has no Jev provider`，不是 401）。真实 Jev 应答需要 TypeSafe key，列入本地验证清单。
+- **V3 待验证**。需要真实会话，列入本地验证清单；Task 14 的 `TestContractSessionHeaderReachesUsage` 在沙箱里用假上游覆盖机制部分。另：`magpie usage --csv all` 的表头与 `internal/usage/ledger.go` 的 `CSVHeader` 一致；`magpie group add qq-fast models=fake/m1 routing=order` 建出的分组 ID 就是 `qq-fast`。
+- **V4 成立**。`codex -p queqiao exec` 发到 3426 的 `/v1/responses`：请求头带 `session-id`、`thread-id`（值相同）、`authorization: Bearer <复制的 token>`、`x-openai-actor-authorization: magpie`；请求体 `model = "group/queqiao"`，`client_metadata.turn_id` 与 `client_metadata.session_id` 都在。`session-id` 在 magpie 的会话头列表里，现有 `CodexTurnID` 的取法照用。原始请求存为 Task 2 的 fixture 来源。

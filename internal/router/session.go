@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yetone/magpie/internal/gateway"
+	"github.com/yetone/magpie/internal/wire"
 )
 
 // sessionClock lets tests move time.
@@ -129,25 +129,12 @@ func (s *Sessions) Pinned(session string) bool {
 // Observe records what the gateway saw of a request: the session's tool
 // call and failure counts (every message's tool_result parts; a Responses
 // body's function_call_output never marks an error, S8) and the time.
-func (s *Sessions) Observe(session string, req *gateway.Request) {
-	calls, failures := 0, 0
-	if req != nil {
-		for _, m := range req.Messages {
-			for _, p := range m.Parts {
-				if p.Kind == gateway.ToolResult {
-					calls++
-					if p.IsError {
-						failures++
-					}
-				}
-			}
-		}
-	}
+func (s *Sessions) Observe(session string, tools wire.ToolStats) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := sessionClock()
 	st := s.state(session)
-	st.toolCalls, st.toolFailures, st.lastAt = calls, failures, now
+	st.toolCalls, st.toolFailures, st.lastAt = tools.Calls, tools.Failures, now
 	s.evictLocked(now)
 }
 

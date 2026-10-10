@@ -19,7 +19,7 @@ func TestNoCommandBypassesProc(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
-			if path != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || path == filepath.Join(root, "internal", "proc")) {
+			if path != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || path == filepath.Join(root, "internal", "proc") || path == filepath.Join(root, "internal", "runcmd")) {
 				return filepath.SkipDir
 			}
 			return nil

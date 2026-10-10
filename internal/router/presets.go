@@ -3,7 +3,7 @@ package router
 import (
 	"strings"
 
-	"github.com/yetone/magpie/internal/provider"
+	"github.com/yetone/magpie/internal/magpie"
 )
 
 // Preset is one §4.3 starter config: each tier's primary and failover
@@ -39,18 +39,18 @@ var presets = map[string]Preset{
 func Presets() map[string]Preset { return presets }
 
 // Resolve turns "<p>/model[:effort]" members into "provider/model[:effort]"
-// using the providers actually configured. A placeholder nothing serves is
+// using served, the model ids magpie lists (GET /v1/models). A placeholder nothing serves is
 // reported unresolved and left out: "<p>" names no provider, so as a group
 // member it could never answer. A concrete member stays even while nothing
 // serves it yet (its provider can be added later).
-func (p Preset) Resolve() (resolved map[Tier][]string, unresolved []string) {
+func (p Preset) Resolve(served []string) (resolved map[Tier][]string, unresolved []string) {
 	resolved = map[Tier][]string{}
 	for _, tier := range []Tier{TierFast, TierBalanced, TierPerformance} {
 		for _, member := range p.Tiers[tier] {
 			if strings.HasPrefix(member, "<p>/") {
 				m := member[4:] // model[:effort]
 				base, _, _ := strings.Cut(m, ":")
-				id := providerFor(base)
+				id := providerFor(served, base)
 				if id == "" {
 					unresolved = append(unresolved, member)
 					continue
@@ -63,13 +63,16 @@ func (p Preset) Resolve() (resolved map[Tier][]string, unresolved []string) {
 	return resolved, unresolved
 }
 
-// providerFor is the first configured provider serving base.
-func providerFor(base string) string {
-	for _, p := range provider.All() {
-		for _, m := range p.Models {
-			if m == base || strings.HasPrefix(m, base+"/") {
-				return p.ID
-			}
+// providerFor is the first provider in served ("provider/model" ids)
+// serving base; magpie's groups are not providers.
+func providerFor(served []string, base string) string {
+	for _, id := range served {
+		prov, model, ok := strings.Cut(id, "/")
+		if !ok || prov+"/" == magpie.GroupPrefix {
+			continue
+		}
+		if model == base || strings.HasPrefix(model, base+"/") {
+			return prov
 		}
 	}
 	return ""

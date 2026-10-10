@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/yetone/magpie/internal/provider"
 )
@@ -72,4 +73,16 @@ func (s *Server) AskDecider(ctx context.Context, asked, body string) ([]byte, er
 // classifier.
 func (s *Server) AskChat(ctx context.Context, model, body string) (string, error) {
 	return s.askChat(model, []byte(body))
+}
+
+// ParseAt parses an agent request body by the API path it was sent to,
+// as the gateway does; for internal/wire's parity tests (SP8 Task 2).
+func ParseAt(path string, body []byte) (*Request, error) {
+	switch {
+	case strings.HasSuffix(path, "/chat/completions"):
+		return parse(provider.Chat, body)
+	case strings.HasSuffix(path, "/responses"):
+		return parse(provider.Responses, body)
+	}
+	return parse(provider.Anthropic, body)
 }

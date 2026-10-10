@@ -249,15 +249,18 @@ func parseTierVerdict(body string) (*Verdict, error) {
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	if err := json.Unmarshal([]byte(body), &res); err != nil || len(res.Choices) == 0 {
-		return nil, fmt.Errorf("router: structured reply: %v", err)
+	// the ask callback hands back the answer's text (the gateway's askChat,
+	// magpie.Client.Chat); a whole Chat Completions body is read too
+	content := body
+	if json.Unmarshal([]byte(body), &res) == nil && len(res.Choices) > 0 {
+		content = res.Choices[0].Message.Content
 	}
 	var v struct {
 		Tier         string  `json:"tier"`
 		Confidence   float64 `json:"confidence"`
 		Dissatisfied float64 `json:"dissatisfied"`
 	}
-	if err := json.Unmarshal([]byte(res.Choices[0].Message.Content), &v); err != nil {
+	if err := json.Unmarshal([]byte(content), &v); err != nil {
 		return nil, fmt.Errorf("router: structured content: %v", err)
 	}
 	switch Tier(v.Tier) {

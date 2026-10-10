@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/yetone/magpie/internal/appdir"
+	"github.com/yetone/magpie/internal/forkhook"
 	"github.com/yetone/magpie/internal/gateway"
 	"github.com/yetone/magpie/internal/provider"
 	"github.com/yetone/magpie/internal/router"
@@ -37,7 +38,7 @@ func wireRouter(s *gateway.Server) {
 	for _, tc := range cfg.Tiers {
 		managed[tc.Group] = true
 	}
-	gateway.SetRouterHook(router.NewHook(deps).GatewayHookFunc, func(g provider.Group) bool {
+	gateway.SetRouterHook(forkhook.GatewayHook(router.NewRouter(deps), cfg.RouterGroup), func(g provider.Group) bool {
 		return managed[g.ID]
 	})
 	gateway.MuxRegister = append(gateway.MuxRegister, func(mux *http.ServeMux) {
