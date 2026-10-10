@@ -31,10 +31,10 @@ func home(t *testing.T) Env {
 	return Env{
 		Home: h, GOOS: "linux",
 		ConfigHome: filepath.Join(h, ".config"), CacheHome: filepath.Join(h, ".cache"),
-		SystemCache:       filepath.Join(h, "syscache"),
-		Now:               time.Date(2026, 10, 10, 9, 30, 0, 0, time.UTC),
-		OldGatewayRunning: func(context.Context) bool { return false },
-		MagpieVersion:     func(context.Context) (string, error) { return "magpie v0.1.1000", nil },
+		SystemCache:    filepath.Join(h, "syscache"),
+		Now:            time.Date(2026, 10, 10, 9, 30, 0, 0, time.UTC),
+		GatewayRunning: func(context.Context) bool { return false },
+		MagpieVersion:  func(context.Context) (string, error) { return "magpie v0.1.1000", nil },
 	}
 }
 
@@ -211,11 +211,13 @@ func TestMigrateDryRunChangesNothing(t *testing.T) {
 	}
 }
 
-func TestMigrateRefusesWhileOldGatewayRuns(t *testing.T) {
+// Anything answering on magpie's port (the old app, or official magpie)
+// holds the folders migrate moves.
+func TestMigrateRefusesWhileAGatewayRuns(t *testing.T) {
 	env := home(t)
-	env.OldGatewayRunning = func(context.Context) bool { return true }
+	env.GatewayRunning = func(context.Context) bool { return true }
 	_, err := Prepare(context.Background(), env)
-	if err == nil || !strings.Contains(err.Error(), "3425") {
+	if err == nil || !strings.Contains(err.Error(), "3425") || !strings.Contains(err.Error(), "official magpie") {
 		t.Fatalf("err %v", err)
 	}
 }
@@ -344,5 +346,54 @@ func TestMigrateSameCacheFolderOnce(t *testing.T) {
 	}
 	if err := plan.Apply(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A second restore must not replay the first: it refuses, and leaves
+// magpie's folder as the first restore put it.
+func TestRestoreTwiceRefuses(t *testing.T) {
+	env := home(t)
+	m := filepath.Join(env.ConfigHome, "magpie")
+	os.MkdirAll(m, 0o755)
+	os.WriteFile(filepath.Join(m, "providers.json"), []byte("official"), 0o644)
+	plan, err := Prepare(context.Background(), env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.Apply(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := Restore(context.Background(), env); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshot(t, env.Home, ".config/magpie", ".config/queqiao")
+	err = Restore(context.Background(), env)
+	if err == nil || !strings.Contains(err.Error(), "already restored") {
+		t.Fatalf("second restore: %v", err)
+	}
+	if after := snapshot(t, env.Home, ".config/magpie", ".config/queqiao"); len(after) != len(before) {
+		t.Fatalf("second restore changed files: %v → %v", before, after)
+	}
+	if b, _ := os.ReadFile(filepath.Join(m, "providers.json")); string(b) != "official" {
+		t.Fatalf("magpie's providers.json is %q", b)
+	}
+}
+
+// A queqiao folder holding only queqiao's own files (every SP8 install,
+// or a second migrate) has nothing of magpie's: migrate refuses rather
+// than set official magpie's folder aside for an empty one.
+func TestMigrateNothingToMigrate(t *testing.T) {
+	env := home(t)
+	q := filepath.Join(env.ConfigHome, "queqiao")
+	ents, _ := os.ReadDir(q)
+	for _, e := range ents {
+		if !isQueqiaos(e.Name()) {
+			os.Rename(filepath.Join(q, e.Name()), filepath.Join(t.TempDir(), e.Name()))
+		}
+	}
+	os.MkdirAll(filepath.Join(env.ConfigHome, "magpie"), 0o755)
+	_, err := Prepare(context.Background(), env)
+	if err == nil || !strings.Contains(err.Error(), "nothing to migrate") {
+		t.Fatalf("err %v", err)
 	}
 }

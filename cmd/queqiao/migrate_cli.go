@@ -29,23 +29,23 @@ var migrateEnv = func() migrate.Env {
 	sys, _ := os.UserCacheDir()
 	return migrate.Env{
 		Home: home, GOOS: runtime.GOOS, ConfigHome: cfg, CacheHome: cache, SystemCache: sys, Now: time.Now(),
-		OldGatewayRunning: oldGatewayRunning,
-		MagpieVersion:     func(ctx context.Context) (string, error) { return newMagpie("").Version(ctx) },
+		GatewayRunning: func(ctx context.Context) bool { return gatewayRunning(ctx) },
+		MagpieVersion:  func(ctx context.Context) (string, error) { return newMagpie("").Version(ctx) },
 	}
 }
 
-// oldGatewayRunning: qq-v0.1.x served /v1/queqiao/router on magpie's port;
-// official magpie answers it 404.
-func oldGatewayRunning(ctx context.Context) bool {
+// gatewayRunning: anything answering HTTP on magpie's port, the old
+// queqiao app or official magpie; either holds the folders migrate moves.
+var gatewayRunning = func(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, magpie.DefaultURL+"/v1/queqiao/router", nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, magpie.DefaultURL+"/v1", nil)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return false
 	}
 	res.Body.Close()
-	return res.StatusCode == http.StatusOK
+	return true
 }
 
 var confirmIn = bufio.NewReader(os.Stdin)

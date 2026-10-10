@@ -9,6 +9,7 @@ import (
 	"github.com/weiping/queqiao/internal/migrate"
 	"github.com/weiping/queqiao/internal/service"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -223,8 +224,8 @@ func TestMigrateDryRunAndRestoreCLI(t *testing.T) {
 	migrateEnv = func() migrate.Env {
 		return migrate.Env{Home: h, GOOS: "linux", ConfigHome: filepath.Join(h, ".config"), CacheHome: filepath.Join(h, ".cache"),
 			SystemCache: filepath.Join(h, ".cache"), Now: time.Unix(0, 0),
-			OldGatewayRunning: func(context.Context) bool { return false },
-			MagpieVersion:     func(context.Context) (string, error) { return "v", nil }}
+			GatewayRunning: func(context.Context) bool { return false },
+			MagpieVersion:  func(context.Context) (string, error) { return "v", nil }}
 	}
 	t.Cleanup(func() { migrateEnv = old })
 	out, err := captureStdout(t, func() error { return migrateCmd([]string{"--dry-run"}) })
@@ -236,5 +237,19 @@ func TestMigrateDryRunAndRestoreCLI(t *testing.T) {
 	}
 	if _, err := captureStdout(t, func() error { return migrateCmd([]string{"restore"}) }); err == nil {
 		t.Fatal("restore with no backup succeeded")
+	}
+}
+
+// Official magpie answering on 3425 counts as a running gateway too: a 404
+// on every path is still an answer.
+func TestGatewayRunningSeesAnyAnswer(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:3425")
+	if err != nil {
+		t.Skip("3425 is taken here:", err) // can't stand in for magpie's port
+	}
+	go http.Serve(l, http.NotFoundHandler())
+	t.Cleanup(func() { l.Close() })
+	if !gatewayRunning(context.Background()) {
+		t.Fatal("a 404-answering gateway on 3425 was not seen")
 	}
 }

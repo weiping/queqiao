@@ -36,10 +36,10 @@ type Env struct {
 	CacheHome   string // $XDG_CACHE_HOME, else ~/.cache
 	SystemCache string // os.UserCacheDir()
 	Now         time.Time
-	// OldGatewayRunning: a qq-v0.1.x gateway answers on 127.0.0.1:3425
-	OldGatewayRunning func(context.Context) bool
-	MagpieVersion     func(context.Context) (string, error)
-	QueqiaoURL        string // what the Codex profile points at; default http://127.0.0.1:3426
+	// GatewayRunning: a qq-v0.1.x gateway answers on 127.0.0.1:3425
+	GatewayRunning func(context.Context) bool
+	MagpieVersion  func(context.Context) (string, error)
+	QueqiaoURL     string // what the Codex profile points at; default http://127.0.0.1:3426
 }
 
 // Step is one thing Apply does. Op is "copy" (From copied to To), "move"
@@ -83,8 +83,8 @@ func Prepare(ctx context.Context, env Env) (Plan, error) {
 			return Plan{}, fmt.Errorf("official magpie is not installed (magpie version: %v); install it first: https://github.com/yetone/magpie", err)
 		}
 	}
-	if env.OldGatewayRunning != nil && env.OldGatewayRunning(ctx) {
-		return Plan{}, fmt.Errorf("the old queqiao app or gateway still answers on 127.0.0.1:3425; quit it (and its menu bar icon), then migrate again")
+	if env.GatewayRunning != nil && env.GatewayRunning(ctx) {
+		return Plan{}, fmt.Errorf("a gateway answers on 127.0.0.1:3425: the old queqiao app (or queqiao serve), or official magpie. Quit it (and its menu bar icon) so its folders can move, then migrate again; start official magpie afterwards")
 	}
 	if env.QueqiaoURL == "" {
 		env.QueqiaoURL = "http://127.0.0.1:3426"
@@ -93,6 +93,15 @@ func Prepare(ctx context.Context, env Env) (Plan, error) {
 	ents, err := os.ReadDir(q)
 	if err != nil {
 		return Plan{}, fmt.Errorf("nothing to migrate: %v", err)
+	}
+	magpies := 0
+	for _, e := range ents {
+		if !isQueqiaos(e.Name()) {
+			magpies++
+		}
+	}
+	if magpies == 0 {
+		return Plan{}, fmt.Errorf("nothing to migrate: %s holds only queqiao's own files (%s); magpie's data is already in %s", q, strings.Join(QueqiaoFiles, ", "), env.magpie())
 	}
 	b := filepath.Join(env.backupRoot(), "sp8-"+env.Now.Format("20060102-150405"))
 	p := Plan{Backup: b, env: env}
@@ -254,6 +263,9 @@ func Restore(ctx context.Context, env Env) error {
 	if err != nil {
 		return err
 	}
+	if exists(filepath.Join(b, "manifest.restored.json")) {
+		return fmt.Errorf("the migration in %s was already restored; nothing to undo", b)
+	}
 	raw, err := os.ReadFile(filepath.Join(b, "manifest.json"))
 	if err != nil {
 		return fmt.Errorf("%s has no manifest.json: %v", b, err)
@@ -262,11 +274,11 @@ func Restore(ctx context.Context, env Env) error {
 	if err := json.Unmarshal(raw, &man); err != nil {
 		return fmt.Errorf("%s/manifest.json: %v", b, err)
 	}
-	stamp := env.Now.Format("20060102-150405")
-	if env.Now.IsZero() {
-		stamp = time.Now().Format("20060102-150405")
+	// what appeared since the migration goes here; a folder of its own
+	aside, err := os.MkdirTemp(b, "after-")
+	if err != nil {
+		return err
 	}
-	aside := filepath.Join(b, "after-"+stamp)
 	for i := len(man.Done) - 1; i >= 0; i-- {
 		s := man.Done[i]
 		switch s.Op {
@@ -303,7 +315,8 @@ func Restore(ctx context.Context, env Env) error {
 			}
 		}
 	}
-	return nil
+	// a second restore must not replay this one
+	return os.Rename(filepath.Join(b, "manifest.json"), filepath.Join(b, "manifest.restored.json"))
 }
 
 // underBackup is where an absolute path sits inside a backup folder: the

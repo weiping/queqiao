@@ -82,7 +82,7 @@ queqiao version                       # queqiao 和 magpie 的版本
 
 ### 从 qq-v0.1.x 升级
 
-qq-v0.1.x 是 magpie 的改名版，provider、账号、分组和用量都存在 `~/.config/queqiao`。装好官方 magpie 和新版 queqiao 后，先退出旧的 queqiao App（或 `queqiao serve`），再：
+qq-v0.1.x 是 magpie 的改名版，provider、账号、分组和用量都存在 `~/.config/queqiao`。装好官方 magpie 和新版 queqiao 后，先退出旧的 queqiao App（或 `queqiao serve`）和官方 magpie（3425 端口上不能有网关在跑），再：
 
 ```sh
 queqiao migrate --dry-run     # 看会移动哪些文件
@@ -90,7 +90,7 @@ queqiao migrate               # 先整体备份到 ~/.config/queqiao-migration/s
 queqiao migrate restore       # 反悔：按备份里的记录原样放回，旧版可以照常启动
 ```
 
-`router.json`、`router.jsonl` 和日志留在 `~/.config/queqiao`。旧 App 和它的登录项移进备份；Windows 上的旧登录项请运行 `magpie autostart on` 改指向官方 magpie。
+`router.json`、`router.jsonl` 和日志留在 `~/.config/queqiao`。如果 `~/.config/magpie` 里已经有官方 magpie 的配置，它会被整体移进备份（`magpie-before/`），不做合并，迁移后 magpie 用的是你 qq-v0.1.x 的数据。迁移完再启动官方 magpie。旧 App 和它的登录项移进备份；Windows 上的旧登录项请运行 `magpie autostart on` 改指向官方 magpie。
 
 更早用 `migrate-from-magpie.sh` 从 magpie 迁到 qq-v0.1.x 的备份在 `~/.config/queqiao-migration/backup`：要手动退回，把其中 `magpie-config` 复制回 `~/.config/magpie`，`removed/` 里的东西放回原处即可。
 
