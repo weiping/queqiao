@@ -29,7 +29,7 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "check": "tsc --noEmit",
-    "prepublishOnly": "npm run check && npm test && npm run build"
+    "prepublishOnly": "npm run build && npm run check && npm test"
   },
   "author": {
     "name": "weiping"
