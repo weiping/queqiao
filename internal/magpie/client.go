@@ -14,6 +14,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/yetone/magpie/internal/runcmd"
 )
 
 // UserAgent is what queqiao's own calls through magpie carry.
@@ -48,7 +50,7 @@ func New(baseURL string) *Client {
 }
 
 func run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+	return runcmd.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
 // Error is magpie answering a call with an error.
