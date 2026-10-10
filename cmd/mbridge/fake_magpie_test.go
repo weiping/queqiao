@@ -14,10 +14,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/weiping/queqiao/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/magpie"
 )
 
-// fakeMag is official magpie as queqiao's CLI sees it: its CLI (groups,
+// fakeMag is official magpie as mbridge's CLI sees it: its CLI (groups,
 // agents, usage, version) and its gateway's /v1 and /v1/models.
 type fakeMag struct {
 	mu       sync.Mutex
@@ -42,7 +42,7 @@ func withFakeMagpie(t *testing.T, served ...string) *fakeMag {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	t.Setenv("QUEQIAO_CONFIG_DIR", filepath.Join(home, ".config", "queqiao"))
+	t.Setenv("MBRIDGE_CONFIG_DIR", filepath.Join(home, ".config", "magpie-bridge"))
 	f := &fakeMag{groups: map[string][]string{}, served: served, contexts: map[string]int{}, agents: map[string]string{}, version: "magpie v0.1.1100"}
 	f.srv = httptest.NewServer(http.HandlerFunc(f.serveHTTP))
 	t.Cleanup(f.srv.Close)

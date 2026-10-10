@@ -22,14 +22,14 @@ var releasesAPI = "https://api.github.com"
 
 // assetName is the release asset for a platform.
 func assetName(goos, goarch string) string {
-	n := "queqiao-" + goos + "-" + goarch
+	n := "mbridge-" + goos + "-" + goarch
 	if goos == "windows" {
 		n += ".exe"
 	}
 	return n
 }
 
-// updateCmd is `queqiao update`: the newest qq-v release's binary for this
+// updateCmd is `mbridge update`: the newest v release's binary for this
 // platform, checked against its checksums.txt, in place of this one.
 func updateCmd(args []string) error {
 	if len(args) > 0 {
@@ -58,7 +58,7 @@ func updateFrom(api, exe string) error {
 		}
 		return io.ReadAll(res.Body)
 	}
-	b, err := get(api + "/repos/weiping/queqiao/releases")
+	b, err := get(api + "/repos/weiping/magpie-bridge/releases")
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func updateFrom(api, exe string) error {
 	}
 	name := assetName(runtime.GOOS, runtime.GOARCH)
 	for _, r := range rels {
-		if !strings.HasPrefix(r.Tag, "qq-v") {
+		if !strings.HasPrefix(r.Tag, "v") {
 			continue
 		}
 		var binURL, sumURL string
@@ -121,12 +121,12 @@ func updateFrom(api, exe string) error {
 		if err := os.Rename(tmp, exe); err != nil {
 			return err
 		}
-		fmt.Println(green.Render("✓"), "queqiao", r.Tag, "installed at", exe)
-		// the running queqiaod is still the old binary
+		fmt.Println(green.Render("✓"), "mbridge", r.Tag, "installed at", exe)
+		// the running mbridge is still the old binary
 		if err := newService().Restart(context.Background()); err != nil {
-			fmt.Println(amber.Render("!"), "restart queqiaod yourself (queqiao service install):", err)
+			fmt.Println(amber.Render("!"), "restart mbridge yourself (mbridge service install):", err)
 		}
 		return nil
 	}
-	return fmt.Errorf("no qq-v release found")
+	return fmt.Errorf("no v release found")
 }

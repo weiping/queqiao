@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weiping/queqiao/internal/fsutil"
-	"github.com/weiping/queqiao/internal/router"
+	"github.com/weiping/magpie-bridge/internal/fsutil"
+	"github.com/weiping/magpie-bridge/internal/router"
 )
 
 // routerHome gives a test a fresh home and a fake magpie serving the cn
@@ -38,15 +38,15 @@ func TestRouterInitCnWritesGroupsAndConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	// four groups written
-	for _, id := range []string{"qq-fast", "qq-balanced", "qq-perf", "queqiao"} {
+	for _, id := range []string{"mb-fast", "mb-balanced", "mb-perf", "mbridge"} {
 		if m, ok := groupMembers(f, id); !ok || len(m) == 0 {
 			t.Fatalf("group %s missing or empty", id)
 		}
 	}
-	if !f.called("group", "add", "queqiao", "models=group/qq-balanced,group/qq-perf,group/qq-fast", "routing=order") {
+	if !f.called("group", "add", "mbridge", "models=group/mb-balanced,group/mb-perf,group/mb-fast", "routing=order") {
 		t.Fatalf("router group not made through magpie's CLI: %v", f.calls)
 	}
-	if fast, _ := groupMembers(f, "qq-fast"); fast[0] != "deepseek/deepseek-v4-flash" {
+	if fast, _ := groupMembers(f, "mb-fast"); fast[0] != "deepseek/deepseek-v4-flash" {
 		t.Fatalf("fast members: %v", fast)
 	}
 	if cfg, _ := router.Load(routerJSONPath(), ""); cfg.Listen != "127.0.0.1:3426" || cfg.MagpieURL != "http://127.0.0.1:3425" {
@@ -57,7 +57,7 @@ func TestRouterInitCnWritesGroupsAndConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Tiers[router.TierFast].Group != "qq-fast" || cfg.Classifier != "local" || cfg.ClassifyTimeoutMs != 1500 {
+	if cfg.Tiers[router.TierFast].Group != "mb-fast" || cfg.Classifier != "local" || cfg.ClassifyTimeoutMs != 1500 {
 		t.Fatalf("cfg: %+v", cfg.Tiers[router.TierFast])
 	}
 	if cfg.Tiers[router.TierFast].Criteria == "" {
@@ -79,17 +79,17 @@ func TestRouterInitFillsAnEmptyTier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	perf, _ := groupMembers(f, "qq-perf")
-	bal, _ := groupMembers(f, "qq-balanced")
+	perf, _ := groupMembers(f, "mb-perf")
+	bal, _ := groupMembers(f, "mb-balanced")
 	for _, m := range perf {
 		if strings.HasPrefix(m, "<p>/") {
-			t.Fatalf("qq-perf kept a placeholder: %v", perf)
+			t.Fatalf("mb-perf kept a placeholder: %v", perf)
 		}
 	}
 	if strings.Join(perf, ",") != strings.Join(bal, ",") {
-		t.Fatalf("qq-perf = %v, want balanced's %v", perf, bal)
+		t.Fatalf("mb-perf = %v, want balanced's %v", perf, bal)
 	}
-	if !strings.Contains(out, "magpie group set qq-perf models=") {
+	if !strings.Contains(out, "magpie group set mb-perf models=") {
 		t.Fatalf("init did not say how to give performance its own members:\n%s", out)
 	}
 }
@@ -135,12 +135,12 @@ func TestRouterInitClaudeCodeEnv(t *testing.T) {
 	if err := json.Unmarshal(b, &s); err != nil {
 		t.Fatal(err)
 	}
-	if s.Env["ANTHROPIC_MODEL"] != "group/queqiao" || s.Env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] != "group/qq-fast" {
+	if s.Env["ANTHROPIC_MODEL"] != "group/mbridge" || s.Env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] != "group/mb-fast" {
 		t.Fatalf("env: %v", s.Env)
 	}
 }
 
-// router init's Codex step writes queqiao's own profile file and leaves
+// router init's Codex step writes mbridge's own profile file and leaves
 // config.toml to magpie (SP8 §5.6).
 func TestRouterInitCodexWritesProfile(t *testing.T) {
 	dir := t.TempDir()
@@ -155,7 +155,7 @@ func TestRouterInitCodexWritesProfile(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(dir, "config.toml")); string(b) != existing {
 		t.Fatalf("config.toml changed:\n%s", b)
 	}
-	b, err := os.ReadFile(filepath.Join(dir, "queqiao.config.toml"))
+	b, err := os.ReadFile(filepath.Join(dir, "mbridge.config.toml"))
 	if err != nil || !strings.Contains(string(b), `base_url = "http://127.0.0.1:3426/v1"`) {
 		t.Fatalf("profile %s (%v)", b, err)
 	}
@@ -163,7 +163,7 @@ func TestRouterInitCodexWritesProfile(t *testing.T) {
 
 // ---- SP5: router report ----
 
-// synthReportFiles writes a synthetic router.jsonl into queqiao's config
+// synthReportFiles writes a synthetic router.jsonl into mbridge's config
 // dir and has the fake magpie answer `magpie usage --csv` with usageCSV.
 func synthReportFiles(t *testing.T, events []string, usageCSV string) *fakeMag {
 	t.Helper()
@@ -193,8 +193,8 @@ func TestRouterReportOverSyntheticFiles(t *testing.T) {
 			`{"kind":"feedback","t":"` + at(30*time.Minute) + `","session":"c1","extra":"manual_model_switch other/m1"}`,
 		},
 		usageHead+
-			at(2*time.Hour)+",codex,group/qq-fast,a,,fastm,1000,1000,0,0,0.003,200,r1\n"+
-			at(2*time.Hour)+",codex,group/qq-perf,b,,balm,2000,1000,0,0,0.004,200,c1\n")
+			at(2*time.Hour)+",codex,group/mb-fast,a,,fastm,1000,1000,0,0,0.003,200,r1\n"+
+			at(2*time.Hour)+",codex,group/mb-perf,b,,balm,2000,1000,0,0,0.004,200,c1\n")
 
 	var buf bytes.Buffer
 	if err := routerReportTo(&buf, []string{"--json", "--since", "7d"}); err != nil {
@@ -212,7 +212,7 @@ func TestRouterReportOverSyntheticFiles(t *testing.T) {
 	if err := routerReportTo(&buf, []string{"--since", "7d"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "queqiao router report") ||
+	if !strings.Contains(buf.String(), "mbridge router report") ||
 		!strings.Contains(buf.String(), "样本不足") {
 		t.Fatalf("text report:\n%s", buf.String())
 	}
@@ -236,8 +236,8 @@ func TestRouterInitFrontierWithOnlyFastServed(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	fast, _ := groupMembers(f, "qq-fast")
-	for _, id := range []string{"qq-balanced", "qq-perf"} {
+	fast, _ := groupMembers(f, "mb-fast")
+	for _, id := range []string{"mb-balanced", "mb-perf"} {
 		g, _ := groupMembers(f, id)
 		if strings.Join(g, ",") != strings.Join(fast, ",") {
 			t.Fatalf("%s = %v, want fast's %v", id, g, fast)
@@ -245,23 +245,23 @@ func TestRouterInitFrontierWithOnlyFastServed(t *testing.T) {
 	}
 	for _, m := range fast {
 		if strings.HasPrefix(m, "<p>/") {
-			t.Fatalf("qq-fast kept a placeholder: %v", fast)
+			t.Fatalf("mb-fast kept a placeholder: %v", fast)
 		}
 	}
 }
 
 // router init points Pi at the balanced tier through magpie's own wiring
-// (`magpie pi group/qq-balanced`), and takes out the top-level
+// (`magpie pi group/mb-balanced`), and takes out the top-level
 // "magpie": {"default": …} an earlier router init wrote into models.json.
 func TestRouterInitPiUsesMagpieAgentCommand(t *testing.T) {
 	f := routerHome(t)
 	dir := filepath.Join(os.Getenv("HOME"), ".pi", "agent")
 	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "models.json"), []byte(`{"magpie": {"default": "magpie/group/qq-balanced"}, "providers": {}}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "models.json"), []byte(`{"magpie": {"default": "magpie/group/mb-balanced"}, "providers": {}}`), 0o644)
 	if _, err := captureStdout(t, routerInitPi); err != nil {
 		t.Fatal(err)
 	}
-	if !f.called("pi", "group/qq-balanced") {
+	if !f.called("pi", "group/mb-balanced") {
 		t.Fatalf("calls %v", f.calls)
 	}
 	b, _ := os.ReadFile(filepath.Join(dir, "models.json"))

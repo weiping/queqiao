@@ -47,7 +47,7 @@ func Catalog(ids []string) []byte {
 		Models []entry `json:"models"`
 	}{Models: []entry{}}
 	for i, id := range ids {
-		e := entry{Slug: id, DisplayName: id, Description: id + " via queqiao", Instructions: prompt,
+		e := entry{Slug: id, DisplayName: id, Description: id + " via mbridge", Instructions: prompt,
 			Efforts: []struct{}{}, Shell: "unified_exec", Visibility: "list", InAPI: true, Priority: i + 1,
 			ApplyPatch: "freeform", Tools: []string{}, Modalities: []string{"text"}, Tiers: []string{},
 			SearchTool: true, Parallel: true}

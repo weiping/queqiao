@@ -20,7 +20,7 @@ func Render(w io.Writer, rep Report) {
 		fmt.Fprintf(w, "%-28s %-16s %s\n", name, format(rep.Router), format(rep.Control))
 	}
 	fmt.Fprintln(w, strings.Repeat("─", 64))
-	fmt.Fprintf(w, "%-28s %-16s %s\n", "queqiao router report", "router", "control")
+	fmt.Fprintf(w, "%-28s %-16s %s\n", "mbridge router report", "router", "control")
 	fmt.Fprintln(w, strings.Repeat("─", 64))
 
 	row("sessions", func(a ArmReport) string { return fmt.Sprintf("%d", a.Sessions) })

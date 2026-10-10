@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/weiping/queqiao/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/magpie"
 )
 
 /**

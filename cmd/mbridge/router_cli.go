@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/weiping/queqiao/internal/codexcfg"
-	"github.com/weiping/queqiao/internal/fsutil"
-	"github.com/weiping/queqiao/internal/magpie"
-	"github.com/weiping/queqiao/internal/router"
+	"github.com/weiping/magpie-bridge/internal/codexcfg"
+	"github.com/weiping/magpie-bridge/internal/fsutil"
+	"github.com/weiping/magpie-bridge/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/router"
 )
 
-// newMagpie makes the client queqiao talks to official magpie with
+// newMagpie makes the client mbridge talks to official magpie with
 // (tests replace it with a fake).
 var newMagpie = magpie.New
 
@@ -34,15 +34,15 @@ func magpieFor() *magpie.Client {
 	return newMagpie(url)
 }
 
-// routerCmd is `queqiao router <init|status|check>` (spec §6.6).
+// routerCmd is `mbridge router <init|status|check>` (spec §6.6).
 func routerCmd(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("queqiao router takes init, status, check, report or calibrate")
+		return fmt.Errorf("mbridge router takes init, status, check, report or calibrate")
 	}
 	switch args[0] {
 	case "init":
 		return routerInit(args[1:])
-	case "status": // `queqiao status` is the same
+	case "status": // `mbridge status` is the same
 		return statusCmd(args[1:])
 	case "check":
 		return routerCheck(args[1:])
@@ -50,26 +50,26 @@ func routerCmd(args []string) error {
 		return routerReport(args[1:])
 	case "calibrate":
 		return routerCalibrate(args[1:])
-	case "serve": // the fork's spelling, kept as an alias of `queqiao serve`
+	case "serve": // the fork's spelling, kept as an alias of `mbridge serve`
 		return serveCmd(args[1:])
 	}
-	return fmt.Errorf("queqiao router takes init, status, check, report or calibrate, not %q", args[0])
+	return fmt.Errorf("mbridge router takes init, status, check, report or calibrate, not %q", args[0])
 }
 
-// routerJSONPath is ~/.config/queqiao/router.json.
+// routerJSONPath is ~/.config/magpie-bridge/router.json.
 func routerJSONPath() string {
 	return filepath.Join(fsutil.ConfigDir(), "router.json")
 }
 
 // criteria are §4.1's defaults, written by init so projects can override
-// them in .queqiao/router.json.
+// them in .mbridge/router.json.
 var defaultCriteria = map[router.Tier]string{
 	router.TierFast:        "Little work: a question, an explanation, reading logs, running a command, a one-line or mechanical change, a read-only code search",
 	router.TierBalanced:    "Some work: an ordinary bug fix or a small feature in code already understood, adding tests, a single-file refactor",
 	router.TierPerformance: "Much work: a change across several files, a bug whose cause is unknown, concurrency, performance or security issues, an architecture or design decision, a long multi-step plan",
 }
 
-// routerInit is `queqiao router init --preset <name> [--groups-only]
+// routerInit is `mbridge router init --preset <name> [--groups-only]
 // [--force]`: four routing groups, router.json, and (unless --groups-only)
 // the harness mappings of §4.5. Every file written is printed first.
 func routerInit(args []string) error {
@@ -115,10 +115,10 @@ func routerInit(args []string) error {
 		id      string
 		members []string
 	}{
-		{"qq-fast", resolved[router.TierFast]},
-		{"qq-balanced", resolved[router.TierBalanced]},
-		{"qq-perf", resolved[router.TierPerformance]},
-		{"queqiao", []string{"group/qq-balanced", "group/qq-perf", "group/qq-fast"}},
+		{"mb-fast", resolved[router.TierFast]},
+		{"mb-balanced", resolved[router.TierBalanced]},
+		{"mb-perf", resolved[router.TierPerformance]},
+		{"mbridge", []string{"group/mb-balanced", "group/mb-perf", "group/mb-fast"}},
 	}
 	for _, g := range groups {
 		if len(g.members) == 0 {
@@ -141,11 +141,11 @@ func routerInit(args []string) error {
 	_, _ = rand.Read(salt)
 	cfg := router.Config{
 		Version:     1,
-		RouterGroup: "queqiao",
+		RouterGroup: "mbridge",
 		Tiers: map[router.Tier]router.TierCfg{
-			router.TierFast:        {Group: "qq-fast", ClaudeAlias: "haiku", Criteria: defaultCriteria[router.TierFast]},
-			router.TierBalanced:    {Group: "qq-balanced", ClaudeAlias: "sonnet", Criteria: defaultCriteria[router.TierBalanced]},
-			router.TierPerformance: {Group: "qq-perf", ClaudeAlias: "opus", Criteria: defaultCriteria[router.TierPerformance]},
+			router.TierFast:        {Group: "mb-fast", ClaudeAlias: "haiku", Criteria: defaultCriteria[router.TierFast]},
+			router.TierBalanced:    {Group: "mb-balanced", ClaudeAlias: "sonnet", Criteria: defaultCriteria[router.TierBalanced]},
+			router.TierPerformance: {Group: "mb-perf", ClaudeAlias: "opus", Criteria: defaultCriteria[router.TierPerformance]},
 		},
 		DefaultTier:       router.TierBalanced,
 		Classifier:        "local",
@@ -200,8 +200,8 @@ var codexHome = func() string {
 	return filepath.Join(home, ".codex")
 }
 
-// routerInitCodex writes queqiao's Codex profile (~/.codex/queqiao.config.toml
-// and its model catalog) pointing at queqiaod on listen (SP8 §5.6);
+// routerInitCodex writes mbridge's Codex profile (~/.codex/mbridge.config.toml
+// and its model catalog) pointing at mbridge on listen (SP8 §5.6);
 // config.toml is magpie's and the user's.
 func routerInitCodex(listen string) error {
 	changed, err := codexcfg.Init(codexHome(), "http://"+listen+"/v1")
@@ -211,13 +211,13 @@ func routerInitCodex(listen string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(amber.Render("!"), "start Codex with `codex -p queqiao` to use the router")
+	fmt.Println(amber.Render("!"), "start Codex with `codex -p mbridge` to use the router")
 	return nil
 }
 
 // tierGroup names each tier's routing group (§4.4).
 var tierGroup = map[router.Tier]string{
-	router.TierFast: "qq-fast", router.TierBalanced: "qq-balanced", router.TierPerformance: "qq-perf",
+	router.TierFast: "mb-fast", router.TierBalanced: "mb-balanced", router.TierPerformance: "mb-perf",
 }
 
 // fillEmptyTiers gives a tier none of whose preset members resolved the
@@ -261,12 +261,12 @@ func routerInitClaudeCode() error {
 	path := filepath.Join(dir, "settings.local.json")
 	fmt.Println(muted.Render("  edit"), path)
 	return fsutil.SetJSON(path,
-		fsutil.KV{Path: "env.ANTHROPIC_MODEL", Value: "group/queqiao"},
-		fsutil.KV{Path: "env.ANTHROPIC_DEFAULT_HAIKU_MODEL", Value: "group/qq-fast"},
-		fsutil.KV{Path: "env.ANTHROPIC_SMALL_FAST_MODEL", Value: "group/qq-fast"},
-		fsutil.KV{Path: "env.ANTHROPIC_DEFAULT_SONNET_MODEL", Value: "group/qq-balanced"},
-		fsutil.KV{Path: "env.ANTHROPIC_DEFAULT_OPUS_MODEL", Value: "group/qq-perf"},
-		fsutil.KV{Path: "env.ANTHROPIC_DEFAULT_FABLE_MODEL", Value: "group/qq-perf"},
+		fsutil.KV{Path: "env.ANTHROPIC_MODEL", Value: "group/mbridge"},
+		fsutil.KV{Path: "env.ANTHROPIC_DEFAULT_HAIKU_MODEL", Value: "group/mb-fast"},
+		fsutil.KV{Path: "env.ANTHROPIC_SMALL_FAST_MODEL", Value: "group/mb-fast"},
+		fsutil.KV{Path: "env.ANTHROPIC_DEFAULT_SONNET_MODEL", Value: "group/mb-balanced"},
+		fsutil.KV{Path: "env.ANTHROPIC_DEFAULT_OPUS_MODEL", Value: "group/mb-perf"},
+		fsutil.KV{Path: "env.ANTHROPIC_DEFAULT_FABLE_MODEL", Value: "group/mb-perf"},
 	)
 }
 
@@ -277,16 +277,16 @@ var piModelsPath = func() string {
 }
 
 // routerInitPi points Pi at the balanced tier (§4.5) through magpie's own
-// wiring, `magpie pi group/qq-balanced`; without Pi, magpie says so and
+// wiring, `magpie pi group/mb-balanced`; without Pi, magpie says so and
 // init goes on. It also takes out the top-level "magpie": {"default": …}
 // an earlier router init put in models.json, which Pi never read.
 func routerInitPi() error {
 	dropStrayPiDefault(piModelsPath())
-	if err := magpieFor().SetAgentModel(context.Background(), "pi", "group/qq-balanced"); err != nil {
-		fmt.Println(muted.Render("  pi: " + err.Error() + " · after installing Pi: magpie pi group/qq-balanced"))
+	if err := magpieFor().SetAgentModel(context.Background(), "pi", "group/mb-balanced"); err != nil {
+		fmt.Println(muted.Render("  pi: " + err.Error() + " · after installing Pi: magpie pi group/mb-balanced"))
 		return nil
 	}
-	fmt.Println(green.Render("✓"), "pi → group/qq-balanced")
+	fmt.Println(green.Render("✓"), "pi → group/mb-balanced")
 	return nil
 }
 
@@ -309,7 +309,7 @@ func dropStrayPiDefault(path string) {
 	}
 }
 
-// routerCheck is `queqiao router check [--yes]`: §4.6's smoke test. The
+// routerCheck is `mbridge router check [--yes]`: §4.6's smoke test. The
 // structural half (config valid, groups present and resolvable, window
 // sizes per §4.2) runs offline; the live half — 20 tool-carrying requests
 // per member over both protocols — is billable and needs --yes.
@@ -470,7 +470,7 @@ func asJSON(v any) string {
 	return string(b)
 }
 
-// routerCalibrate is `queqiao router calibrate [--since 14d]
+// routerCalibrate is `mbridge router calibrate [--since 14d]
 // [--score tier|dissatisfied|review] [--harness h] [--agent main|sub]
 // [--csv]` (SP7 §5.3).
 func routerCalibrate(args []string) error {
@@ -565,7 +565,7 @@ func readRouterEvents() ([]router.Event, error) {
 	return events, nil
 }
 
-// routerReport is `queqiao router report [--since 14d] [--json]` (§9):
+// routerReport is `mbridge router report [--since 14d] [--json]` (§9):
 // the experiment report over usage.jsonl and router.jsonl.
 func routerReport(args []string) error {
 	return routerReportTo(os.Stdout, args)

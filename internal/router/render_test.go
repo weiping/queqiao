@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weiping/queqiao/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/magpie"
 )
 
 // A fake gh on PATH that prints the state its table gives a PR URL: a

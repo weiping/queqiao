@@ -57,7 +57,7 @@ type Decided struct {
 	Shadow     bool // control arm: Tier is the control tier; the router's own choice went to the event log
 }
 
-// Deps is what the /v1/queqiao handlers (and the gateway hook, Task 6)
+// Deps is what the /v1/bridge handlers (and the gateway hook, Task 6)
 // run on.
 type Deps struct {
 	Config   Config
@@ -67,7 +67,7 @@ type Deps struct {
 	Log      func(Event) error // defaults to Append
 
 	mu        sync.Mutex
-	decisions []Event // ring of the last 20 decisions, for /v1/queqiao/router
+	decisions []Event // ring of the last 20 decisions, for /v1/bridge/router
 }
 
 // Register mounts the §6.4 endpoints. Auth needs nothing extra: the
@@ -82,12 +82,12 @@ func Register(mux *http.ServeMux, deps *Deps) {
 	if deps.Log == nil {
 		deps.Log = Append
 	}
-	mux.HandleFunc("POST /v1/queqiao/turn", deps.turn)
-	mux.HandleFunc("POST /v1/queqiao/review", deps.review)
-	mux.HandleFunc("POST /v1/queqiao/feedback", deps.feedback)
-	mux.HandleFunc("GET /v1/queqiao/session", deps.session)
-	mux.HandleFunc("POST /v1/queqiao/lineage", deps.lineage)
-	mux.HandleFunc("GET /v1/queqiao/router", deps.status)
+	mux.HandleFunc("POST /v1/bridge/turn", deps.turn)
+	mux.HandleFunc("POST /v1/bridge/review", deps.review)
+	mux.HandleFunc("POST /v1/bridge/feedback", deps.feedback)
+	mux.HandleFunc("GET /v1/bridge/session", deps.session)
+	mux.HandleFunc("POST /v1/bridge/lineage", deps.lineage)
+	mux.HandleFunc("GET /v1/bridge/router", deps.status)
 }
 
 // Decide routes one turn: resolves the parent a derived session follows
@@ -246,7 +246,7 @@ func (d *Deps) log(ev Event) {
 	}
 }
 
-// turn handles POST /v1/queqiao/turn (§6.4).
+// turn handles POST /v1/bridge/turn (§6.4).
 func (d *Deps) turn(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Session       string `json:"session"`
@@ -298,7 +298,7 @@ func (d *Deps) turn(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// feedback handles POST /v1/queqiao/feedback: logged, always 204.
+// feedback handles POST /v1/bridge/feedback: logged, always 204.
 func (d *Deps) feedback(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Session string `json:"session"`
@@ -331,7 +331,7 @@ func (d *Deps) logEvent(ev Event) error {
 	return nil
 }
 
-// session handles GET /v1/queqiao/session?id=…: the tier a fork subagent
+// session handles GET /v1/bridge/session?id=…: the tier a fork subagent
 // pins to (§5.8).
 func (d *Deps) session(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
@@ -353,7 +353,7 @@ func (d *Deps) session(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// lineage handles POST /v1/queqiao/lineage: mark a session derived.
+// lineage handles POST /v1/bridge/lineage: mark a session derived.
 func (d *Deps) lineage(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Session       string `json:"session"`
@@ -369,7 +369,7 @@ func (d *Deps) lineage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// status handles GET /v1/queqiao/router: what `queqiao router status` reads.
+// status handles GET /v1/bridge/router: what `mbridge router status` reads.
 func (d *Deps) status(w http.ResponseWriter, r *http.Request) {
 	tiers := map[string]map[string]string{}
 	for tier, tc := range d.Config.Tiers {

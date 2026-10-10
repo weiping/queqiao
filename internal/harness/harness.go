@@ -12,7 +12,7 @@ import (
 )
 
 /**
- * The common runtime of queqiao's command hooks (§6.6): read the event
+ * The common runtime of mbridge's command hooks (§6.6): read the event
  * JSON from stdin, call the gateway within a budget, and always end with
  * exit code 0 — a hook failure must never disturb the agent.
  *
@@ -27,15 +27,15 @@ const Budget = 1500 * time.Millisecond
 // answer is already delivered, so this is the only wait it may cost.
 const ReviewBudget = time.Second
 
-// Client talks to the queqiao gateway from a hook process.
+// Client talks to the mbridge gateway from a hook process.
 type Client struct {
 	Base string
 	HTTP *http.Client
 }
 
-// NewClient points at QUEQIAO_URL, or the default gateway on loopback.
+// NewClient points at MBRIDGE_URL, or the default gateway on loopback.
 func NewClient() *Client {
-	base := os.Getenv("QUEQIAO_URL")
+	base := os.Getenv("MBRIDGE_URL")
 	if base == "" {
 		base = "http://127.0.0.1:3426"
 	}
@@ -48,11 +48,11 @@ func (c *Client) Turn(ctx context.Context, body map[string]any) (map[string]any,
 	tctx, cancel := context.WithTimeout(ctx, Budget)
 	defer cancel()
 	var out map[string]any
-	if err := c.post(tctx, "/v1/queqiao/turn", body, &out); err != nil {
+	if err := c.post(tctx, "/v1/bridge/turn", body, &out); err != nil {
 		return nil, err
 	}
 	if s, _ := out["tier"].(string); s == "" {
-		return nil, fmt.Errorf("queqiao: /turn gave no tier")
+		return nil, fmt.Errorf("mbridge: /turn gave no tier")
 	}
 	return out, nil
 }
@@ -61,21 +61,21 @@ func (c *Client) Turn(ctx context.Context, body map[string]any) (map[string]any,
 func (c *Client) Feedback(ctx context.Context, body map[string]any) {
 	tctx, cancel := context.WithTimeout(ctx, Budget)
 	defer cancel()
-	_ = c.post(tctx, "/v1/queqiao/feedback", body, nil)
+	_ = c.post(tctx, "/v1/bridge/feedback", body, nil)
 }
 
 // Review posts an end-of-turn review; errors are swallowed (SP7 §3.5).
 func (c *Client) Review(ctx context.Context, body map[string]any) {
 	tctx, cancel := context.WithTimeout(ctx, ReviewBudget)
 	defer cancel()
-	_ = c.post(tctx, "/v1/queqiao/review", body, nil)
+	_ = c.post(tctx, "/v1/bridge/review", body, nil)
 }
 
 // Lineage marks a derived session; best effort like Feedback.
 func (c *Client) Lineage(ctx context.Context, body map[string]any) {
 	tctx, cancel := context.WithTimeout(ctx, Budget)
 	defer cancel()
-	_ = c.post(tctx, "/v1/queqiao/lineage", body, nil)
+	_ = c.post(tctx, "/v1/bridge/lineage", body, nil)
 }
 
 func (c *Client) post(ctx context.Context, path string, body any, out any) error {
@@ -95,7 +95,7 @@ func (c *Client) post(ctx context.Context, path string, body any, out any) error
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		b, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return fmt.Errorf("queqiao: %s: %d %s", path, res.StatusCode, string(b))
+		return fmt.Errorf("mbridge: %s: %d %s", path, res.StatusCode, string(b))
 	}
 	if out == nil {
 		return nil
@@ -122,14 +122,14 @@ func Run(h Handler) int {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Fprintf(os.Stderr, "queqiao hook: panic: %v\n", r)
+				fmt.Fprintf(os.Stderr, "mbridge hook: panic: %v\n", r)
 			}
 		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		b, err := h(ctx, stdin, c)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "queqiao hook: %v\n", err)
+			fmt.Fprintf(os.Stderr, "mbridge hook: %v\n", err)
 			return
 		}
 		out = b

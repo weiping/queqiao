@@ -1,4 +1,4 @@
-// Package fsutil holds queqiao's file helpers: where its config lives,
+// Package fsutil holds mbridge's file helpers: where its config lives,
 // atomic writes, and key-path edits of JSON files that keep the rest of
 // the file (its other keys and their order) as it was.
 package fsutil
@@ -14,17 +14,17 @@ import (
 	"strings"
 )
 
-// ConfigDir is where queqiao keeps its own files: $QUEQIAO_CONFIG_DIR when
-// set, else $XDG_CONFIG_HOME/queqiao, else ~/.config/queqiao.
+// ConfigDir is where mbridge keeps its own files: $MBRIDGE_CONFIG_DIR when
+// set, else $XDG_CONFIG_HOME/mbridge, else ~/.config/magpie-bridge.
 func ConfigDir() string {
-	if d := os.Getenv("QUEQIAO_CONFIG_DIR"); d != "" {
+	if d := os.Getenv("MBRIDGE_CONFIG_DIR"); d != "" {
 		return d
 	}
 	if x := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(x) {
-		return filepath.Join(x, "queqiao")
+		return filepath.Join(x, "magpie-bridge")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "queqiao")
+	return filepath.Join(home, ".config", "magpie-bridge")
 }
 
 // WriteAtomic writes b to path through a temporary file in the same

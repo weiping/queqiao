@@ -1,6 +1,6 @@
-// Package magpie is queqiao's only way to official magpie (SP8 spec §5.4):
+// Package magpie is mbridge's only way to official magpie (SP8 spec §5.4):
 // its public HTTP endpoints, its CLI and its usage CSV. Nothing else in
-// queqiao talks to magpie, so when magpie changes, this package and the
+// mbridge talks to magpie, so when magpie changes, this package and the
 // contract tests are what change.
 package magpie
 
@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/weiping/queqiao/internal/runcmd"
+	"github.com/weiping/magpie-bridge/internal/runcmd"
 )
 
-// UserAgent is what queqiao's own calls through magpie carry.
-const UserAgent = "queqiao-router/1"
+// UserAgent is what mbridge's own calls through magpie carry.
+const UserAgent = "mbridge/1"
 
 // GroupPrefix is how a model names a magpie routing group.
 const GroupPrefix = "group/"

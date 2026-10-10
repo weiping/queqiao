@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/weiping/queqiao/internal/service"
+	"github.com/weiping/magpie-bridge/internal/service"
 	"io"
 	"log"
 	"net/http"
@@ -15,13 +15,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/weiping/queqiao/internal/fsutil"
-	"github.com/weiping/queqiao/internal/magpie"
-	"github.com/weiping/queqiao/internal/proxy"
-	"github.com/weiping/queqiao/internal/router"
+	"github.com/weiping/magpie-bridge/internal/fsutil"
+	"github.com/weiping/magpie-bridge/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/proxy"
+	"github.com/weiping/magpie-bridge/internal/router"
 )
 
-// serveCmd runs queqiaod in the foreground (SP8 §5.5): the /v1/queqiao/*
+// serveCmd runs mbridge in the foreground (SP8 §5.5): the /v1/bridge/*
 // endpoints and the proxy to official magpie. A router.json that can't be
 // loaded leaves it passing everything through, and says why.
 func serveCmd(args []string) error {
@@ -31,13 +31,13 @@ func serveCmd(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	// stderr for a terminal, logs/queqiaod.log (a day a file, a week kept)
+	// stderr for a terminal, logs/mbridge.log (a day a file, a week kept)
 	// for the service, which has none
 	logf := service.NewDailyLog(filepath.Join(fsutil.ConfigDir(), "logs"), 7)
 	defer logf.Close()
 	if detach {
 		// the Windows task's console: let it go, so no window stays open
-		// (closing it would end queqiaod); the log file is the output
+		// (closing it would end mbridge); the log file is the output
 		detachConsole()
 		log.SetOutput(logf)
 	} else {
@@ -45,15 +45,15 @@ func serveCmd(args []string) error {
 		log.SetOutput(io.MultiWriter(logf, os.Stderr))
 	}
 	r := newReloader(filepath.Join(fsutil.ConfigDir(), "router.json"))
-	log.Printf("queqiaod on %s, magpie at %s", r.listen, r.target)
+	log.Printf("mbridge on %s, magpie at %s", r.listen, r.target)
 	return proxy.Serve(ctx, r.listen, r)
 }
 
-// reloader serves queqiaod from router.json as it is now: the service
-// starts before `queqiao router init` writes it, and users edit it by
+// reloader serves mbridge from router.json as it is now: the service
+// starts before `mbridge router init` writes it, and users edit it by
 // hand. Every request looks at the file's size and time at most once a
 // second and rebuilds the handler when they changed, keeping the session
-// state and hints queqiaod holds. Only listen needs a restart.
+// state and hints mbridge holds. Only listen needs a restart.
 type reloader struct {
 	path  string
 	every time.Duration
@@ -90,18 +90,18 @@ func (r *reloader) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // build loads router.json into a fresh handler; r.mu is held (or r is new).
 func (r *reloader) build() {
-	listen, target, deps := queqiaodDeps(r.path)
+	listen, target, deps := mbridgeDeps(r.path)
 	if deps != nil {
 		router.SetConfigError(nil)
 		if r.deps != nil { // the turns in flight keep their state
 			deps.Sessions, deps.Hints = r.deps.Sessions, r.deps.Hints
 		}
 		if r.listen != "" {
-			log.Println("queqiaod: router.json reloaded")
+			log.Println("mbridge: router.json reloaded")
 		}
 	}
 	if r.listen != "" && listen != r.listen {
-		log.Printf("queqiaod: listen changed to %s; it takes effect when queqiaod restarts (queqiao service install)", listen)
+		log.Printf("mbridge: listen changed to %s; it takes effect when mbridge restarts (mbridge service install)", listen)
 	} else {
 		r.listen = listen
 	}
@@ -128,13 +128,13 @@ func serveArgs(args []string) (detach bool, err error) {
 	return detach, nil
 }
 
-// queqiaodDeps loads router.json into what queqiaod runs on; deps is nil
+// mbridgeDeps loads router.json into what mbridge runs on; deps is nil
 // when it can't be loaded, with the default addresses.
-func queqiaodDeps(path string) (listen string, target *url.URL, deps *router.Deps) {
+func mbridgeDeps(path string) (listen string, target *url.URL, deps *router.Deps) {
 	cfg, err := router.Load(path, "")
 	if err != nil {
 		router.SetConfigError(err)
-		log.Println("queqiaod: router.json:", err, "— passing every request through to magpie")
+		log.Println("mbridge: router.json:", err, "— passing every request through to magpie")
 		u, _ := url.Parse(magpie.DefaultURL)
 		return "127.0.0.1:3426", u, nil
 	}

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/weiping/queqiao/internal/wire"
+	"github.com/weiping/magpie-bridge/internal/wire"
 )
 
 // sessionClock lets tests move time.

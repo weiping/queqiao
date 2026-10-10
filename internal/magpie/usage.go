@@ -10,12 +10,12 @@ import (
 	"time"
 )
 
-// UsageRow is one request in magpie's ledger, the columns queqiao's
+// UsageRow is one request in magpie's ledger, the columns mbridge's
 // reports read (from `magpie usage --csv`).
 type UsageRow struct {
 	Time           time.Time
 	Session        string
-	RequestedModel string // what the agent asked for: group/qq-<tier> for a routed turn
+	RequestedModel string // what the agent asked for: group/mb-<tier> for a routed turn
 	Provider       string
 	Model          string
 	Input          int

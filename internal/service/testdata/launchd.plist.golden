@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>io.github.weiping.queqiao</string>
+	<string>io.github.weiping.magpie-bridge</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/opt/q/queqiao</string>
+		<string>/opt/q/mbridge</string>
 		<string>serve</string>
 	</array>
 	<key>RunAtLoad</key>

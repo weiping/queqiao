@@ -6,15 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/weiping/queqiao/internal/service"
+	"github.com/weiping/magpie-bridge/internal/service"
 )
 
 var newService = service.New
 
-// serviceCmd is `queqiao service install|uninstall|status` (SP8 §5.7).
+// serviceCmd is `mbridge service install|uninstall|status` (SP8 §5.7).
 func serviceCmd(args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: queqiao service install|uninstall|status")
+		return fmt.Errorf("usage: mbridge service install|uninstall|status")
 	}
 	ctx := context.Background()
 	m := newService()
@@ -31,13 +31,13 @@ func serviceCmd(args []string) error {
 			return err
 		}
 		path, _ := service.Unit(m.GOOS, m.Home, m.ConfigDir, exe)
-		fmt.Println(green.Render("✓"), "queqiaod runs at login:", path)
+		fmt.Println(green.Render("✓"), "mbridge runs at login:", path)
 		return nil
 	case "uninstall":
 		if err := m.Uninstall(ctx); err != nil {
 			return err
 		}
-		fmt.Println(green.Render("✓"), "queqiaod no longer runs at login")
+		fmt.Println(green.Render("✓"), "mbridge no longer runs at login")
 		return nil
 	case "status":
 		running, detail, err := m.Status(ctx)
@@ -51,5 +51,5 @@ func serviceCmd(args []string) error {
 		fmt.Println(mark, "service:", detail)
 		return nil
 	}
-	return fmt.Errorf("usage: queqiao service install|uninstall|status")
+	return fmt.Errorf("usage: mbridge service install|uninstall|status")
 }

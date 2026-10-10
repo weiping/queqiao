@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/weiping/queqiao/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/magpie"
 )
 
 // fakeMagpie answers /v1/systemone and /v1/chat/completions, recording

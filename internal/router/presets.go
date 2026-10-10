@@ -3,7 +3,7 @@ package router
 import (
 	"strings"
 
-	"github.com/weiping/queqiao/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/magpie"
 )
 
 // Preset is one §4.3 starter config: each tier's primary and failover
@@ -29,7 +29,7 @@ var presets = map[string]Preset{
 		TierFast:     {"deepseek/deepseek-v4-flash", "glm/glm-5.3-flash:high"},
 		TierBalanced: {"moonshot/kimi-k2.5", "glm/glm-5.3:high"},
 		// §4.3: cn's performance tier is frontier's for now; where nothing
-		// serves those models, router init gives qq-perf balanced's members
+		// serves those models, router init gives mb-perf balanced's members
 		// and says how to set a domestic model of the user's choosing.
 		TierPerformance: {"<p>/gpt-6-astra:low", "<p>/claude-opus-5-5:high"},
 	}},

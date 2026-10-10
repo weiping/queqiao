@@ -1,6 +1,6 @@
-// Package runcmd makes the commands queqiao runs (magpie's CLI, gh), as
+// Package runcmd makes the commands mbridge runs (magpie's CLI, gh), as
 // magpie's internal/proc does for magpie: a context that ends closes the
-// command's pipes shortly after, and on Windows a queqiaod with no console
+// command's pipes shortly after, and on Windows a mbridge with no console
 // (started by the scheduled task) starts them without a window of their own.
 package runcmd
 

@@ -5,9 +5,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "queqiao hook user-prompt --harness codex",
+            "command": "mbridge hook user-prompt --harness codex",
             "timeout": 2,
-            "statusMessage": "queqiao: 选档"
+            "statusMessage": "mbridge: 选档"
           }
         ]
       }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "queqiao hook pre-agent --harness codex",
+            "command": "mbridge hook pre-agent --harness codex",
             "timeout": 2
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "queqiao hook stop --harness codex",
+            "command": "mbridge hook stop --harness codex",
             "timeout": 2
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "queqiao hook post-bash --harness codex",
+            "command": "mbridge hook post-bash --harness codex",
             "timeout": 2
           }
         ]

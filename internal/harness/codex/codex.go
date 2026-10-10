@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/weiping/queqiao/internal/harness"
+	"github.com/weiping/magpie-bridge/internal/harness"
 )
 
 /**
@@ -18,7 +18,7 @@ import (
  * no output, exit 0 — the gateway's own routing takes over.
  */
 
-const routingGroup = "group/queqiao"
+const routingGroup = "group/mbridge"
 
 // prLink matches a GitHub pull-request URL anywhere in the raw input, so
 // field-name drift between Codex versions cannot hide a link (§6.9).
@@ -82,7 +82,7 @@ func UserPrompt(ctx context.Context, stdin []byte, c *harness.Client) ([]byte, e
 	writePromptState(promptState{Session: in.SessionID, TurnID: in.TurnID, Prompt: in.Prompt})
 	_, err := c.Turn(ctx, body)
 	if err != nil {
-		return nil, nil // this turn goes out as group/queqiao: gateway mode
+		return nil, nil // this turn goes out as group/mbridge: gateway mode
 	}
 	return nil, nil
 }
@@ -104,9 +104,9 @@ type promptState struct {
 	Prompt  string `json:"prompt"`
 }
 
-// promptStatePath is $TMPDIR/queqiao-codex-<session>.json.
+// promptStatePath is $TMPDIR/mbridge-codex-<session>.json.
 func promptStatePath(session string) string {
-	return filepath.Join(os.TempDir(), "queqiao-codex-"+session+".json")
+	return filepath.Join(os.TempDir(), "mbridge-codex-"+session+".json")
 }
 
 func writePromptState(st promptState) {

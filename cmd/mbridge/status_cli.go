@@ -8,11 +8,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/weiping/queqiao/internal/router"
+	"github.com/weiping/magpie-bridge/internal/router"
 )
 
-// statusCmd is `queqiao status` (and `queqiao router status`): router.json,
-// magpie, the tier groups in it, queqiaod and its latest decisions. It
+// statusCmd is `mbridge status` (and `mbridge router status`): router.json,
+// magpie, the tier groups in it, mbridge and its latest decisions. It
 // reports what is wrong; it does not fail for it.
 func statusCmd(args []string) error {
 	if len(args) > 0 {
@@ -20,7 +20,7 @@ func statusCmd(args []string) error {
 	}
 	cfg, err := router.Load(routerJSONPath(), "")
 	if err != nil {
-		fmt.Println(amber.Render("✗"), "router.json:", err, muted.Render("· queqiao router init writes one"))
+		fmt.Println(amber.Render("✗"), "router.json:", err, muted.Render("· mbridge router init writes one"))
 		return nil
 	}
 	fmt.Println(green.Render("✓"), "router.json", muted.Render(routerJSONPath()), muted.Render("· review "+string(cfg.Review.Mode)))
@@ -41,14 +41,14 @@ func statusCmd(args []string) error {
 		}
 		for _, g := range want {
 			if err == nil && !slices.Contains(groups, g) {
-				fmt.Println(amber.Render("✗"), "group/"+g, "missing in magpie", muted.Render("· queqiao router init --groups-only --force"))
+				fmt.Println(amber.Render("✗"), "group/"+g, "missing in magpie", muted.Render("· mbridge router init --groups-only --force"))
 			}
 		}
 	}
 	c := &http.Client{Timeout: 2 * time.Second}
-	res, err := c.Get("http://" + cfg.Listen + "/v1/queqiao/router")
+	res, err := c.Get("http://" + cfg.Listen + "/v1/bridge/router")
 	if err != nil {
-		fmt.Println(amber.Render("✗"), "queqiaod isn't running on "+cfg.Listen, muted.Render("· queqiao service install, or queqiao serve"))
+		fmt.Println(amber.Render("✗"), "mbridge isn't running on "+cfg.Listen, muted.Render("· mbridge service install, or mbridge serve"))
 		return nil
 	}
 	defer res.Body.Close()
@@ -62,14 +62,14 @@ func statusCmd(args []string) error {
 		} `json:"decisions"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
-		fmt.Println(amber.Render("✗"), "queqiaod on", cfg.Listen, "answered something else:", err)
+		fmt.Println(amber.Render("✗"), "mbridge on", cfg.Listen, "answered something else:", err)
 		return nil
 	}
 	if !body.Valid {
-		fmt.Println(amber.Render("✗"), "queqiaod on", cfg.Listen, "runs without a router:", body.Error)
+		fmt.Println(amber.Render("✗"), "mbridge on", cfg.Listen, "runs without a router:", body.Error)
 		return nil
 	}
-	fmt.Println(green.Render("✓"), "queqiaod on", cfg.Listen)
+	fmt.Println(green.Render("✓"), "mbridge on", cfg.Listen)
 	if len(body.Decisions) == 0 {
 		fmt.Println(muted.Render("  no decisions yet"))
 	}
@@ -79,9 +79,9 @@ func statusCmd(args []string) error {
 	return nil
 }
 
-// versionCmd is `queqiao version`: queqiao's and the magpie it finds.
+// versionCmd is `mbridge version`: mbridge's and the magpie it finds.
 func versionCmd(args []string) error {
-	fmt.Println("queqiao", version)
+	fmt.Println("mbridge", version)
 	if v, err := magpieFor().Version(context.Background()); err == nil && v != "" {
 		fmt.Println(v)
 	} else {

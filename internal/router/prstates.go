@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/weiping/queqiao/internal/runcmd"
+	"github.com/weiping/magpie-bridge/internal/runcmd"
 
 	"time"
 )

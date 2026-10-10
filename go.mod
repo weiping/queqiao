@@ -1,3 +1,3 @@
-module github.com/weiping/queqiao
+module github.com/weiping/magpie-bridge
 
 go 1.26.3

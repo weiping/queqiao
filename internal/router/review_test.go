@@ -80,13 +80,13 @@ func TestReviewAcceptedThenEscalates(t *testing.T) {
 	ts := testServer(d)
 	defer ts.Close()
 
-	turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
-	if code := postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1")); code != http.StatusAccepted {
+	turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
+	if code := postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1")); code != http.StatusAccepted {
 		t.Fatalf("review status = %d, want 202", code)
 	}
 	<-fc.reviewDone // the background review finished
 
-	got := turn(t, ts.URL+"/v1/queqiao/turn", "s1", "still broken")
+	got := turn(t, ts.URL+"/v1/bridge/turn", "s1", "still broken")
 	if got["reason"] != "R3-review" || got["tier"] != "balanced" {
 		t.Fatalf("second turn: %+v, want R3-review → balanced", got)
 	}
@@ -110,11 +110,11 @@ func TestReviewShadowLogsWouldReview(t *testing.T) {
 	ts := testServer(d)
 	defer ts.Close()
 
-	turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
-	postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1"))
+	turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
+	postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1"))
 	<-fc.reviewDone
 
-	got := turn(t, ts.URL+"/v1/queqiao/turn", "s1", "still broken")
+	got := turn(t, ts.URL+"/v1/bridge/turn", "s1", "still broken")
 	if got["reason"] == "R3-review" {
 		t.Fatalf("shadow mode escalated: %+v", got)
 	}
@@ -129,8 +129,8 @@ func TestReviewOffIs204(t *testing.T) {
 	d, fc, _ := reviewDeps(t, ReviewOff, &Verdict{Tier: TierFast, TierConfidence: 0.9})
 	ts := testServer(d)
 	defer ts.Close()
-	turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
-	if code := postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1")); code != http.StatusNoContent {
+	turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
+	if code := postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1")); code != http.StatusNoContent {
 		t.Fatalf("off mode status = %d, want 204", code)
 	}
 	if fc.reviewCalls() != 0 {
@@ -142,8 +142,8 @@ func TestReviewPerformanceIs204(t *testing.T) {
 	d, _, _ := reviewDeps(t, ReviewAct, &Verdict{Tier: TierPerformance, TierConfidence: 0.9})
 	ts := testServer(d)
 	defer ts.Close()
-	turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
-	if code := postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1")); code != http.StatusNoContent {
+	turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
+	if code := postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1")); code != http.StatusNoContent {
 		t.Fatalf("performance tier status = %d, want 204", code)
 	}
 }
@@ -153,8 +153,8 @@ func TestReviewControlArmIs204(t *testing.T) {
 	d.Config.Experiment = ExperimentConfig{Enabled: true, RouterPercent: 0, ControlTier: TierPerformance, Salt: "s"}
 	ts := testServer(d)
 	defer ts.Close()
-	turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
-	if code := postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1")); code != http.StatusNoContent {
+	turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
+	if code := postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1")); code != http.StatusNoContent {
 		t.Fatalf("control arm status = %d, want 204", code)
 	}
 }
@@ -164,13 +164,13 @@ func TestPinnedSessionIsNotReviewed(t *testing.T) {
 	fc.review = &ReviewVerdict{Unresolved: 0.9, Confidence: 0.8}
 	ts := testServer(d)
 	defer ts.Close()
-	turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
-	res := postJSON(t, ts.URL+"/v1/queqiao/feedback", map[string]any{"session": "s1", "kind": "manual_model_switch"})
+	turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
+	res := postJSON(t, ts.URL+"/v1/bridge/feedback", map[string]any{"session": "s1", "kind": "manual_model_switch"})
 	res.Body.Close()
-	if code := postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1")); code != http.StatusNoContent {
+	if code := postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1")); code != http.StatusNoContent {
 		t.Fatalf("pinned status = %d, want 204", code)
 	}
-	if code := postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1")); code != http.StatusNoContent {
+	if code := postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1")); code != http.StatusNoContent {
 		t.Fatalf("pinned status on retry = %d, want 204", code)
 	}
 }
@@ -181,7 +181,7 @@ func TestReviewMissingAnswerIs400(t *testing.T) {
 	defer ts.Close()
 	body := reviewBody("s1")
 	delete(body, "answer")
-	if code := postReview(t, ts.URL+"/v1/queqiao/review", body); code != http.StatusBadRequest {
+	if code := postReview(t, ts.URL+"/v1/bridge/review", body); code != http.StatusBadRequest {
 		t.Fatalf("missing answer status = %d, want 400", code)
 	}
 }
@@ -193,12 +193,12 @@ func TestLateReviewIsDropped(t *testing.T) {
 	ts := testServer(d)
 	defer ts.Close()
 
-	turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
-	if code := postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1")); code != http.StatusAccepted {
+	turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
+	if code := postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1")); code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202", code)
 	}
 	start := time.Now()
-	got := turn(t, ts.URL+"/v1/queqiao/turn", "s1", "still broken")
+	got := turn(t, ts.URL+"/v1/bridge/turn", "s1", "still broken")
 	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
 		t.Fatalf("a turn waited %v for an in-flight review", elapsed)
 	}
@@ -207,7 +207,7 @@ func TestLateReviewIsDropped(t *testing.T) {
 	}
 	close(fc.gate) // let the late result land
 	<-fc.reviewDone
-	got = turn(t, ts.URL+"/v1/queqiao/turn", "s1", "and again")
+	got = turn(t, ts.URL+"/v1/bridge/turn", "s1", "and again")
 	if got["reason"] == "R3-review" {
 		t.Fatalf("late review was not dropped: %+v", got)
 	}
@@ -218,13 +218,13 @@ func TestReviewIsReadOnce(t *testing.T) {
 	fc.review = &ReviewVerdict{Unresolved: 0.9, Confidence: 0.8}
 	ts := testServer(d)
 	defer ts.Close()
-	turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
-	postReview(t, ts.URL+"/v1/queqiao/review", reviewBody("s1"))
+	turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
+	postReview(t, ts.URL+"/v1/bridge/review", reviewBody("s1"))
 	<-fc.reviewDone
-	if got := turn(t, ts.URL+"/v1/queqiao/turn", "s1", "still broken"); got["reason"] != "R3-review" {
+	if got := turn(t, ts.URL+"/v1/bridge/turn", "s1", "still broken"); got["reason"] != "R3-review" {
 		t.Fatalf("second turn: %+v", got)
 	}
-	if got := turn(t, ts.URL+"/v1/queqiao/turn", "s1", "and again"); got["reason"] != "R4-escalation-hold" {
+	if got := turn(t, ts.URL+"/v1/bridge/turn", "s1", "and again"); got["reason"] != "R4-escalation-hold" {
 		t.Fatalf("third turn reused the review: %+v", got)
 	}
 }
@@ -282,7 +282,7 @@ func TestTurnLatencyUnaffectedByReview(t *testing.T) {
 		lat := make([]time.Duration, 0, 50)
 		for i := 0; i < 50; i++ {
 			start := time.Now()
-			turn(t, ts.URL+"/v1/queqiao/turn", "s1", "fix it")
+			turn(t, ts.URL+"/v1/bridge/turn", "s1", "fix it")
 			lat = append(lat, time.Since(start))
 		}
 		sort.Slice(lat, func(i, j int) bool { return lat[i] < lat[j] })

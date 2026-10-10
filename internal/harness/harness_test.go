@@ -14,7 +14,7 @@ func TestTurnPostsWithinBudget(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&got)
-		w.Write([]byte(`{"tier":"fast","group":"group/qq-fast"}`))
+		w.Write([]byte(`{"tier":"fast","group":"group/mb-fast"}`))
 	}))
 	defer srv.Close()
 	c := &Client{Base: srv.URL, HTTP: srv.Client()}
@@ -49,7 +49,7 @@ func TestTurnTimesOut(t *testing.T) {
 func TestTurnRejectsBadReplies(t *testing.T) {
 	for name, body := range map[string]string{
 		"http 500": `{"error":"down"}`,
-		"no tier":  `{"group":"group/qq-fast"}`,
+		"no tier":  `{"group":"group/mb-fast"}`,
 		"not json": `nope`,
 	} {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +81,7 @@ func TestFeedbackAndLineageNeverErrorOutward(t *testing.T) {
 func TestReviewPostsAndSwallowsErrors(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/queqiao/review" {
+		if r.URL.Path != "/v1/bridge/review" {
 			t.Errorf("path = %s", r.URL.Path)
 		}
 		json.NewDecoder(r.Body).Decode(&got)
@@ -118,7 +118,7 @@ func TestRunAlwaysExitsZero(t *testing.T) {
 }
 
 func TestHarnessDefaultURLIs3426(t *testing.T) {
-	t.Setenv("QUEQIAO_URL", "")
+	t.Setenv("MBRIDGE_URL", "")
 	if got := NewClient().Base; got != "http://127.0.0.1:3426" {
 		t.Fatalf("base %q", got)
 	}

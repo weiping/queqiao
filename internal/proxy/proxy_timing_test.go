@@ -61,12 +61,12 @@ func TestProxyFirstByteOverhead(t *testing.T) {
 	var direct, proxied []time.Duration
 	for i := 0; i < 300; i++ {
 		body := responses(fmt.Sprintf("turn %d", i), false)
-		direct = append(direct, first(mag.URL, codexHdr, strings.Replace(body, "group/queqiao", "group/qq-fast", 1)))
+		direct = append(direct, first(mag.URL, codexHdr, strings.Replace(body, "group/mbridge", "group/mb-fast", 1)))
 		hdr := map[string]string{"session-id": fmt.Sprintf("s-%d", i), "User-Agent": "codex"}
 		proxied = append(proxied, first(e.srv.URL, hdr, body))
 	}
 	d, p := p95(direct), p95(proxied)
-	t.Logf("first byte p95: direct %v, through queqiaod %v (+%v)", d, p, p-d)
+	t.Logf("first byte p95: direct %v, through mbridge %v (+%v)", d, p, p-d)
 	if p-d > 5*time.Millisecond {
 		t.Fatalf("proxy adds %v at p95", p-d)
 	}

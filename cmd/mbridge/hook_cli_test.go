@@ -13,7 +13,7 @@ import (
 // stdout out — the exact contract Codex's hook runner sees.
 func runHook(t *testing.T, args ...string) (int, string) {
 	t.Helper()
-	bin := buildQueqiao(t)
+	bin := buildMbridge(t)
 	cmd := exec.Command(bin, args...)
 	cmd.Stdin = strings.NewReader(hookStdin)
 	out, err := cmd.CombinedOutput()
@@ -26,10 +26,10 @@ func runHook(t *testing.T, args ...string) (int, string) {
 	return code, string(out)
 }
 
-const hookStdin = `{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"t1","prompt":"hi","model":"group/queqiao"}`
+const hookStdin = `{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"t1","prompt":"hi","model":"group/mbridge"}`
 
 func TestHookCommandExitsZeroWhenGatewayIsDown(t *testing.T) {
-	t.Setenv("QUEQIAO_URL", "http://127.0.0.1:1")
+	t.Setenv("MBRIDGE_URL", "http://127.0.0.1:1")
 	code, out := runHook(t, "hook", "user-prompt", "--harness", "codex")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, out)
@@ -40,7 +40,7 @@ func TestHookCommandExitsZeroWhenGatewayIsDown(t *testing.T) {
 }
 
 func TestHookCommandRejectsUnknownsButStaysSilentOnKnown(t *testing.T) {
-	t.Setenv("QUEQIAO_URL", "http://127.0.0.1:1")
+	t.Setenv("MBRIDGE_URL", "http://127.0.0.1:1")
 	code, out := runHook(t, "hook", "nonsense")
 	t.Logf("nonsense: code=%d out=%q", code, out)
 	if code == 0 {
@@ -51,20 +51,20 @@ func TestHookCommandRejectsUnknownsButStaysSilentOnKnown(t *testing.T) {
 	}
 }
 
-// buildQueqiao builds the cli binary once per test run, in a dir that
+// buildMbridge builds the cli binary once per test run, in a dir that
 // outlives the individual test (a t.TempDir would delete it).
-var buildQueqiao = func(t *testing.T) string {
+var buildMbridge = func(t *testing.T) string {
 	t.Helper()
-	if buildQueqiaoCached != "" {
-		if _, err := os.Stat(buildQueqiaoCached); err == nil {
-			return buildQueqiaoCached
+	if buildMbridgeCached != "" {
+		if _, err := os.Stat(buildMbridgeCached); err == nil {
+			return buildMbridgeCached
 		}
 	}
-	dir, err := os.MkdirTemp("", "queqiao-hook-test-")
+	dir, err := os.MkdirTemp("", "mbridge-hook-test-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	bin := filepath.Join(dir, "queqiao-test")
+	bin := filepath.Join(dir, "mbridge-test")
 	if runtime.GOOS == "windows" {
 		bin += ".exe" // Windows starts nothing without its extension
 	}
@@ -75,13 +75,13 @@ var buildQueqiao = func(t *testing.T) string {
 	// the isolation (nothing of the user's cache is written) while making
 	// reruns download once and build from cache.
 	cmd.Env = append(os.Environ(),
-		"GOMODCACHE="+filepath.Join(os.TempDir(), "queqiao-hook-test-modcache"),
-		"GOCACHE="+filepath.Join(os.TempDir(), "queqiao-hook-test-buildcache"))
+		"GOMODCACHE="+filepath.Join(os.TempDir(), "mbridge-hook-test-modcache"),
+		"GOCACHE="+filepath.Join(os.TempDir(), "mbridge-hook-test-buildcache"))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v %s", err, out)
 	}
-	buildQueqiaoCached = bin
+	buildMbridgeCached = bin
 	return bin
 }
 
-var buildQueqiaoCached string
+var buildMbridgeCached string

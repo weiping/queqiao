@@ -1,9 +1,9 @@
 //go:build contract
 
-// Package contract checks what queqiao relies on in official magpie (SP8
+// Package contract checks what mbridge relies on in official magpie (SP8
 // §2.2, §8): the CLI and HTTP surfaces internal/magpie uses. It runs daily
 // against the newest magpie release; red means magpie changed something
-// queqiao reads.
+// mbridge reads.
 //
 //	go test -tags contract ./contract/ -magpie=/path/to/magpie
 package contract
@@ -16,9 +16,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/weiping/queqiao/internal/magpie"
-	"github.com/weiping/queqiao/internal/testmagpie"
-	"github.com/weiping/queqiao/internal/wire"
+	"github.com/weiping/magpie-bridge/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/testmagpie"
+	"github.com/weiping/magpie-bridge/internal/wire"
 )
 
 func start(t *testing.T) (*testmagpie.Magpie, *magpie.Client) {
@@ -51,15 +51,15 @@ func post(t *testing.T, m *testmagpie.Magpie, path, body string, h map[string]st
 func TestContractGroupAddThenList(t *testing.T) {
 	_, c := start(t)
 	ctx := context.Background()
-	if err := c.GroupAdd(ctx, "qq-fast", []string{"fake/m1"}); err != nil {
+	if err := c.GroupAdd(ctx, "mb-fast", []string{"fake/m1"}); err != nil {
 		t.Fatal(err)
 	}
 	ids, err := c.Groups(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(ids, "qq-fast") {
-		t.Fatalf("groups %v lack qq-fast", ids)
+	if !slices.Contains(ids, "mb-fast") {
+		t.Fatalf("groups %v lack mb-fast", ids)
 	}
 }
 
@@ -67,15 +67,15 @@ func TestContractGroupAddThenList(t *testing.T) {
 func TestContractModelsListsGroups(t *testing.T) {
 	_, c := start(t)
 	ctx := context.Background()
-	if err := c.GroupAdd(ctx, "qq-perf", []string{"fake/m2"}); err != nil {
+	if err := c.GroupAdd(ctx, "mb-perf", []string{"fake/m2"}); err != nil {
 		t.Fatal(err)
 	}
 	ids, err := c.Models(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(ids, magpie.GroupPrefix+"qq-perf") {
-		t.Fatalf("/v1/models %v lacks group/qq-perf", ids)
+	if !slices.Contains(ids, magpie.GroupPrefix+"mb-perf") {
+		t.Fatalf("/v1/models %v lacks group/mb-perf", ids)
 	}
 }
 
@@ -95,21 +95,21 @@ func TestContractSystemOneUnknownDeciderIsClearError(t *testing.T) {
 func TestContractSessionHeaderReachesUsage(t *testing.T) {
 	m, c := start(t)
 	ctx := context.Background()
-	if err := c.GroupAdd(ctx, "qq-fast", []string{"fake/m1"}); err != nil {
+	if err := c.GroupAdd(ctx, "mb-fast", []string{"fake/m1"}); err != nil {
 		t.Fatal(err)
 	}
-	post(t, m, "/v1/chat/completions", `{"model":"group/qq-fast","messages":[{"role":"user","content":"hi"}]}`,
+	post(t, m, "/v1/chat/completions", `{"model":"group/mb-fast","messages":[{"role":"user","content":"hi"}]}`,
 		map[string]string{wire.SessionHeader: "s1"})
 	rows, err := c.Usage(ctx, "today") // fails when a required column is gone
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, r := range rows {
-		if r.Session == "s1" && r.RequestedModel == "group/qq-fast" && r.Status == 200 {
+		if r.Session == "s1" && r.RequestedModel == "group/mb-fast" && r.Status == 200 {
 			return
 		}
 	}
-	t.Fatalf("no row for session s1 on group/qq-fast: %+v", rows)
+	t.Fatalf("no row for session s1 on group/mb-fast: %+v", rows)
 }
 
 // The session a Claude Code request names reaches magpie's usage as wire

@@ -1,9 +1,9 @@
 [Unit]
-Description=queqiaod, the queqiao model router beside magpie
+Description=mbridge, the mbridge model router beside magpie
 After=network.target
 
 [Service]
-ExecStart=/opt/q/queqiao serve
+ExecStart=/opt/q/mbridge serve
 Restart=on-failure
 RestartSec=3
 

@@ -10,7 +10,7 @@ import (
 
 const (
 	testTurnID = "0d52a4c2-d0a6-453d-bf87-7a4eb1ac168a"
-	testHeader = `{"session_id":"sess-1","turn_id":"` + testTurnID + `","model":"group/queqiao"}`
+	testHeader = `{"session_id":"sess-1","turn_id":"` + testTurnID + `","model":"group/mbridge"}`
 )
 
 func headerWith(value string) http.Header {
@@ -27,7 +27,7 @@ func TestCodexTurnIDFromHeader(t *testing.T) {
 }
 
 func TestCodexTurnIDFromBodyClientMetadataObject(t *testing.T) {
-	body := fmt.Sprintf(`{"model":"group/queqiao","client_metadata":{"session_id":"sess-1","x-codex-turn-metadata":%s}}`, testHeader)
+	body := fmt.Sprintf(`{"model":"group/mbridge","client_metadata":{"session_id":"sess-1","x-codex-turn-metadata":%s}}`, testHeader)
 	got := CodexTurnID(http.Header{}, []byte(body))
 	if got != testTurnID {
 		t.Fatalf("got %q, want %q", got, testTurnID)
@@ -54,7 +54,7 @@ func TestCodexTurnIDFromBodyClientMetadataString(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, err := json.Marshal(map[string]any{
-		"model":           "group/queqiao",
+		"model":           "group/mbridge",
 		"client_metadata": string(metadata),
 	})
 	if err != nil {

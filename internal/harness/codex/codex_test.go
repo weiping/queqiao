@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weiping/queqiao/internal/harness"
+	"github.com/weiping/magpie-bridge/internal/harness"
 )
 
 // fakeGateway records every path+body and answers /turn with scripted
@@ -33,7 +33,7 @@ func newFakeGateway(t *testing.T, replies ...map[string]any) (*fakeGateway, *har
 			path string
 			body map[string]any
 		}{r.URL.Path, body})
-		if r.URL.Path == "/v1/queqiao/turn" {
+		if r.URL.Path == "/v1/bridge/turn" {
 			if len(f.turns) == 0 {
 				w.WriteHeader(500)
 				io.WriteString(w, `{"error":"no scripted reply"}`)
@@ -61,13 +61,13 @@ func (f *fakeGateway) at(path string) []map[string]any {
 }
 
 func TestUserPromptRoutedModelCallsTurn(t *testing.T) {
-	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/qq-fast"})
-	stdin := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"t9","cwd":"/w","prompt":"what license?","model":"group/queqiao","permission_mode":"bypassPermissions"}`)
+	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/mb-fast"})
+	stdin := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"t9","cwd":"/w","prompt":"what license?","model":"group/mbridge","permission_mode":"bypassPermissions"}`)
 	out, err := UserPrompt(context.Background(), stdin, c)
 	if err != nil || out != nil {
 		t.Fatalf("out=%v err=%v", out, err)
 	}
-	turns := f.at("/v1/queqiao/turn")
+	turns := f.at("/v1/bridge/turn")
 	if len(turns) != 1 {
 		t.Fatalf("turns: %d", len(turns))
 	}
@@ -94,20 +94,20 @@ func TestUserPromptPinnedModelReportsInsteadOfRouting(t *testing.T) {
 	if out, err := UserPrompt(context.Background(), stdin, c); out != nil || err != nil {
 		t.Fatal("unexpected output")
 	}
-	if len(f.at("/v1/queqiao/turn")) != 0 {
+	if len(f.at("/v1/bridge/turn")) != 0 {
 		t.Fatal("pinned model still routed")
 	}
-	fb := f.at("/v1/queqiao/feedback")
+	fb := f.at("/v1/bridge/feedback")
 	if len(fb) != 1 || fb[0]["kind"] != "manual_model_switch" || fb[0]["value"] != "gpt-6-sol" {
 		t.Fatalf("feedback: %v", fb)
 	}
 }
 
 func TestUserPromptCarriesForkedFromThread(t *testing.T) {
-	f, c := newFakeGateway(t, map[string]any{"tier": "balanced", "group": "group/qq-balanced"})
-	stdin := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s2","prompt":"go on","model":"group/queqiao","thread":{"forked_from_thread_id":"th-parent"}}`)
+	f, c := newFakeGateway(t, map[string]any{"tier": "balanced", "group": "group/mb-balanced"})
+	stdin := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s2","prompt":"go on","model":"group/mbridge","thread":{"forked_from_thread_id":"th-parent"}}`)
 	UserPrompt(context.Background(), stdin, c)
-	turns := f.at("/v1/queqiao/turn")
+	turns := f.at("/v1/bridge/turn")
 	if len(turns) != 1 || turns[0]["parent_session"] != "th-parent" {
 		t.Fatalf("parent: %v", turns)
 	}
@@ -131,14 +131,14 @@ func TestUserPromptDefensiveSkips(t *testing.T) {
 
 func TestUserPromptTurnFailureStaysSilent(t *testing.T) {
 	_, c := newFakeGateway(t) // no scripted replies → 500
-	stdin := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s","prompt":"hi","model":"group/queqiao"}`)
+	stdin := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s","prompt":"hi","model":"group/mbridge"}`)
 	if out, err := UserPrompt(context.Background(), stdin, c); out != nil || err != nil {
 		t.Fatal("failure was not silent")
 	}
 }
 
 func TestPreAgentPinsModelAndKeepsParams(t *testing.T) {
-	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/qq-fast"})
+	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/mb-fast"})
 	stdin := []byte(`{"hook_event_name":"PreToolUse","session_id":"s1","tool_name":"spawn_agent","tool_input":{"message":"search the repo","agent_type":"Explore"}}`)
 	out, err := PreAgent(context.Background(), stdin, c)
 	if err != nil || out == nil {
@@ -161,22 +161,22 @@ func TestPreAgentPinsModelAndKeepsParams(t *testing.T) {
 	if h.UpdatedInput["message"] != "search the repo" || h.UpdatedInput["agent_type"] != "Explore" {
 		t.Fatalf("params not kept: %v", h.UpdatedInput)
 	}
-	if h.UpdatedInput["model"] != "group/qq-fast" {
+	if h.UpdatedInput["model"] != "group/mb-fast" {
 		t.Fatalf("model: %v", h.UpdatedInput["model"])
 	}
-	turns := f.at("/v1/queqiao/turn")
+	turns := f.at("/v1/bridge/turn")
 	if len(turns) != 1 || turns[0]["agent"] != "Explore" || turns[0]["prompt"] != "search the repo" || turns[0]["store_hint"] != false {
 		t.Fatalf("turn: %v", turns)
 	}
 }
 
 func TestPreAgentDefaultsAgentType(t *testing.T) {
-	f, c := newFakeGateway(t, map[string]any{"tier": "balanced", "group": "group/qq-balanced"})
+	f, c := newFakeGateway(t, map[string]any{"tier": "balanced", "group": "group/mb-balanced"})
 	stdin := []byte(`{"hook_event_name":"PreToolUse","session_id":"s1","tool_name":"spawn_agent","tool_input":{"message":"do things"}}`)
 	if _, err := PreAgent(context.Background(), stdin, c); err != nil {
 		t.Fatal(err)
 	}
-	if turns := f.at("/v1/queqiao/turn"); turns[0]["agent"] != "default" {
+	if turns := f.at("/v1/bridge/turn"); turns[0]["agent"] != "default" {
 		t.Fatalf("agent: %v", turns[0]["agent"])
 	}
 }
@@ -198,12 +198,12 @@ func TestPreAgentSkipsPresetModelAndFailures(t *testing.T) {
 
 func TestPostBashFindsPRLinkAnywhere(t *testing.T) {
 	f, c := newFakeGateway(t)
-	stdin := []byte(`{"hook_event_name":"PostToolUse","session_id":"s1","tool_name":"Bash","whatever":{"nested":{"output":"Opened https://github.com/weiping/queqiao/pull/12 today"}}}`)
+	stdin := []byte(`{"hook_event_name":"PostToolUse","session_id":"s1","tool_name":"Bash","whatever":{"nested":{"output":"Opened https://github.com/weiping/magpie-bridge/pull/12 today"}}}`)
 	if out, err := PostBash(context.Background(), stdin, c); out != nil || err != nil {
 		t.Fatal("unexpected output")
 	}
-	fb := f.at("/v1/queqiao/feedback")
-	if len(fb) != 1 || fb[0]["kind"] != "pr_created" || fb[0]["value"] != "https://github.com/weiping/queqiao/pull/12" {
+	fb := f.at("/v1/bridge/feedback")
+	if len(fb) != 1 || fb[0]["kind"] != "pr_created" || fb[0]["value"] != "https://github.com/weiping/magpie-bridge/pull/12" {
 		t.Fatalf("feedback: %v", fb)
 	}
 
@@ -220,8 +220,8 @@ func TestPostBashFindsPRLinkAnywhere(t *testing.T) {
 // pairs it with the final answer and posts the review.
 func TestStopPostsReview(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
-	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/qq-fast"})
-	prompt := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"t9","prompt":"read ./no-such-file.md and summarise","model":"group/queqiao"}`)
+	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/mb-fast"})
+	prompt := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"t9","prompt":"read ./no-such-file.md and summarise","model":"group/mbridge"}`)
 	if _, err := UserPrompt(context.Background(), prompt, c); err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestStopPostsReview(t *testing.T) {
 	if err != nil || out != nil {
 		t.Fatalf("out=%v err=%v", out, err)
 	}
-	rev := f.at("/v1/queqiao/review")
+	rev := f.at("/v1/bridge/review")
 	if len(rev) != 1 {
 		t.Fatalf("reviews: %d", len(rev))
 	}
@@ -251,7 +251,7 @@ func TestStopPostsReview(t *testing.T) {
 // pinned turn), no answer, or a different turn — nothing is posted.
 func TestStopWithoutPromptStateIsSilent(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
-	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/qq-fast"})
+	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/mb-fast"})
 	for _, stdin := range []string{
 		`{"hook_event_name":"Stop","session_id":"nobody","turn_id":"t1","last_assistant_message":"ok"}`,
 		`{"hook_event_name":"Stop","session_id":"s1","turn_id":"t1"}`,
@@ -262,11 +262,11 @@ func TestStopWithoutPromptStateIsSilent(t *testing.T) {
 		}
 	}
 	// a state file from another turn does not pair with this answer
-	if _, err := UserPrompt(context.Background(), []byte(`{"session_id":"s1","turn_id":"t1","prompt":"old","model":"group/queqiao"}`), c); err != nil {
+	if _, err := UserPrompt(context.Background(), []byte(`{"session_id":"s1","turn_id":"t1","prompt":"old","model":"group/mbridge"}`), c); err != nil {
 		t.Fatal(err)
 	}
 	Stop(context.Background(), []byte(`{"hook_event_name":"Stop","session_id":"s1","turn_id":"t2","last_assistant_message":"new answer"}`), c)
-	if got := len(f.at("/v1/queqiao/review")); got != 0 {
+	if got := len(f.at("/v1/bridge/review")); got != 0 {
 		t.Fatalf("stale state still posted %d reviews", got)
 	}
 }
@@ -276,7 +276,7 @@ func TestStopWithoutPromptStateIsSilent(t *testing.T) {
 func TestStopGatewayDownExitsQuietly(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 	c := &harness.Client{Base: "http://127.0.0.1:1", HTTP: http.DefaultClient}
-	if _, err := UserPrompt(context.Background(), []byte(`{"session_id":"s1","turn_id":"t1","prompt":"hi","model":"group/queqiao"}`), c); err != nil {
+	if _, err := UserPrompt(context.Background(), []byte(`{"session_id":"s1","turn_id":"t1","prompt":"hi","model":"group/mbridge"}`), c); err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now()
@@ -290,7 +290,7 @@ func TestStopGatewayDownExitsQuietly(t *testing.T) {
 }
 
 // TestCodexHooksJSONHasStop: the shipped hooks file carries the Stop hook
-// the CLI's `queqiao hook stop` serves.
+// the CLI's `mbridge hook stop` serves.
 func TestCodexHooksJSONHasStop(t *testing.T) {
 	b, err := os.ReadFile("../../../clients/codex/hooks/hooks.json")
 	if err != nil {
@@ -313,7 +313,7 @@ func TestCodexHooksJSONHasStop(t *testing.T) {
 		t.Fatalf("Stop hooks: %+v", stops)
 	}
 	got := stops[0].Hooks[0]
-	if got.Type != "command" || got.Command != "queqiao hook stop --harness codex" || got.Timeout != 2 {
+	if got.Type != "command" || got.Command != "mbridge hook stop --harness codex" || got.Timeout != 2 {
 		t.Fatalf("Stop hook: %+v", got)
 	}
 }

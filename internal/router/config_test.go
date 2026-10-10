@@ -12,11 +12,11 @@ import (
 // validJSON is a complete, §4.6-shaped router.json.
 const validJSON = `{
   "version": 1,
-  "router_group": "queqiao",
+  "router_group": "mbridge",
   "tiers": {
-    "fast":        { "group": "qq-fast",     "claude_alias": "haiku",  "criteria": "fast criteria" },
-    "balanced":    { "group": "qq-balanced", "claude_alias": "sonnet", "criteria": "balanced criteria" },
-    "performance": { "group": "qq-perf",     "claude_alias": "opus",   "criteria": "perf criteria" }
+    "fast":        { "group": "mb-fast",     "claude_alias": "haiku",  "criteria": "fast criteria" },
+    "balanced":    { "group": "mb-balanced", "claude_alias": "sonnet", "criteria": "balanced criteria" },
+    "performance": { "group": "mb-perf",     "claude_alias": "opus",   "criteria": "perf criteria" }
   },
   "default_tier": "balanced",
   "classifier": "local",
@@ -44,10 +44,10 @@ func TestLoadValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.RouterGroup != "queqiao" || cfg.DefaultTier != TierBalanced || cfg.Classifier != "local" {
+	if cfg.RouterGroup != "mbridge" || cfg.DefaultTier != TierBalanced || cfg.Classifier != "local" {
 		t.Fatalf("cfg: %+v", cfg)
 	}
-	if cfg.Tiers[TierFast].Group != "qq-fast" || cfg.Tiers[TierFast].ClaudeAlias != "haiku" {
+	if cfg.Tiers[TierFast].Group != "mb-fast" || cfg.Tiers[TierFast].ClaudeAlias != "haiku" {
 		t.Fatalf("fast tier: %+v", cfg.Tiers[TierFast])
 	}
 	if cfg.Tiers[TierPerformance].Criteria != "perf criteria" {
@@ -67,9 +67,9 @@ func TestLoadValid(t *testing.T) {
 func TestLoadDefaultsZeroFields(t *testing.T) {
 	// classifier/timeout/escalate/cache_ttl left out: defaults apply.
 	min := `{"tiers": {
-		"fast":        { "group": "qq-fast",     "claude_alias": "haiku",  "criteria": "f" },
-		"balanced":    { "group": "qq-balanced", "claude_alias": "sonnet", "criteria": "b" },
-		"performance": { "group": "qq-perf",     "claude_alias": "opus",   "criteria": "p" }
+		"fast":        { "group": "mb-fast",     "claude_alias": "haiku",  "criteria": "f" },
+		"balanced":    { "group": "mb-balanced", "claude_alias": "sonnet", "criteria": "b" },
+		"performance": { "group": "mb-perf",     "claude_alias": "opus",   "criteria": "p" }
 	}}`
 	cfg, err := Load(writeGlobal(t, min), "")
 	if err != nil {
@@ -100,8 +100,8 @@ func TestLoadMissingTiers(t *testing.T) {
 
 func TestLoadMissingTierKey(t *testing.T) {
 	bad := `{"tiers": {
-		"fast":        { "group": "qq-fast",     "claude_alias": "haiku",  "criteria": "f" },
-		"balanced":    { "group": "qq-balanced", "claude_alias": "sonnet", "criteria": "b" }
+		"fast":        { "group": "mb-fast",     "claude_alias": "haiku",  "criteria": "f" },
+		"balanced":    { "group": "mb-balanced", "claude_alias": "sonnet", "criteria": "b" }
 	}}`
 	if _, err := Load(writeGlobal(t, bad), ""); err == nil {
 		t.Fatal("two tiers accepted")
@@ -111,8 +111,8 @@ func TestLoadMissingTierKey(t *testing.T) {
 func TestLoadBadGroup(t *testing.T) {
 	bad := `{"tiers": {
 		"fast":        { "group": "",             "claude_alias": "haiku",  "criteria": "f" },
-		"balanced":    { "group": "qq-balanced",  "claude_alias": "sonnet", "criteria": "b" },
-		"performance": { "group": "qq-perf",      "claude_alias": "opus",   "criteria": "p" }
+		"balanced":    { "group": "mb-balanced",  "claude_alias": "sonnet", "criteria": "b" },
+		"performance": { "group": "mb-perf",      "claude_alias": "opus",   "criteria": "p" }
 	}}`
 	if _, err := Load(writeGlobal(t, bad), ""); err == nil {
 		t.Fatal("empty group accepted")
@@ -126,9 +126,9 @@ func TestLoadThresholdsOutOfRange(t *testing.T) {
 	} {
 		var tiers map[string]map[string]string
 		if err := json.Unmarshal([]byte(`{
-			"fast":{"group":"qq-fast","claude_alias":"haiku","criteria":"f"},
-			"balanced":{"group":"qq-balanced","claude_alias":"sonnet","criteria":"b"},
-			"performance":{"group":"qq-perf","claude_alias":"opus","criteria":"p"}}`), &tiers); err != nil {
+			"fast":{"group":"mb-fast","claude_alias":"haiku","criteria":"f"},
+			"balanced":{"group":"mb-balanced","claude_alias":"sonnet","criteria":"b"},
+			"performance":{"group":"mb-perf","claude_alias":"opus","criteria":"p"}}`), &tiers); err != nil {
 			t.Fatal(err)
 		}
 		body, _ := json.Marshal(map[string]any{"tiers": tiers, "thresholds": json.RawMessage(th)})
@@ -140,9 +140,9 @@ func TestLoadThresholdsOutOfRange(t *testing.T) {
 
 func TestLoadRouterPercentOutOfRange(t *testing.T) {
 	body := `{"tiers": {
-		"fast":        { "group": "qq-fast",     "claude_alias": "haiku",  "criteria": "f" },
-		"balanced":    { "group": "qq-balanced", "claude_alias": "sonnet", "criteria": "b" },
-		"performance": { "group": "qq-perf",     "claude_alias": "opus",   "criteria": "p" }
+		"fast":        { "group": "mb-fast",     "claude_alias": "haiku",  "criteria": "f" },
+		"balanced":    { "group": "mb-balanced", "claude_alias": "sonnet", "criteria": "b" },
+		"performance": { "group": "mb-perf",     "claude_alias": "opus",   "criteria": "p" }
 	}, "experiment": { "enabled": true, "router_percent": 150, "control_tier": "performance", "salt": "s" }}`
 	if _, err := Load(writeGlobal(t, body), ""); err == nil {
 		t.Fatal("router_percent 150 accepted")
@@ -151,7 +151,7 @@ func TestLoadRouterPercentOutOfRange(t *testing.T) {
 
 func TestProjectCriteriaOverride(t *testing.T) {
 	cwd := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(cwd, ".queqiao"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(cwd, ".mbridge"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	proj := `{
@@ -160,7 +160,7 @@ func TestProjectCriteriaOverride(t *testing.T) {
 			"fast":        { "criteria": "project fast criteria" },
 			"balanced":    { "group": "evil-group", "criteria": "project balanced criteria" }
 		}}`
-	if err := os.WriteFile(filepath.Join(cwd, ".queqiao", "router.json"), []byte(proj), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(cwd, ".mbridge", "router.json"), []byte(proj), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(writeGlobal(t, validJSON), cwd)
@@ -177,7 +177,7 @@ func TestProjectCriteriaOverride(t *testing.T) {
 	if cfg.DefaultTier != TierBalanced {
 		t.Fatalf("project default_tier leaked: %q", cfg.DefaultTier)
 	}
-	if cfg.Tiers[TierBalanced].Group != "qq-balanced" {
+	if cfg.Tiers[TierBalanced].Group != "mb-balanced" {
 		t.Fatalf("project group leaked: %q", cfg.Tiers[TierBalanced].Group)
 	}
 }
@@ -259,7 +259,7 @@ func TestOverrideThresholdRange(t *testing.T) {
 	}
 }
 
-// A router.json from before SP8 has neither listen nor magpie_url: queqiaod
+// A router.json from before SP8 has neither listen nor magpie_url: mbridge
 // listens on 3426 and finds magpie on 3425.
 func TestOldConfigGetsListenAndMagpieDefaults(t *testing.T) {
 	cfg, err := Load(writeGlobal(t, validJSON), "")

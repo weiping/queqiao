@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// NewDailyLog writes queqiaod.log in dir. When a write falls on a new day,
-// yesterday's file becomes queqiaod-<date>.log, and only keep files are
+// NewDailyLog writes mbridge.log in dir. When a write falls on a new day,
+// yesterday's file becomes mbridge-<date>.log, and only keep files are
 // left in all (today's included).
 func NewDailyLog(dir string, keep int) io.WriteCloser {
 	return newDailyLog(dir, keep, time.Now)
@@ -46,7 +46,7 @@ func (l *dailyLog) open(day string) error {
 	if err := os.MkdirAll(l.dir, 0o755); err != nil {
 		return err
 	}
-	cur := filepath.Join(l.dir, "queqiaod.log")
+	cur := filepath.Join(l.dir, "mbridge.log")
 	if l.f != nil {
 		l.f.Close()
 		l.f = nil
@@ -58,7 +58,7 @@ func (l *dailyLog) open(day string) error {
 			was = l.day
 		}
 		if was != day {
-			os.Rename(cur, filepath.Join(l.dir, "queqiaod-"+was+".log"))
+			os.Rename(cur, filepath.Join(l.dir, "mbridge-"+was+".log"))
 		}
 	}
 	f, err := os.OpenFile(cur, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -78,7 +78,7 @@ func (l *dailyLog) prune() {
 	}
 	var dated []string
 	for _, e := range ents {
-		if n := e.Name(); strings.HasPrefix(n, "queqiaod-") && strings.HasSuffix(n, ".log") {
+		if n := e.Name(); strings.HasPrefix(n, "mbridge-") && strings.HasSuffix(n, ".log") {
 			dated = append(dated, n)
 		}
 	}
