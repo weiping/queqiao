@@ -141,6 +141,28 @@ type Magpie struct {
 	Home string
 	URL  string // http://127.0.0.1:<port>
 	Env  []string
+	log  *lockedBuffer
+}
+
+// Log is what magpie serve has printed so far, for a failing test to show.
+func (m *Magpie) Log() string { return m.log.String() }
+
+// lockedBuffer is a bytes.Buffer magpie serve writes to while a test reads.
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
 }
 
 // Start runs magpie serve in a fresh HOME with up registered as the
@@ -158,8 +180,9 @@ func Start(t *testing.T, bin string, up *Upstream, models ...string) *Magpie {
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, bin, "serve")
 	cmd.Env = m.Env
-	var log bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &log, &log
+	log := &lockedBuffer{}
+	m.log = log
+	cmd.Stdout, cmd.Stderr = log, log
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
