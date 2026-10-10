@@ -389,3 +389,21 @@ func TestPlainSchemaFirstTurnZeroDissatisfied(t *testing.T) {
 		t.Fatalf("first turn dissatisfied = %v, want 0", v.Dissatisfied)
 	}
 }
+
+// The real ask callback (the gateway's askChat, magpie.Client.Chat) returns
+// the answer's text, not the Chat Completions body: structured output must
+// be read from it, or every plain-model turn falls back to the numbered
+// prompt and confidence 1 (found in SP8 Task 5).
+func TestStructuredVerdictFromAnswerText(t *testing.T) {
+	s := &schemaAsk{schemaReply: func() (string, error) {
+		return `{"tier":"balanced","confidence":0.62,"dissatisfied":0.1}`, nil
+	}, plainReply: "1"}
+	v, err := NewClassifier(testConfig("m/x"), s.ask).Classify(context.Background(), Question{
+		Message: "refactor across files", PreviousTier: TierFast, Criteria: testCriteria})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Tier != TierBalanced || v.TierConfidence != 0.62 || v.Source != "m/x" {
+		t.Fatalf("verdict: %+v", v)
+	}
+}
