@@ -65,12 +65,12 @@ jobs:
             --notes "queqiao ($(git rev-parse --short HEAD)) runs beside official magpie (https://github.com/yetone/magpie): install magpie first. Then:
 
           \`\`\`sh
-          curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.sh | sh
+          curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/main/install.sh | sh
           \`\`\`
           Windows (PowerShell):
 
           \`\`\`powershell
-          irm https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.ps1 | iex
+          irm https://raw.githubusercontent.com/weiping/queqiao/main/install.ps1 | iex
           \`\`\`
 
           Coming from qq-v0.1.x: \`queqiao migrate --dry-run\`, then \`queqiao migrate\`. See the README."

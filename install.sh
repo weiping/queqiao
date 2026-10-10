@@ -1,5 +1,5 @@
 #!/bin/sh
-# queqiao installer: curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.sh | sh
+# queqiao installer: curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/main/install.sh | sh
 #
 # queqiao runs beside official magpie (https://github.com/yetone/magpie):
 # install magpie first. This puts queqiao in ~/.local/bin, checked against
@@ -29,7 +29,7 @@ while [ $# -gt 0 ]; do
     --bin-dir=*) bin=${1#--bin-dir=}; shift ;;
     --no-service) service=0; shift ;;
     -h|--help)
-      printf '%s\n' "usage: curl -fsSL https://raw.githubusercontent.com/$repo/queqiao/install.sh | sh -s -- [--version <tag>] [--bin-dir <dir>] [--no-service]"
+      printf '%s\n' "usage: curl -fsSL https://raw.githubusercontent.com/$repo/main/install.sh | sh -s -- [--version <tag>] [--bin-dir <dir>] [--no-service]"
       exit 0 ;;
     *) die "unknown option $1" ;;
   esac

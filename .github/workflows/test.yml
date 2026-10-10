@@ -2,15 +2,15 @@ name: Test
 
 on:
   push:
-    branches: [queqiao]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
-# On queqiao a run finishes: a release waits for a green run (LESSONS.md).
+# On main a run finishes: a release waits for a green run (LESSONS.md).
 # A PR's run is cancelled by its next push.
 concurrency:
   group: test-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/queqiao' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
