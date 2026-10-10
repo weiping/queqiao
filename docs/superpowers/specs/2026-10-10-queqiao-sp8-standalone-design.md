@@ -41,7 +41,7 @@ queqiao 现在是 yetone/magpie 的 fork，靠每周把上游 main 合并进 `qu
 | 建档位分组 | `provider.SaveGroup` | `magpie group add <name> models=… routing=order`，改动用 `magpie group set` |
 | 解析预设成员 | `provider` 包里的模型表 | `GET /v1/models` |
 | 报表的逐请求记录与成本 | `usage.Load` + `catalog.PriceOf` | `magpie usage --csv all`，列里有 `time`、`requested_model`、`provider`、`model`、`cost_usd`、`status`、`session`（`internal/usage/ledger.go` 的 `CSVHeader`） |
-| Codex 的 provider 表 | 复用 magpie 写的 `[model_providers.magpie]` | 自己写 `[model_providers.queqiao]` 和 `[profiles.queqiao]`。magpie 同步 Codex 配置时，“a table a profile names is the user's to pick, and stays as it is”（`internal/agent/codex.go`），不会改被 profile 引用的 provider 表 |
+| Codex 的 provider 表 | 复用 magpie 写的 `[model_providers.magpie]` | 自己写 profile 文件 `~/.codex/queqiao.config.toml`（§5.6），`config.toml` 一行不写，magpie 的同步碰不到它（V1 实测） |
 
 另一条硬约束：magpie 的包都在 `internal/` 下，别的 Go 模块不能导入。所以独立出来的 queqiao 不能引用 magpie 的任何代码，现在 router 包用到的 `gateway.Request`、`provider.Group`、`catalog.Price`、`usage.Record`、`edit`、`codexcat` 都要换成自己的。
 
@@ -201,24 +201,25 @@ func (c *Client) Usage(since string) ([]UsageRow, error)             // magpie u
 
 ### 5.6 `internal/codexcfg`：Codex 配置
 
-`queqiao router init` 的 Codex 部分改成：
+`queqiao router init` 的 Codex 部分改成写一个独立的 profile 文件 `~/.codex/queqiao.config.toml`（V1/V4 实测修订，2026-10-10）：
 
 ```toml
+model_provider = "queqiao"
+model = "group/queqiao"
+model_catalog_json = "<~/.codex/queqiao-models.json 的绝对路径>"
+
 [model_providers.queqiao]
 name = "queqiao"
 base_url = "http://127.0.0.1:3426/v1"
 wire_api = "responses"
 experimental_bearer_token = "<从 [model_providers.magpie] 复制，没有就不写>"
 http_headers = { "x-openai-actor-authorization" = "magpie" }
-
-[profiles.queqiao]
-model_provider = "queqiao"
-model = "group/queqiao"
-model_catalog_json = "~/.codex/queqiao-models.json"
 ```
 
-- 不动顶层的 `model`、`model_provider`、`profile`，那些归 magpie 管。用户用 `codex -p queqiao` 启动。顶层设 `profile = "queqiao"` 会让 magpie 的 Check 报冲突，所以不这样做，只在 README 里写明。
-- qq-v0.1.4 的 init 改过顶层 `model = "group/queqiao"`。迁移时如果顶层 `model` 仍是 `group/queqiao`，就移到 profile 里，顶层交还 magpie（下次 magpie 同步时写回它的值）。
+- Codex 0.162 起，`codex -p <名字>` 读 `~/.codex/<名字>.config.toml`；`config.toml` 里如果还有同名的 `[profiles.<名字>]` 表或 `profile = "<名字>"`，`-p` 直接报错拒绝加载。所以 queqiao 不再往 `config.toml` 写任何东西，`config.toml` 完全归 magpie 和用户。
+- 用户用 `codex -p queqiao` 启动。顶层 `model`、`model_provider`、`profile` 都不动。
+- qq-v0.1.x 曾在 `config.toml` 写过 `[profiles.queqiao]` 或 `[model_providers.queqiao]`，init 和迁移时把它们从 `config.toml` 移除（先备份），否则 `-p queqiao` 无法加载。
+- qq-v0.1.4 的 init 改过顶层 `model = "group/queqiao"`。迁移时如果顶层 `model` 仍是 `group/queqiao`，就删掉这一行，顶层交还 magpie（下次 magpie 同步时写回它的值）。
 - 模型目录 `queqiao-models.json` 的格式取自 Codex 自己的数据：实施时先读 magpie 当前写出的目录文件和 Codex 源码里的结构，再写生成函数，用真实 Codex 加载验证（LESSONS“Take another app's field types from that app's own data”）。
 - TOML 只做表级读写：读出整个表，改完整表写回，其他内容逐字保留。复用 qq-v0.1.4 `codexConfigKeys` 的行级做法，扩展到表。
 

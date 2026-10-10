@@ -19,7 +19,7 @@
 - 会话头的顺序照搬 magpie：先 `X-Magpie-Session`，再 `x-opencode-session`、`x-session-affinity`、`x-session-id`、`session_id`、`session-id`、`x-claude-code-session-id`；值超过 128 字节截断。
 - 代理只改请求体里的 `model` 一个字段，其余字节保持原样；请求体上限 16 MiB，超过就透传不改写；只监听 loopback。
 - 路由组 `group/queqiao` 的成员顺序是 `group/qq-balanced,group/qq-perf,group/qq-fast`，`routing=order`。三档分组是 `qq-fast`、`qq-balanced`、`qq-perf`。
-- Codex 只写 `[model_providers.queqiao]` 和 `[profiles.queqiao]`，不动顶层的 `model`、`model_provider`、`profile`（迁移时把 qq-v0.1.4 写的顶层 `model = "group/queqiao"` 移走的情况除外）。
+- Codex 只写独立的 profile 文件 `~/.codex/queqiao.config.toml`，`config.toml` 不写任何东西；唯一例外是清理 qq-v0.1.x 留在 `config.toml` 里的 `[profiles.queqiao]`、`[model_providers.queqiao]` 和顶层 `model = "group/queqiao"`（Task 0 实测：Codex 0.162 见到同名旧表会拒绝 `-p queqiao`）。
 - 插件版本：Claude Code、Codex 插件 0.1.1 → 0.2.0；Pi `@weiping/pi-queqiao` 0.1.2 → 0.2.0。发布 tag `qq-v0.2.0`。
 - 发布资产：darwin、linux、windows 各 amd64 与 arm64，共六个二进制，加 `checksums.txt`。
 - launchd 标签 `io.github.weiping.queqiao`；systemd 单元 `queqiao.service`；Windows 计划任务名 `queqiao`。日志在 `~/.config/queqiao/logs/queqiaod.log`，按天轮转，保留 7 天。
@@ -199,16 +199,16 @@ git commit -m "docs: SP8 pre-checks V1–V4"
 **Interfaces:**
 - Produces:
   - `type Table struct{ Name string; Lines []string }`；`func ReadTables(b []byte) (top []string, tables []Table)`；`func SetTable(b []byte, name string, kv [][2]string) []byte`（整表替换或追加到文件末尾，其他行逐字保留）
-  - `func Init(codexHome, queqiaoURL string) (changed []string, err error)`：写 spec §5.6 的两张表；从 `[model_providers.magpie]` 复制 `experimental_bearer_token`（有才写）；写 `queqiao-models.json`
-  - `func MoveTopModel(codexHome string) (bool, error)`：顶层 `model` 是 `"group/queqiao"` 时删掉这一行，返回 true
+  - `func Init(codexHome, queqiaoURL string) (changed []string, err error)`：写 spec §5.6 的 `queqiao.config.toml`；从 `config.toml` 的 `[model_providers.magpie]` 复制 `experimental_bearer_token`（有才写）；写 `queqiao-models.json`；先调用 `CleanLegacy`
+  - `func CleanLegacy(codexHome string) (bool, error)`：从 `config.toml` 移除 `[profiles.queqiao]`、`[model_providers.queqiao]`（含其子表）和值为 `"group/queqiao"` 的顶层 `model`，改动前把原文件复制为 `config.toml.queqiao-bak`，返回是否改动
   - `func Catalog(ids []string) []byte`
 
 - [ ] **Step 1: 确认目录格式**：读官方 magpie 在 Task 0 环境里写出的 Codex 目录文件，以及当前 Codex 源码中读取 `model_catalog_json` 的结构体，把字段和类型记到 `catalog.go` 的注释里。用 magpie 写出的那份文件作为 `testdata/catalog-from-magpie.json`。
-- [ ] **Step 2: 写失败的测试**：`TestCodexInitKeepsUserTablesAndIsIdempotent`（fixture 里有用户自己的 `[profiles.work]`、`[model_providers.magpie.http_headers]` 子表、注释和空行；执行两次 `Init`，除两张 queqiao 表以外逐字不变，第二次 `changed` 为空）；`TestCodexInitCopiesBearerOnlyWhenPresent`；`TestCodexInitLeavesTopLevelAlone`（顶层 `model`、`model_provider`、`profile` 不变）；`TestMoveTopModelOnlyMovesQueqiao`（顶层是别的模型时不动）；`TestCatalogShapeMatchesMagpies`（`Catalog` 输出的字段集合与 `catalog-from-magpie.json` 每个条目的字段集合相同）。
+- [ ] **Step 2: 写失败的测试**：`TestCodexInitKeepsUserTablesAndIsIdempotent`（fixture 的 `config.toml` 里有用户自己的 `[profiles.work]`、`[model_providers.magpie]` 及其 `http_headers`、注释和空行；执行两次 `Init`，`config.toml` 逐字不变，第二次 `changed` 为空）；`TestCodexInitCopiesBearerOnlyWhenPresent`；`TestCleanLegacyRemovesOnlyQueqiaoTables`（qq-v0.1.4 风格的 `config.toml`：旧表和顶层 `model = "group/queqiao"` 被移除并留下 `.queqiao-bak`；顶层是别的模型时不动）；`TestCatalogShapeMatchesMagpies`（`Catalog` 输出的字段集合与 `catalog-from-magpie.json` 每个条目的字段集合相同）。
 - [ ] **Step 3: 运行确认失败**：`go test -tags nogui ./internal/codexcfg/`。
 - [ ] **Step 4: 实现**。只做表级读写，不引入 TOML 库。
 - [ ] **Step 5: 运行确认通过**。
-- [ ] **Step 6: 真机验证**：在 Task 0 的隔离环境里执行 `Init`，`codex -p queqiao` 能列出四个分组并发出一轮请求。结果写进 PR 描述。
+- [ ] **Step 6: 真机验证**：在 Task 0 的隔离环境里执行 `Init`，`codex -p queqiao exec` 的请求到达 3426 且 `model` 为 `group/queqiao`。结果写进 PR 描述。
 - [ ] **Step 7: 提交**：`feat(codexcfg): queqiao's own Codex provider and profile`
 
 ## Task 8：插件端
@@ -294,11 +294,11 @@ git commit -m "docs: SP8 pre-checks V1–V4"
 - Delete: `migrate-from-magpie.sh`（它的 `restore` 仍需可用：在 README 里写明旧备份目录的手动恢复方法）
 
 **Interfaces:**
-- Consumes: Task 7 `codexcfg.MoveTopModel`、`codexcfg.Init`；Task 3 `magpie.Client.Version`
+- Consumes: Task 7 `codexcfg.CleanLegacy`、`codexcfg.Init`；Task 3 `magpie.Client.Version`
 - Produces: `type Plan struct{ Steps []Step; Backup string }`；`func Prepare(home string, now time.Time) (Plan, error)`；`func (p Plan) Apply() error`；`func Restore(home string) error`；`var QueqiaoFiles = []string{"router.json", "router.jsonl", "logs", …}`（用当前 `internal/router` 实际写的文件名填满：会话状态、hint、复核结果文件，以 `grep -rn "ConfigDir()" internal/router` 的结果为准）
 
 - [ ] **Step 1: 造 fixture**：在 `testdata/qq-v0.1.4-layout/` 里放一份 qq-v0.1.4 的 `~/.config/queqiao` 布局（`providers.json`、账号文件、`usage.jsonl`、`router.json`、`router.jsonl` 等，内容是假数据），文件清单取自真实安装的 `ls -R`。
-- [ ] **Step 2: 写失败的测试**：`TestMigrateMovesMagpieFilesKeepsQueqiaos`；`TestMigrateWithExistingMagpieDirRoundTrips`（先有一个 `~/.config/magpie`；`Apply` 后它在备份的 `magpie-before/` 里；`Restore` 后两个目录与迁移前逐文件一致，包括权限）；`TestMigrateUnknownFileGoesToMagpie`；`TestMigrateDryRunChangesNothing`；`TestMigrateRefusesWhileOldGatewayRuns`（3425 上有响应且 `/v1/queqiao/router` 存在，说明旧的 queqiao 网关还在跑，拒绝执行并说明）；`TestMigrateMovesCodexTopModel`；`TestMigrateNeverDeletes`（Apply 加 Restore 全程统计 `os.Remove` 调用次数为 0，用可替换的文件系统函数）。
+- [ ] **Step 2: 写失败的测试**：`TestMigrateMovesMagpieFilesKeepsQueqiaos`；`TestMigrateWithExistingMagpieDirRoundTrips`（先有一个 `~/.config/magpie`；`Apply` 后它在备份的 `magpie-before/` 里；`Restore` 后两个目录与迁移前逐文件一致，包括权限）；`TestMigrateUnknownFileGoesToMagpie`；`TestMigrateDryRunChangesNothing`；`TestMigrateRefusesWhileOldGatewayRuns`（3425 上有响应且 `/v1/queqiao/router` 存在，说明旧的 queqiao 网关还在跑，拒绝执行并说明）；`TestMigrateCleansLegacyCodexTables`；`TestMigrateNeverDeletes`（Apply 加 Restore 全程统计 `os.Remove` 调用次数为 0，用可替换的文件系统函数）。
 - [ ] **Step 3: 运行确认失败**：`go test ./internal/migrate/`。
 - [ ] **Step 4: 实现**。“只移动”用 `os.Rename`，跨设备时回退为复制后再把源移进备份。macOS 上 `Queqiao.app` 移进备份的 `removed/`，并删除它的登录项（`osascript` 的调用放在可替换的函数里）。
 - [ ] **Step 5: 运行确认通过**。
