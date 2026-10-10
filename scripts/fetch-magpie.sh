@@ -30,8 +30,8 @@ want=$(printf '%s' "$entry" | sed -n 's/.*"sha256":"\([^"]*\)".*/\1/p')
 mkdir -p "$dir"
 out="$dir/$file"
 curl -fsSL -o "$out" "$url"
-if command -v sha256sum >/dev/null; then got=$(sha256sum "$out" | cut -d' ' -f1)
-else got=$(shasum -a 256 "$out" | cut -d' ' -f1); fi
+if command -v sha256sum >/dev/null; then got=$(sha256sum < "$out" | cut -d' ' -f1)
+else got=$(shasum -a 256 < "$out" | cut -d' ' -f1); fi
 [ "$got" = "$want" ] || { echo "fetch-magpie: SHA-256 mismatch for $file (want $want, got $got)" >&2; exit 1; }
 chmod +x "$out"
 printf '%s\n%s\n' "$out" "$version"
