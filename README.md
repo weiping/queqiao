@@ -90,7 +90,27 @@ mbridge 的路由配置有两处：magpie 里的四个路由组（存在 magpie 
 | `mb-fast` / `mb-balanced` / `mb-perf` | 三个档位组，各自是「主成员 + 失败转移成员」的列表 | `order` |
 | `mbridge` | 路由组：Codex 和网关模式的请求带着 `group/mbridge` 进 mbridge，代理按轮改写成某一档；绕过 mbridge 直接请求它时，magpie 按顺序落到 balanced | `order` |
 
-换模型只改档位组的成员，例如 `magpie group set mb-fast models=glm/glm-5.3-flash:high,deepseek/deepseek-v4-flash`。成员可以带 `:effort` 后缀指定推理强度。
+#### 换档位组里的模型
+
+每档用哪些模型，由 magpie 里这三个档位组的成员决定，直接用 magpie 的命令改。mbridge 只认 `mb-fast` 这些分组名，所以改完马上生效，不用重启 mbridge，也不用重跑 `router init`。
+
+```sh
+magpie models                         # 先查可用的模型名（provider/model）
+magpie group mb-fast                  # 看一个组现在的成员
+magpie group set mb-fast models=deepseek/deepseek-v4-flash:high,glm/glm-5.3-flash:high
+magpie group set mb-perf models+=anthropic/claude-opus-5-5:high   # 在末尾追加一个
+magpie group set mb-perf models-=glm/glm-5.3                       # 去掉一个
+magpie groups                         # 确认三档都对
+mbridge router check                  # 检查分组是否齐全、上下文窗口够不够
+```
+
+- `models=` 会用给出的列表整个替换原来的成员。列表有顺序：第一个是主模型，后面的依次是失败转移。
+- 成员可以带 `:low`、`:medium`、`:high` 这类后缀，指定推理强度。
+- magpie 不认识的模型名会被拒绝（提示用 `magpie models` 查）。
+- `mbridge` 这个路由组的成员就是三个档位组（`group/mb-balanced`、`group/mb-perf`、`group/mb-fast`），不要改成具体模型。
+- 想改的是「什么样的问题进哪一档」，那是 `router.json` 里各档的 `criteria`，见下一节。
+
+`router init` 的三套预设（`frontier`、`anthropic`、`cn`）只决定第一次建分组时的成员。之后分组归你管：再次执行 `router init` 不会改动它们，除非加 `--force`。
 
 `mb-fast`、`mb-balanced`、`mb-perf`、`mbridge` 这四个分组名归 Magpie Bridge 使用，别拿它们做别的用途。再次执行 `mbridge router init` 会保留已有的同名分组和 `router.json`，只补上缺的部分，并接好各 Agent；加 `--force` 才会用预设覆盖它们。
 
