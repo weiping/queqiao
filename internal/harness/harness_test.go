@@ -161,3 +161,13 @@ func TestNewClientReadsTheBudgetFromRouterJSON(t *testing.T) {
 		t.Fatalf("classify 2500: budget %v, want 3s", c.budget())
 	}
 }
+
+// SP10: Run's own cap on a hook never cuts a /turn short of its budget.
+func TestRunOutlivesTheTurnBudget(t *testing.T) {
+	for _, b := range []time.Duration{0, 1500 * time.Millisecond, 3 * time.Second, 8 * time.Second} {
+		c := &Client{TurnBudget: b}
+		if got := runTimeout(c); got <= c.budget() || got < 5*time.Second {
+			t.Errorf("budget %v: Run allows %v", c.budget(), got)
+		}
+	}
+}

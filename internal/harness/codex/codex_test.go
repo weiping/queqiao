@@ -317,3 +317,33 @@ func TestCodexHooksJSONHasStop(t *testing.T) {
 		t.Fatalf("Stop hook: %+v", got)
 	}
 }
+
+// SP10: Codex kills a hook at its "timeout" (seconds). The hooks that call
+// /turn must outlive the longest turn budget mbridge can report (8000 ms),
+// or a cold first turn is cut off before Jev answers.
+func TestCodexTurnHooksOutliveTheTurnBudget(t *testing.T) {
+	b, err := os.ReadFile("../../../clients/codex/hooks/hooks.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hooks struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+				Timeout int    `json:"timeout"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(b, &hooks); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []string{"UserPromptSubmit", "PreToolUse"} {
+		for _, g := range hooks.Hooks[event] {
+			for _, h := range g.Hooks {
+				if h.Timeout*1000 <= 8000 {
+					t.Errorf("%s hook %q times out at %d s; /turn may take up to 8 s", event, h.Command, h.Timeout)
+				}
+			}
+		}
+	}
+}

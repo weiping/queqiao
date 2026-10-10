@@ -145,7 +145,7 @@ func Run(h Handler) int {
 				fmt.Fprintf(os.Stderr, "mbridge hook: panic: %v\n", r)
 			}
 		}()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), runTimeout(c))
 		defer cancel()
 		b, err := h(ctx, stdin, c)
 		if err != nil {
@@ -158,4 +158,13 @@ func Run(h Handler) int {
 		os.Stdout.Write(out)
 	}
 	return 0
+}
+
+// runTimeout caps a whole hook run: 5 s, or longer when /turn may take
+// longer (SP10), so the cap never cuts a turn short of its budget.
+func runTimeout(c *Client) time.Duration {
+	if t := c.budget() + time.Second; t > 5*time.Second {
+		return t
+	}
+	return 5 * time.Second
 }
