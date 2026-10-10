@@ -1,20 +1,20 @@
-name: queqiao release
+name: mbridge release
 
-# Pushing a qq-v* tag (or dispatching with an existing one) builds queqiao
+# Pushing a v* tag (or dispatching with an existing one) builds mbridge
 # for darwin, linux and windows (amd64 and arm64) and publishes a GitHub
 # Release with the six binaries and checksums.txt, which install.sh,
-# install.ps1 and `queqiao update` download from:
+# install.ps1 and `mbridge update` download from:
 #
-#   git tag qq-v0.2.0 && git push origin qq-v0.2.0
+#   git tag v0.2.0 && git push origin v0.2.0
 
 on:
   push:
     tags:
-      - 'qq-v*'
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing qq-v* tag to release'
+        description: 'Existing v* tag to release'
         required: true
         type: string
 
@@ -39,11 +39,11 @@ jobs:
         run: |
           tag="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           case "$tag" in
-            qq-v?*) ;;
-            *) echo "bad tag: $tag (want qq-v<version>)" >&2; exit 1 ;;
+            v?*) ;;
+            *) echo "bad tag: $tag (want v<version>)" >&2; exit 1 ;;
           esac
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#qq-v}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: make release VERSION="${{ steps.v.outputs.tag }}"
@@ -51,7 +51,7 @@ jobs:
       - name: Check the assets
         run: |
           cd dist
-          n=$(find . -maxdepth 1 -name 'queqiao-*' | wc -l)
+          n=$(find . -maxdepth 1 -name 'mbridge-*' | wc -l)
           [ "$n" = 6 ] || { echo "want 6 binaries, have $n" >&2; exit 1; }
           # every line must be "<hash>  <file>": shasum -c reads it as it is
           sha256sum -c checksums.txt
@@ -60,17 +60,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.v.outputs.tag }}" dist/queqiao-* dist/checksums.txt \
-            --title "queqiao ${{ steps.v.outputs.version }}" \
-            --notes "queqiao ($(git rev-parse --short HEAD)) runs beside official magpie (https://github.com/yetone/magpie): install magpie first. Then:
+          gh release create "${{ steps.v.outputs.tag }}" dist/mbridge-* dist/checksums.txt \
+            --title "mbridge ${{ steps.v.outputs.version }}" \
+            --notes "mbridge ($(git rev-parse --short HEAD)) runs beside official magpie (https://github.com/yetone/magpie): install magpie first. Then:
 
           \`\`\`sh
-          curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/main/install.sh | sh
+          curl -fsSL https://raw.githubusercontent.com/weiping/magpie-bridge/main/install.sh | sh
           \`\`\`
           Windows (PowerShell):
 
           \`\`\`powershell
-          irm https://raw.githubusercontent.com/weiping/queqiao/main/install.ps1 | iex
+          irm https://raw.githubusercontent.com/weiping/magpie-bridge/main/install.ps1 | iex
           \`\`\`
 
-          Coming from qq-v0.1.x: \`queqiao migrate --dry-run\`, then \`queqiao migrate\`. See the README."
+          Coming from v0.1.x: \`mbridge migrate --dry-run\`, then \`mbridge migrate\`. See the README."

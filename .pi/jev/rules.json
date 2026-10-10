@@ -14,12 +14,12 @@
   {
     "id": "readme",
     "load": "README.md",
-    "when_jev": "The request is about building, running or operating magpie/queqiao: CLI subcommands, gateway and provider configuration, or the upstream architecture."
+    "when_jev": "The request is about building, running or operating magpie/mbridge: CLI subcommands, gateway and provider configuration, or the upstream architecture."
   },
   {
-    "id": "queqiao-design",
+    "id": "mbridge-design",
     "load": "docs/superpowers/specs/2026-10-02-queqiao-design.md",
-    "when_jev": "The request involves queqiao's routing work: picking fast/balanced/performance tiers, the router policy, routing groups in the gateway, the internal/router, internal/harness or clients layout, or any SP subproject (SP0-SP6)."
+    "when_jev": "The request involves mbridge's routing work: picking fast/balanced/performance tiers, the router policy, routing groups in the gateway, the internal/router, internal/harness or clients layout, or any SP subproject (SP0-SP6)."
   },
   {
     "id": "sp0-spike-plan",
@@ -29,7 +29,7 @@
   {
     "id": "sp1-fork-plan",
     "load": "docs/superpowers/plans/2026-10-03-queqiao-sp1-fork.md",
-    "when_jev": "The request touches the fork groundwork: renaming the app dir and binary to queqiao, turning off auto-update and usage stats, or keeping the queqiao/main branch split merge-friendly."
+    "when_jev": "The request touches the fork groundwork: renaming the app dir and binary to mbridge, turning off auto-update and usage stats, or keeping the mbridge/main branch split merge-friendly."
   },
   {
     "id": "ui-preview",

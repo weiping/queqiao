@@ -32,8 +32,8 @@
     "how": "make release"
   },
   "gh-pr": {
-    "what": "Open a PR from a qq/sp<N> feature branch into queqiao — outward-facing",
-    "how": "gh pr create --base queqiao"
+    "what": "Open a PR from a qq/sp<N> feature branch into main — outward-facing",
+    "how": "gh pr create --base main"
   },
   "wrangler-site": {
     "what": "Deploy the usemagpie.ai site from site/ — outward-facing production deploy of the upstream domain; do not run in this fork",

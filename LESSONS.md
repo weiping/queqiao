@@ -1,7 +1,7 @@
 <!-- reviewed-through: 34bfb9ca (2026-10-06 03:48 +0800) -->
 # Lessons from merged work
 
-> queqiao inherited these rules from magpie when it was a fork (until SP8,
+> Magpie Bridge inherited these rules from magpie when it was a fork (until SP8,
 > 2026-10-10). The evidence lines cite magpie's history; the rules apply here.
 
 magpie's code is written, reviewed, merged and released by agents. Each night

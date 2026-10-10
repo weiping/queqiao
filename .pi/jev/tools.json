@@ -4,7 +4,7 @@
     "how": "make test"
   },
   "test-nogui": {
-    "what": "All tests without the GUI (no cgo, runs on any platform); the queqiao README's test command.",
+    "what": "All tests without the GUI (no cgo, runs on any platform); the mbridge README's test command.",
     "how": "go test -tags nogui ./..."
   },
   "build-cli": {

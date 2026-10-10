@@ -29,7 +29,7 @@ func TestUsageColumnsMatch(t *testing.T) {
 		t.Fatalf("%d rows", len(rows))
 	}
 	r := rows[2] // group/qq-fast (recorded before the rename), session s1, served by up/m1
-	if r.Session != "s1" || r.RequestedModel != "group/qq-fast" || r.Provider != "up" || r.Model != "m1" ||
+	if r.Session != "s1" || r.RequestedModel != "group/qq-fast" /* recorded before the rename */ || r.Provider != "up" || r.Model != "m1" ||
 		r.Input != 5 || r.Output != 1 || r.Status != 200 || r.Priced || r.Time.IsZero() {
 		t.Fatalf("row %+v", r)
 	}
