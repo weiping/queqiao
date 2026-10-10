@@ -37,7 +37,7 @@ function lastAssistantText(messages: AgentMessageLite[]): string | null {
 }
 
 export default function (pi: ExtensionAPI): void {
-  const client = new QueqiaoClient(process.env.QUEQIAO_URL ?? "http://127.0.0.1:3425")
+  const client = new QueqiaoClient(process.env.QUEQIAO_URL ?? "http://127.0.0.1:3426")
 
   // per-session memory; rebuilt at every session_start
   let session = ""
@@ -47,6 +47,10 @@ export default function (pi: ExtensionAPI): void {
   let lastPrompt = "" // this turn's words, for the end-of-turn review (SP7)
   let lastAutoModel = "" // our own setModel, told apart from a manual switch
   let manualPinned = false
+  // SP8: the main session's tool results since the last /turn; queqiaod no
+  // longer sees Pi's requests, so Pi reports them (R3's tool rule)
+  let tools: { calls: number; failures: number } | null = null
+  let downShown = false
 
   pi.on("session_start", (event, ctx: ExtensionContext) => {
     const ids = idsFrom(
@@ -65,6 +69,7 @@ export default function (pi: ExtensionAPI): void {
     lastPrompt = ""
     lastAutoModel = ""
     manualPinned = false
+    tools = null
   })
 
   pi.on("before_provider_headers", (event) => {
@@ -81,9 +86,20 @@ export default function (pi: ExtensionAPI): void {
       prompt,
       cwd: process.cwd(), // §4.1 project-level criteria
       parentSession: parent !== null && !parentSent ? parent : undefined,
+      toolCalls: tools?.calls,
+      toolFailures: tools?.failures,
     })
+    tools = { calls: 0, failures: 0 }
     if (parent !== null) parentSent = true
-    if (out === null) return
+    // queqiaod down: the model stays as it is, and the status says why
+    const status = (ctx as { ui?: { setStatus?: (k: string, t: string | undefined) => void } }).ui?.setStatus
+    if (out === null) {
+      if (!downShown) status?.("queqiao", "queqiao: queqiaod 未运行")
+      downShown = true
+      return
+    }
+    if (downShown) status?.("queqiao", undefined)
+    downShown = false
     if (out.tier === lastTier) return
     const model = ctx.modelRegistry.find(PROVIDER, out.group)
     if (model === undefined) return // tier group unknown to Pi: keep the model
@@ -116,6 +132,10 @@ export default function (pi: ExtensionAPI): void {
 
   pi.on("tool_result", (event) => {
     const e = event as { isError?: boolean; content?: Array<{ type?: string; text?: string }> }
+    if (tools !== null) {
+      tools.calls++
+      if (e.isError === true) tools.failures++
+    }
     if (e.isError === true) return
     for (const part of e.content ?? []) {
       if (typeof part.text !== "string") continue

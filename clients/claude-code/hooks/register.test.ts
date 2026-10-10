@@ -46,7 +46,7 @@ test('turn.start calls /turn with the right fields and turn.step rewrites the ro
   await $.turn.start({ turnId: 't1', text: 'what license is this repo?' })
 
   expect(calls.length).toBe(1)
-  expect(calls[0].url).toBe('http://127.0.0.1:3425/v1/queqiao/turn')
+  expect(calls[0].url).toBe('http://127.0.0.1:3426/v1/queqiao/turn')
   const body = JSON.parse(calls[0].body ?? '{}')
   expect(body).toMatchObject({
     harness: 'claude-code',
@@ -171,7 +171,7 @@ test('session.start with the gateway down reports it once', async ($, on) => {
   on('http.fetch', () => ({ deny: 'down' }))
 
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work/repo' })
-  expect(status).toEqual(['queqiao: 网关未运行'])
+  expect(status).toEqual(['queqiao: queqiaod 未运行'])
 })
 
 // ---- Task 3: subagents ----
@@ -227,7 +227,7 @@ test('agent.spawn: other types ask the gateway with prompt and agent', async ($,
 
   await $.agent.spawn({ prompt: 'fix the flaky test in rules_test.go', subagentType: 'general-purpose' })
   const body = JSON.parse(calls[0].body ?? '{}')
-  expect(calls[0].url).toBe('http://127.0.0.1:3425/v1/queqiao/turn')
+  expect(calls[0].url).toBe('http://127.0.0.1:3426/v1/queqiao/turn')
   expect(body).toMatchObject({ harness: 'claude-code', session: 's-1', agent: 'general-purpose', store_hint: false })
   expect(models).toEqual(['sonnet'])
 })

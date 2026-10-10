@@ -1,6 +1,6 @@
 {
   "name": "queqiao-router-codex",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Route every Codex turn across queqiao's fast/balanced/performance tiers via the queqiao gateway. Requires the queqiao CLI on PATH and the gateway running.",
   "hooks": "./hooks/hooks.json"
 }

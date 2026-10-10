@@ -1,6 +1,6 @@
 {
   "name": "queqiao-router",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": { "name": "weiping" },
   "description": "Route Claude Code requests across queqiao's fast/balanced/performance tiers: classifies each turn, rewrites the model, and reports tool stats back to the gateway.",
   "types": "./types/index.d.ts",
@@ -9,7 +9,7 @@
       "type": "string",
       "title": "Gateway URL",
       "description": "Where the queqiao gateway is serving (queqiao serve).",
-      "default": "http://127.0.0.1:3425"
+      "default": "http://127.0.0.1:3426"
     }
   }
 }

@@ -39,7 +39,7 @@ claude plugin marketplace add weiping/queqiao
 claude plugin install queqiao-router@queqiao
 ```
 
-The gateway URL defaults to `http://127.0.0.1:3425`; change it in the
+The gateway URL defaults to `http://127.0.0.1:3426` (queqiaod); change it in the
 plugin's `gateway_url` setting if your gateway serves elsewhere.
 
 ## Known limitations

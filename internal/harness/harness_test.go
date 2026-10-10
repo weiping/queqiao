@@ -116,3 +116,10 @@ func TestRunAlwaysExitsZero(t *testing.T) {
 		}
 	}
 }
+
+func TestHarnessDefaultURLIs3426(t *testing.T) {
+	t.Setenv("QUEQIAO_URL", "")
+	if got := NewClient().Base; got != "http://127.0.0.1:3426" {
+		t.Fatalf("base %q", got)
+	}
+}
