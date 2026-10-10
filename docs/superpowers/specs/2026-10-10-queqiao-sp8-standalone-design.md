@@ -1,7 +1,7 @@
 # SP8 设计：脱离 fork，queqiao 独立成伴随进程
 
 - 日期：2026-10-10
-- 状态：设计已确认，待书面审阅
+- 状态：已实施（PR #21、#22），待本机验收与发版
 - 上位规格：[`2026-10-02-queqiao-design.md`](2026-10-02-queqiao-design.md)（下称“总体规格”）与 [`2026-10-07-queqiao-sp7-review-calibration-design.md`](2026-10-07-queqiao-sp7-review-calibration-design.md)（下称“SP7 规格”）。本文只写 SP8 改动的部分，选档策略、复核、校准一律沿用这两份规格。
 
 ## 1. 为什么有 SP8
@@ -345,3 +345,40 @@ qq-v0.1.x 把 magpie 的数据放在 `~/.config/queqiao`（`appdir.SetName("queq
 | Codex 用户忘了 `-p queqiao`，请求走 magpie 的默认 provider，没有选档 | `queqiao status` 检查最近的 Codex 会话是否经过代理；README 和 init 输出都写明启动方式 |
 | 迁移时文件归属判断错误 | 用显式的 queqiao 文件清单；迁移只复制不删除；`--dry-run` 先看；`restore` 可回滚 |
 | 失去桌面 App 后用户不知道 queqiaod 是否在运行 | 插件状态栏显示 queqiao 未运行；`queqiao status`；服务设为自动重启 |
+
+## 执行结果（2026-10-10）
+
+实施分两个 PR：[#21](https://github.com/weiping/queqiao/pull/21)（S8.1–S8.3，仍是 fork 形态，已合并）和 [#22](https://github.com/weiping/queqiao/pull/22)（S8.4–S8.6）。逐任务记录和全部裁定见计划的执行台账。
+
+### 成功标准逐条
+
+| # | 标准 | 结果 |
+| --- | --- | --- |
+| 1 | 不含、不引用 magpie 源码 | 通过。`TestNoMagpieDependency` 检查 `go list -deps ./...`；magpie 代码树已删 |
+| 2 | 官方 magpie 加 queqiaod，三个 harness 的 e2e | 沙箱通过：`e2e/` 对官方 magpie 0.1.1154 发布版（SHA-256 校验）跑 Claude Code、Codex、Pi 三条主路径。真实会话待本机验收 |
+| 3 | report、calibrate 与 qq-v0.1.4 一致 | calibrate 只读 `router.jsonl`，计算代码未改，结果相同。report 的会话数、选档分布、升档来源计算不变；成本改用 magpie CSV 的 `cost_usd`，与 qq-v0.1.4 自带价格表的差异来自计价来源不同（magpie 按它对每个 provider 的实际价格计，未定价的模型计入“未定价”而非 0）。缓存写入的成本份额 CSV 不单列，按输入侧 token 占比估算。magpie 导入的本地会话行（status 0）不计成本 |
+| 4 | Codex 同一轮同一档，hint 命中与 qq-v0.1.4 一致 | 通过。`TestE2ECodex` 用 magpie 的 usage 记录核对每个请求被改写成的分组；代理单元测试覆盖三种 hint 顺序 |
+| 5 | 代理首字节额外延迟 p95 ≤ 5ms | 通过：本机直连 137µs，经 queqiaod 466µs，多 0.33ms |
+| 6 | migrate 与 restore 往返 | 通过。测试覆盖已有 magpie 目录、清单外文件、二次 restore、无可迁移内容、网关在跑；沙箱用 qq-v0.1.4 二进制造数据做了真机演练 |
+| 7 | 契约测试每日运行 | `queqiao-contract.yml` 三平台每日运行，失败开 issue（标签 `contract`） |
+
+### 先行验证
+
+- V1 成立，但有变化：Codex 0.162 在 `config.toml` 里有 `[profiles.queqiao]` 时拒绝 `-p queqiao`，profile 改为单独的 `~/.codex/queqiao.config.toml`（§5.6 已按此实施，`codexcfg.CleanLegacy` 清理 qq-v0.1.4 写进 `config.toml` 的条目）。
+- V2 部分成立：loopback 上不带密钥可以调用 `/v1/systemone`，未配置 Jev 时返回 magpie 的明确 4xx。真实 Jev 回答待本机验证。
+- V3 成立（沙箱）：`x-claude-code-session-id` 和 `X-Magpie-Session` 原样出现在 `magpie usage --csv` 的 `session` 列，契约测试固化了这一点。
+- V4 成立（沙箱）：Codex 用自定义 provider 时会话头和 turn 元数据原样到达代理。
+
+### 与本文设计不同的地方
+
+- queqiaod 每秒最多检查一次 `router.json` 的大小和修改时间，变了就重新加载，会话状态和 hint 保留；`listen` 改动仍需重启。原因是安装脚本先启动服务、后执行 `router init`。
+- 服务重装和 `queqiao update` 会重启 queqiaod。Windows 的计划任务以安装用户身份运行 `serve --detach`（释放控制台，不留窗口），状态读 `Get-ScheduledTask` 的 State。
+- `listen` 只接受 loopback 地址，其他地址直接报错（§5.5 原只写“只监听 127.0.0.1”）。
+- 迁移把 magpie 的文件“移动”到 `~/.config/magpie`（§7.1 写的是复制；备份里已有完整副本）。另外三条前置检查：3425 上有任何网关在跑就拒绝；queqiao 目录里没有 magpie 的文件就拒绝；同一备份只能 restore 一次。
+- 发布资产名为 `queqiao-<os>-<arch>[.exe]`，不再有 Android 构建。
+
+### 未完成与已知限制
+
+- 本机验收（真实 Jev、三个 Agent 的真实会话、迁移真实数据、Windows 普通账户上的计划任务）和 `qq-v0.2.0` 发版、`@weiping/pi-queqiao@0.2.0` 发布，需要在用户本机完成。
+- §12 风险表里“`queqiao status` 检查最近的 Codex 会话是否经过代理”没有实现；目前只能从 magpie usage 的 `requested_model` 看出（经过代理的是 `group/qq-<档>`，绕过的是 `group/queqiao`）。
+- 终审列出的 13 条次要问题延后处理，见计划执行台账的 `minor (deferred)` 行。
