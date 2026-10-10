@@ -92,7 +92,7 @@ mbridge 的路由配置有两处：magpie 里的四个路由组（存在 magpie 
 
 换模型只改档位组的成员，例如 `magpie group set mb-fast models=glm/glm-5.3-flash:high,deepseek/deepseek-v4-flash`。成员可以带 `:effort` 后缀指定推理强度。
 
-`mb-fast`、`mb-balanced`、`mb-perf`、`mbridge` 这四个分组名归 Magpie Bridge 使用：`mbridge router init` 会直接覆盖同名分组，别拿它们做别的用途。
+`mb-fast`、`mb-balanced`、`mb-perf`、`mbridge` 这四个分组名归 Magpie Bridge 使用，别拿它们做别的用途。再次执行 `mbridge router init` 会保留已有的同名分组和 `router.json`，只补上缺的部分，并接好各 Agent；加 `--force` 才会用预设覆盖它们。
 
 ### `router.json`
 

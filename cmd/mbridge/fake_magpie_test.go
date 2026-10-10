@@ -20,18 +20,19 @@ import (
 // fakeMag is official magpie as mbridge's CLI sees it: its CLI (groups,
 // agents, usage, version) and its gateway's /v1 and /v1/models.
 type fakeMag struct {
-	mu       sync.Mutex
-	srv      *httptest.Server
-	calls    [][]string
-	groups   map[string][]string
-	order    []string
-	served   []string       // provider/model ids
-	contexts map[string]int // model or group id → context window
-	usageCSV string
-	version  string
-	agentErr string
-	agents   map[string]string
-	down     bool
+	mu        sync.Mutex
+	srv       *httptest.Server
+	calls     [][]string
+	groups    map[string][]string
+	groupsErr bool
+	order     []string
+	served    []string       // provider/model ids
+	contexts  map[string]int // model or group id → context window
+	usageCSV  string
+	version   string
+	agentErr  string
+	agents    map[string]string
+	down      bool
 }
 
 // withFakeMagpie gives the test a fresh home and config dir and a fake
@@ -95,6 +96,8 @@ func (f *fakeMag) run(_ context.Context, name string, args ...string) ([]byte, e
 		}
 		f.groups[id] = strings.Split(strings.TrimPrefix(args[3], "models="), ",")
 		return []byte("✓ group " + id), nil
+	case len(args) == 1 && args[0] == "groups" && f.groupsErr:
+		return []byte("magpie: cannot read groups"), errors.New("exit status 1")
 	case len(args) == 1 && args[0] == "groups":
 		var b strings.Builder
 		for _, id := range f.order {

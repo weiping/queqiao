@@ -94,16 +94,110 @@ func TestRouterInitFillsAnEmptyTier(t *testing.T) {
 	}
 }
 
-func TestRouterInitRefusesOverwrite(t *testing.T) {
-	routerHome(t)
+// Running init again keeps what the user has: groups they tuned in magpie
+// and their router.json. Only --force puts the preset back.
+func TestRouterInitKeepsWhatExists(t *testing.T) {
+	f := routerHome(t)
 	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err == nil {
-		t.Fatal("second init overwrote without --force")
+	// the user tunes a group and router.json
+	f.mu.Lock()
+	f.groups["mb-fast"] = []string{"glm/glm-5.3-flash"}
+	f.mu.Unlock()
+	tuned := []byte(`{"tuned": true}`)
+	if err := os.WriteFile(routerJSONPath(), tuned, 0o644); err != nil {
+		t.Fatal(err)
 	}
+
+	out, err := captureStdout(t, func() error {
+		return routerInit([]string{"--preset", "cn", "--groups-only"})
+	})
+	if err != nil {
+		t.Fatalf("second init: %v", err)
+	}
+	if m, _ := groupMembers(f, "mb-fast"); strings.Join(m, ",") != "glm/glm-5.3-flash" {
+		t.Fatalf("second init replaced the user's mb-fast: %v", m)
+	}
+	if b, _ := os.ReadFile(routerJSONPath()); !bytes.Equal(b, tuned) {
+		t.Fatalf("second init rewrote router.json: %s", b)
+	}
+	if !strings.Contains(out, "kept") {
+		t.Fatalf("init did not say what it kept:\n%s", out)
+	}
+
 	if err := routerInit([]string{"--preset", "cn", "--groups-only", "--force"}); err != nil {
 		t.Fatal(err)
+	}
+	if m, _ := groupMembers(f, "mb-fast"); m[0] != "deepseek/deepseek-v4-flash" {
+		t.Fatalf("--force did not put the preset back: %v", m)
+	}
+	if b, _ := os.ReadFile(routerJSONPath()); bytes.Equal(b, tuned) {
+		t.Fatal("--force kept router.json")
+	}
+}
+
+// Someone whose groups and router.json already exist (renamed by hand, or
+// a second machine) runs init to wire the agents: Codex's profile and Pi
+// are written, the groups and router.json are not touched.
+func TestRouterInitWiresAgentsOverExistingSetup(t *testing.T) {
+	f := routerHome(t)
+	for _, id := range []string{"mb-fast", "mb-balanced", "mb-perf"} {
+		f.groups[id] = []string{"glm/glm-5.3"}
+		f.order = append(f.order, id)
+	}
+	f.groups["mbridge"] = []string{"group/mb-balanced", "group/mb-perf", "group/mb-fast"}
+	f.order = append(f.order, "mbridge")
+	tuned := []byte(`{"tuned": true}`)
+	if err := os.MkdirAll(filepath.Dir(routerJSONPath()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(routerJSONPath(), tuned, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	codex := t.TempDir()
+	old := codexHome
+	codexHome = func() string { return codex }
+	t.Cleanup(func() { codexHome = old })
+	cwd := t.TempDir()
+	wd, _ := os.Getwd()
+	if err := os.Chdir(cwd); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	if _, err := captureStdout(t, func() error { return routerInit([]string{"--preset", "cn"}) }); err != nil {
+		t.Fatal(err)
+	}
+	if f.called("group", "add", "mb-fast", "models=deepseek/deepseek-v4-flash,glm/glm-5.3-flash", "routing=order") {
+		t.Fatal("init replaced an existing group")
+	}
+	for _, id := range []string{"mb-fast", "mb-balanced", "mb-perf"} {
+		if m, _ := groupMembers(f, id); strings.Join(m, ",") != "glm/glm-5.3" {
+			t.Fatalf("%s changed: %v", id, m)
+		}
+	}
+	if b, _ := os.ReadFile(routerJSONPath()); !bytes.Equal(b, tuned) {
+		t.Fatalf("router.json rewritten: %s", b)
+	}
+	if _, err := os.Stat(filepath.Join(codex, "mbridge.config.toml")); err != nil {
+		t.Fatalf("Codex profile not written: %v", err)
+	}
+	if !f.called("pi", "group/mb-balanced") {
+		t.Fatalf("Pi not pointed at group/mb-balanced: %v", f.calls)
+	}
+}
+
+// magpie's group list could not be read: init does not take that as "no
+// groups" and write the preset over whatever is there.
+func TestRouterInitStopsWhenGroupsUnreadable(t *testing.T) {
+	f := routerHome(t)
+	f.groupsErr = true
+	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err == nil {
+		t.Fatal("init went on without knowing which groups exist")
+	}
+	if f.called("group", "add", "mb-fast", "models=deepseek/deepseek-v4-flash,glm/glm-5.3-flash", "routing=order") {
+		t.Fatal("init wrote a group without knowing which exist")
 	}
 }
 
