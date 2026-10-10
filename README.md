@@ -60,8 +60,8 @@ Magpie Bridge 和官方 [magpie](https://github.com/yetone/magpie) 并排运行�
    claude plugin install magpie-bridge@magpie-bridge        # 默认连 http://127.0.0.1:3426
 
    # Codex（需要 mbridge 在 PATH 里，装完在 /hooks 里信任 hook）
-   codex plugin marketplace add weiping/magpie-bridge
-   codex plugin add magpie-bridge-codex@magpie-bridge
+   codex plugin marketplace add weiping/magpie-bridge --sparse .agents --sparse clients/codex   # 只取插件那两个目录：完整克隆约 96 MB，Codex 30 秒内拉不完会超时
+   codex plugin add magpie-bridge-codex@magpie-bridge   # 以后升级：codex plugin marketplace upgrade magpie-bridge，再执行这一行
    codex -p mbridge                                     # 用 mbridge 的 profile 启动，请求经 mbridge 选档
 
    # Pi

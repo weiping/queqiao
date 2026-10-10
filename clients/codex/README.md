@@ -21,9 +21,15 @@ hook stays silent, exits 0, and the request simply goes out as
 ## Install
 
 ```sh
-codex plugin marketplace add weiping/magpie-bridge
+codex plugin marketplace add weiping/magpie-bridge --sparse .agents --sparse clients/codex
 codex plugin add magpie-bridge-codex@magpie-bridge
 ```
+
+The `--sparse` paths matter: the repository carries magpie's history (about
+96 MB), and Codex clones a marketplace in full within 30 s. With them it does
+a blob-less partial clone of a few MB, and `codex plugin marketplace upgrade
+magpie-bridge` keeps them. To upgrade, run that, then `codex plugin add`
+again.
 
 (`codex plugin add` needs the `@magpie-bridge` marketplace suffix; without it
 Codex asks for `--marketplace`. Codex has no `plugin install` subcommand.)
