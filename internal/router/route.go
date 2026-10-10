@@ -132,3 +132,6 @@ func routeFor(cfg Config, rt Route) (Route, bool) {
 	rt.Group = magpie.GroupPrefix + tc.Group
 	return rt, true
 }
+
+// Note writes an event to the router's log (the proxy's passthroughs).
+func (r *Router) Note(ev Event) { _ = r.deps.Log(ev) }

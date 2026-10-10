@@ -40,6 +40,8 @@ func routerCmd(args []string) error {
 		return routerReport(args[1:])
 	case "calibrate":
 		return routerCalibrate(args[1:])
+	case "serve": // fork: magpie owns `serve`; Task 9 makes it `queqiao serve`
+		return serveCmd(args[1:])
 	}
 	return fmt.Errorf("queqiao router takes init, status, check, report or calibrate, not %q", args[0])
 }
