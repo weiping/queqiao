@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/weiping/queqiao/internal/service"
+	"io"
+	"log"
 	"net/url"
 	"os"
 	"os/signal"
@@ -24,8 +27,13 @@ func serveCmd(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// stderr for a terminal, logs/queqiaod.log (a day a file, a week kept)
+	// for the service, which has none
+	logf := service.NewDailyLog(filepath.Join(fsutil.ConfigDir(), "logs"), 7)
+	defer logf.Close()
+	log.SetOutput(io.MultiWriter(os.Stderr, logf))
 	listen, target, deps := queqiaodDeps(filepath.Join(fsutil.ConfigDir(), "router.json"))
-	fmt.Fprintf(os.Stderr, "queqiaod on %s, magpie at %s\n", listen, target)
+	log.Printf("queqiaod on %s, magpie at %s", listen, target)
 	return proxy.Serve(ctx, listen, proxy.Handler(target, deps))
 }
 
@@ -35,7 +43,7 @@ func queqiaodDeps(path string) (listen string, target *url.URL, deps *router.Dep
 	cfg, err := router.Load(path, "")
 	if err != nil {
 		router.SetConfigError(err)
-		fmt.Fprintln(os.Stderr, "queqiaod: router.json:", err, "— passing every request through to magpie")
+		log.Println("queqiaod: router.json:", err, "— passing every request through to magpie")
 		u, _ := url.Parse(magpie.DefaultURL)
 		return "127.0.0.1:3426", u, nil
 	}

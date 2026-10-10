@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/weiping/queqiao/internal/service"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -166,5 +168,24 @@ func TestUpdateVerifiesChecksum(t *testing.T) {
 	st, _ := os.Stat(exe)
 	if string(b) != "new binary" || st.Mode().Perm()&0o100 == 0 {
 		t.Fatalf("%q %v", b, st.Mode())
+	}
+}
+
+// `queqiao service status` says what the service manager says, and an
+// uninstalled service is not an error.
+func TestServiceStatusNotInstalled(t *testing.T) {
+	home := t.TempDir()
+	old := newService
+	newService = func() *service.Manager {
+		return &service.Manager{GOOS: "linux", Home: home, ConfigDir: home,
+			Run: func(ctx context.Context, name string, args ...string) ([]byte, error) { return nil, nil }}
+	}
+	t.Cleanup(func() { newService = old })
+	out, err := captureStdout(t, func() error { return serviceCmd([]string{"status"}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "not installed") {
+		t.Fatalf("status said %q", out)
 	}
 }
