@@ -22,6 +22,11 @@ func home(t *testing.T) Env {
 	h := t.TempDir()
 	layTree(t, "testdata/qq-v0.1.4-layout/config", filepath.Join(h, ".config"))
 	layTree(t, "testdata/qq-v0.1.4-layout/cache", filepath.Join(h, ".cache"))
+	// git keeps no 0600, and magpie writes its providers file 0600: the
+	// mode it has must survive the move
+	if err := os.Chmod(filepath.Join(h, ".config", "queqiao", "providers.json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return Env{
 		Home: h, GOOS: "linux",
 		ConfigHome: filepath.Join(h, ".config"), CacheHome: filepath.Join(h, ".cache"),
