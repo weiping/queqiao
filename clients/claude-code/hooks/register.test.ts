@@ -5,6 +5,8 @@ function fakeGateway(on: any, turns: Array<{ tier: string; group: string; reason
   const calls: Array<{ url: string; method?: string; body?: string }> = []
   let n = 0
   on('http.fetch', (_$: unknown, e: { url: string; init?: { method?: string; body?: string } }) => {
+    // SP10's budget probe is answered, not counted: these tests count /turn and friends
+    if (e.url.endsWith('/v1/bridge/router')) return { value: { status: 200, ok: true, headers: {}, text: '{}' } }
     calls.push({ url: e.url, method: e.init?.method, body: e.init?.body })
     if (e.url.endsWith('/v1/bridge/turn')) {
       const t = turns[Math.min(n, turns.length - 1)]
@@ -219,6 +221,32 @@ for (const c of [
     expect(seen).toEqual([c.want])
   })
 }
+
+// SP10 review: when the session.start probe found mbridge down, or /clear
+// reset $.state, the next turn asks for the budget itself.
+test('a turn with no budget learned asks mbridge for it before /turn', async ($, on) => {
+  const release = slowGateway(on, '{"turn_budget_ms":3000}')
+  on('session.id', () => ({ value: 's-1' }))
+  on('ui.status', () => ({ value: undefined }))
+  const clock = mock.clock(on)
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  const seen: string[] = []
+  on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string }) {
+    seen.push(e.model)
+    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+
+  // no session.start: nothing learned yet
+  const started = $.turn.start({ turnId: 't1', text: 'rename a variable' })
+  await clock.advance(2000)
+  release()
+  await clock.advance(10000)
+  await started
+  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1 })
+  let step = await stream.next()
+  while (step.done !== true) step = await stream.next()
+  expect(seen).toEqual(['group/mb-fast'])
+})
 
 test('empty-text turns skip /turn and keep the previous tier', async ($, on) => {
   const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5' }])
