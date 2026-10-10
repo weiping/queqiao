@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"bufio"
 	"bytes"
 	"crypto/sha256"
@@ -121,6 +122,10 @@ func updateFrom(api, exe string) error {
 			return err
 		}
 		fmt.Println(green.Render("✓"), "queqiao", r.Tag, "installed at", exe)
+		// the running queqiaod is still the old binary
+		if err := newService().Restart(context.Background()); err != nil {
+			fmt.Println(amber.Render("!"), "restart queqiaod yourself (queqiao service install):", err)
+		}
 		return nil
 	}
 	return fmt.Errorf("no qq-v release found")

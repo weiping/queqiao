@@ -100,11 +100,12 @@ func TestInstallTwiceIsIdempotent(t *testing.T) {
 	if err != nil || string(got) != string(want) {
 		t.Fatalf("unit not written as Unit says: %v", err)
 	}
-	if len(calls) != 4 || calls[0] != calls[2] || calls[1] != calls[3] {
+	if len(calls) != 6 || calls[0] != calls[3] || calls[1] != calls[4] || calls[2] != calls[5] {
 		t.Fatalf("calls %v", calls)
 	}
-	if calls[1] != "systemctl --user enable --now queqiao.service" {
-		t.Fatalf("enable call %q", calls[1])
+	// a second install (a new binary, a new unit) restarts what runs
+	if calls[1] != "systemctl --user enable queqiao.service" || calls[2] != "systemctl --user restart queqiao.service" {
+		t.Fatalf("calls %v", calls)
 	}
 }
 
@@ -116,5 +117,38 @@ func TestUninstallWhenNotInstalled(t *testing.T) {
 		Run: func(ctx context.Context, name string, args ...string) ([]byte, error) { return nil, nil }}
 	if err := m.Uninstall(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Restart is what `queqiao update` calls after replacing the binary: the
+// running queqiaod must be the new one.
+func TestRestartPerPlatform(t *testing.T) {
+	for goos, want := range map[string][]string{
+		"darwin":  {"launchctl kickstart -k gui/501/io.github.weiping.queqiao"},
+		"linux":   {"systemctl --user restart queqiao.service"},
+		"windows": {"schtasks /End /TN queqiao", "schtasks /Run /TN queqiao"},
+	} {
+		home := t.TempDir()
+		var calls []string
+		m := &Manager{GOOS: goos, Home: home, ConfigDir: home, UID: 501,
+			Run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				calls = append(calls, name+" "+strings.Join(args, " "))
+				return nil, nil
+			}}
+		path, content := Unit(goos, home, home, "/q")
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		os.WriteFile(path, content, 0o644)
+		if err := m.Restart(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Join(calls, "|") != strings.Join(want, "|") {
+			t.Errorf("%s: calls %v", goos, calls)
+		}
+		// not installed: nothing to restart, no error
+		calls = nil
+		os.Remove(path)
+		if err := m.Restart(context.Background()); err != nil || len(calls) != 0 {
+			t.Errorf("%s uninstalled: %v %v", goos, calls, err)
+		}
 	}
 }

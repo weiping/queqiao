@@ -151,14 +151,36 @@ func (m *Manager) Install(ctx context.Context, exe string) error {
 		if err := m.must(ctx, "schtasks", "/Create", "/TN", Name, "/XML", path, "/F"); err != nil {
 			return err
 		}
-		return m.must(ctx, "schtasks", "/Run", "/TN", Name)
 	default:
 		if err := m.must(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
 			return err
 		}
-		return m.must(ctx, "systemctl", "--user", "enable", "--now", Name+".service")
+		if err := m.must(ctx, "systemctl", "--user", "enable", Name+".service"); err != nil {
+			return err
+		}
+	}
+	// installing again (a new binary, a new unit) replaces what runs
+	return m.Restart(ctx)
+}
+
+// Restart starts queqiaod again, the binary now at the unit's path; not
+// installed is nothing to do. queqiao update calls it.
+func (m *Manager) Restart(ctx context.Context) error {
+	if path, _ := Unit(m.GOOS, m.Home, m.ConfigDir, ""); !exists(path) {
+		return nil
+	}
+	switch m.GOOS {
+	case "darwin":
+		return m.must(ctx, "launchctl", "kickstart", "-k", "gui/"+strconv.Itoa(m.UID)+"/"+Label)
+	case "windows":
+		m.Run(ctx, "schtasks", "/End", "/TN", Name) // not running is fine
+		return m.must(ctx, "schtasks", "/Run", "/TN", Name)
+	default:
+		return m.must(ctx, "systemctl", "--user", "restart", Name+".service")
 	}
 }
+
+func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 // Uninstall stops the service and removes its unit. Nothing installed is
 // not an error.

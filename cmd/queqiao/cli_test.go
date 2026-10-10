@@ -152,6 +152,23 @@ func fakeReleases(t *testing.T, body, sum string) string {
 }
 
 func TestUpdateVerifiesChecksum(t *testing.T) {
+	restarted := false
+	svcHome := t.TempDir()
+	old := newService
+	newService = func() *service.Manager {
+		m := &service.Manager{GOOS: "linux", Home: svcHome, ConfigDir: svcHome,
+			Run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				if strings.Join(args, " ") == "--user restart queqiao.service" {
+					restarted = true
+				}
+				return nil, nil
+			}}
+		path, content := service.Unit("linux", svcHome, svcHome, "/q")
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		os.WriteFile(path, content, 0o644)
+		return m
+	}
+	t.Cleanup(func() { newService = old })
 	exe := filepath.Join(t.TempDir(), "queqiao")
 	os.WriteFile(exe, []byte("old"), 0o755)
 	api := fakeReleases(t, "new binary", strings.Repeat("0", 64))
@@ -165,6 +182,9 @@ func TestUpdateVerifiesChecksum(t *testing.T) {
 	api = fakeReleases(t, "new binary", hex.EncodeToString(sum[:]))
 	if err := updateFrom(api, exe); err != nil {
 		t.Fatal(err)
+	}
+	if !restarted {
+		t.Fatal("the running queqiaod was not restarted onto the new binary")
 	}
 	b, _ := os.ReadFile(exe)
 	st, _ := os.Stat(exe)
