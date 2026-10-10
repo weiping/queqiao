@@ -1,141 +1,33 @@
-# The recipes (clean's rm -rf too) name paths relative to the working
-# folder, so they run only in magpie's own, known by its go.mod: run from
-# another one (make -f path/to/Makefile) they would act there. make -C
-# works. go.mod is read relative to the working folder, so a path with
-# spaces (or a symlinked Makefile) changes nothing.
-ifneq ($(shell sed -n 's/^module //p' go.mod 2>/dev/null),github.com/yetone/magpie)
-  $(error run make in magpie's folder (make -C path/to/magpie), not in $(CURDIR))
-endif
+# queqiao: one binary, cmd/queqiao, cross-compiled without cgo.
 
 # A tag may hold $, ( or `, which the shell lines below would run: the
 # version keeps only what a version is spelled with.
 VERSION ?= $(or $(shell git describe --tags --always --dirty 2>/dev/null | tr -cd 'A-Za-z0-9._+-'),dev)
 LDFLAGS  = -s -w -X main.version=$(VERSION)
-TAGS     = production
-TARGETS  = darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64 android/arm64
-BIN      ?= queqiao
+TARGETS  = darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
+BIN     ?= queqiao
 
-# The GUI links the platform webview through cgo, so it is built natively.
-# `nogui` builds the terminal-only magpie, which cross-compiles anywhere.
-# macOS 12 is the oldest Go (1.25 and later) runs on; Info.plist says so too.
-ifeq ($(shell uname -s),Darwin)
-  export CGO_CFLAGS  = -mmacosx-version-min=12.0
-  export CGO_LDFLAGS = -mmacosx-version-min=12.0
-endif
-# On Linux, GTK 3 and WebKitGTK 4.1: older distributions have them, where
-# Wails' default GTK 4 and WebKitGTK 6 would leave them out.
-ifeq ($(shell uname -s),Linux)
-  TAGS += gtk3
-endif
-# Termux uses Android's libc and has no desktop webview. Keep the web UI
-# and terminal commands, without linking GTK or Wails.
-ifeq ($(shell go env GOOS),android)
-  TAGS = nogui
-endif
-
-.PHONY: build cli install test test-ui app icons release release-cli release-windows release-linux clean dev dev-once
+.PHONY: build install test release clean
 
 build:
-	go build -tags "$(TAGS)" -trimpath -ldflags="$(LDFLAGS)" -o $(BIN) .
-
-cli:
-	CGO_ENABLED=0 go build -tags nogui -trimpath -ldflags="$(LDFLAGS)" -o $(BIN) .
+	CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BIN) ./cmd/queqiao
 
 install:
-	go install -tags "$(TAGS)" -trimpath -ldflags="$(LDFLAGS)" .
+	CGO_ENABLED=0 go install -trimpath -ldflags="$(LDFLAGS)" ./cmd/queqiao
 
 test:
-	go vet -tags "$(TAGS)" ./... && go test -tags "$(TAGS)" ./...
+	go vet ./... && go test ./... && sh scripts/install_test.sh
 
-# The browser regressions under internal/gui/tests: the real pages in
-# Playwright's Chromium and WebKit; see internal/gui/tests/README.md.
-UI_TESTS = $(wildcard internal/gui/tests/*.test.cjs)
-# Files are independent and run in parallel; 1 diagnoses a flaky one.
-UI_TEST_CONCURRENCY ?= 2
-
-test-ui:
-	@test -n "$(UI_TESTS)" || { echo "no GUI tests found under internal/gui/tests" >&2; exit 1; }
-	node --test --test-concurrency=$(UI_TEST_CONCURRENCY) $(UI_TESTS)
-
-# macOS bundle: menu bar app with no Dock icon (LSUIElement).
-app: build
-	@rm -rf queqiao.app
-	@mkdir -p queqiao.app/Contents/MacOS queqiao.app/Contents/Resources
-	@cp $(BIN) queqiao.app/Contents/MacOS/$(BIN)
-	@cp build/darwin/magpie.icns queqiao.app/Contents/Resources/magpie.icns
-	@cp build/darwin/Assets.car queqiao.app/Contents/Resources/Assets.car
-	@sed 's/@VERSION@/$(VERSION)/' build/darwin/Info.plist > queqiao.app/Contents/Info.plist
-	@echo "  queqiao.app"
-
-icons:
-	@go run build/icon/gen.go tray internal/gui/tray.png
-	@go run build/icon/gen.go tray-flap internal/gui/trayflap
-	@go run build/icon/gen.go app 64 internal/gui/icon.png
-	@go run build/icon/gen.go app 1024 internal/gui/icon-1024.png
-	@rm -rf build/darwin/magpie.iconset && mkdir -p build/darwin/magpie.iconset
-	@for s in 16 32 128 256 512; do \
-		go run build/icon/gen.go app $$s build/darwin/magpie.iconset/icon_$${s}x$${s}.png; \
-		go run build/icon/gen.go app $$((s*2)) build/darwin/magpie.iconset/icon_$${s}x$${s}@2x.png; \
-	done
-	@iconutil -c icns build/darwin/magpie.iconset -o build/darwin/magpie.icns && rm -rf build/darwin/magpie.iconset
-	@# macOS 26 draws the Dock icon from AppIcon.icon, light and dark (Xcode 26's actool);
-	@# the compiled Assets.car is kept in the tree so a release needn't have it
-	@go run build/icon/gen.go glyph 1024 build/darwin/AppIcon.icon/Assets/magpie.png
-	@rm -rf build/darwin/actool && mkdir -p build/darwin/actool
-	@xcrun actool build/darwin/AppIcon.icon --compile build/darwin/actool --platform macosx \
-		--minimum-deployment-target 11.0 --app-icon AppIcon --output-partial-info-plist build/darwin/actool/partial.plist >/dev/null
-	@mv build/darwin/actool/Assets.car build/darwin/Assets.car && rm -rf build/darwin/actool
-
-release: clean build
-	@mkdir -p dist
-	@cp $(BIN) dist/$(BIN)-$(shell go env GOOS)-$(shell go env GOARCH)
-	@$(MAKE) --no-print-directory release-cli
-
-release-cli:
-	@mkdir -p dist
+# dist/queqiao-<os>-<arch>[.exe] for every target, and checksums.txt whose
+# every line is "<sha256>  <file>" (shasum -c reads it as it is).
+release:
+	@rm -rf dist && mkdir -p dist
 	@for t in $(TARGETS); do \
 		os=$${t%/*}; arch=$${t#*/}; ext=""; [ $$os = windows ] && ext=.exe; \
-		echo "  $$os/$$arch (cli)"; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -tags nogui -trimpath -ldflags="$(LDFLAGS)" -o dist/$(BIN)-cli-$$os-$$arch$$ext . || exit 1; \
+		echo "  $$os/$$arch"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags="$(LDFLAGS)" -o dist/$(BIN)-$$os-$$arch$$ext ./cmd/queqiao || exit 1; \
 	done
-
-# The desktop app for Windows: the system WebView2 needs no cgo, so both
-# arches cross-compile. Linked as a GUI program (no console window), with
-# the icon, version and a DPI-aware manifest from build/windows.
-WINVER = $(shell echo $(VERSION) | sed -E 's/^v//; s/[^0-9.].*//')
-release-windows:
-	@mkdir -p dist
-	@go run github.com/tc-hib/go-winres@v0.3.3 make --in build/windows/winres.json --arch amd64,arm64 --out rsrc \
-		--file-version "$(or $(WINVER),0.0.0)" --product-version "$(or $(WINVER),0.0.0)"
-	@for arch in amd64 arm64; do \
-		echo "  windows/$$arch (app)"; \
-		CGO_ENABLED=0 GOOS=windows GOARCH=$$arch go build -tags production -trimpath -ldflags="$(LDFLAGS) -H windowsgui" -o dist/$(BIN)-windows-$$arch.exe . || exit 1; \
-	done; rm -f rsrc_windows_*.syso
-
-# The desktop app for Linux links GTK 3 and WebKitGTK 4.1 through cgo, so it
-# is built natively, one arch per machine.
-release-linux:
-	@mkdir -p dist
-	@echo "  linux/$(shell go env GOARCH) (app)"
-	@go build -tags "$(TAGS)" -trimpath -ldflags="$(LDFLAGS)" -o dist/$(BIN)-linux-$(shell go env GOARCH) .
+	@cd dist && (shasum -a 256 $(BIN)-* 2>/dev/null || sha256sum $(BIN)-*) > checksums.txt && cat checksums.txt
 
 clean:
-	rm -rf $(BIN) $(BIN).exe queqiao.app dist rsrc_windows_*.syso
-
-# Development: the UI is served from internal/gui/assets and the window
-# reloads itself when a file there is saved. With fswatch installed, the
-# windows stay up and a Go change rebuilds and restarts only the backend
-# behind them (build/dev.sh); without it, dev-once runs the app as one
-# process. Uses its own ports so a running magpie keeps serving the agents.
-DEV_ADDR ?= 127.0.0.1:3426
-DEV_UI ?= 127.0.0.1:3427
-DEV_BACKEND ?= 127.0.0.1:3428
-DEV_CONTROL ?= 127.0.0.1:3429
-dev:
-	@if command -v fswatch >/dev/null; then \
-	  MAGPIE_ADDR=$(DEV_ADDR) MAGPIE_DEV_UI=$(DEV_UI) MAGPIE_DEV_BACKEND=$(DEV_BACKEND) MAGPIE_DEV_CONTROL=$(DEV_CONTROL) build/dev.sh; \
-	else $(MAKE) --no-print-directory dev-once; fi
-
-dev-once:
-	@go build -tags dev -o magpie-dev . && echo "  magpie-dev · UI from internal/gui/assets, reload on save · gateway $(DEV_ADDR)"
-	@MAGPIE_ADDR=$(DEV_ADDR) MAGPIE_DEV_UI=$(DEV_UI) ./magpie-dev app
+	rm -rf dist $(BIN)
