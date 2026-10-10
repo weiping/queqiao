@@ -1,0 +1,11 @@
+[Unit]
+Description=Magpie Bridge, the model router beside magpie
+After=network.target
+
+[Service]
+ExecStart=/opt/q/mbridge serve
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

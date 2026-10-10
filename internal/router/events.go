@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/weiping/queqiao/internal/fsutil"
+	"github.com/weiping/magpie-bridge/internal/fsutil"
 )
 
 // Event is one line of router.jsonl: a decision, a hint consumed, a
@@ -45,7 +45,7 @@ var (
 	eventsClock = func() string { return time.Now().UTC().Format(time.RFC3339) }
 )
 
-// defaultEventsPath is ~/.config/queqiao/router.jsonl.
+// defaultEventsPath is ~/.config/magpie-bridge/router.jsonl.
 func defaultEventsPath() string {
 	return filepath.Join(fsutil.ConfigDir(), "router.jsonl")
 }
@@ -58,7 +58,7 @@ func SetEventsPath(p string) {
 }
 
 // Append writes one event as a JSON line to the event log
-// (~/.config/queqiao/router.jsonl, overridable).
+// (~/.config/magpie-bridge/router.jsonl, overridable).
 func Append(ev Event) error {
 	if ev.Time == "" {
 		ev.Time = eventsClock()
@@ -86,7 +86,7 @@ func Append(ev Event) error {
 }
 
 // configError is why the startup Load failed (nil while the router runs);
-// `queqiao router status` reports it when the gateway degraded to plain
+// `mbridge router status` reports it when the gateway degraded to plain
 // magpie (spec §6.2/§7).
 var configError error
 

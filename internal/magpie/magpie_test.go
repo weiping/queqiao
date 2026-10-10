@@ -28,8 +28,8 @@ func TestUsageColumnsMatch(t *testing.T) {
 	if len(rows) != 7 {
 		t.Fatalf("%d rows", len(rows))
 	}
-	r := rows[2] // group/qq-fast, session s1, served by up/m1
-	if r.Session != "s1" || r.RequestedModel != "group/qq-fast" || r.Provider != "up" || r.Model != "m1" ||
+	r := rows[2] // group/qq-fast (recorded before the rename), session s1, served by up/m1
+	if r.Session != "s1" || r.RequestedModel != "group/qq-fast" /* recorded before the rename */ || r.Provider != "up" || r.Model != "m1" ||
 		r.Input != 5 || r.Output != 1 || r.Status != 200 || r.Priced || r.Time.IsZero() {
 		t.Fatalf("row %+v", r)
 	}
@@ -85,7 +85,7 @@ func TestUsageCSVMissingColumnNamesIt(t *testing.T) {
 
 func TestUsagePricedRow(t *testing.T) {
 	in := "time,session,requested_model,provider,model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_usd,status\n" +
-		"2026-10-10T02:43:31Z,s,group/qq-perf,p,m,10,2,3,4,0.0125,200\n"
+		"2026-10-10T02:43:31Z,s,group/mb-perf,p,m,10,2,3,4,0.0125,200\n"
 	rows, err := ParseUsageCSV(strings.NewReader(in))
 	if err != nil {
 		t.Fatal(err)
@@ -127,13 +127,13 @@ func TestSystemOnePostsBodyVerbatim(t *testing.T) {
 	}
 }
 
-func TestChatSendsQueqiaoUserAgent(t *testing.T) {
+func TestChatSendsMbridgeUserAgent(t *testing.T) {
 	f := newFake(t, 200, `{"choices":[{"message":{"content":"2"}}]}`)
 	got, err := New(f.URL).Chat(context.Background(), "deepseek/deepseek-chat", []byte(`{"model":"deepseek/deepseek-chat"}`))
 	if err != nil || got != "2" {
 		t.Fatalf("%q %v", got, err)
 	}
-	if f.path != "/v1/chat/completions" || f.ua != UserAgent || UserAgent != "queqiao-router/1" {
+	if f.path != "/v1/chat/completions" || f.ua != UserAgent || UserAgent != "mbridge/1" {
 		t.Fatalf("path %s ua %s", f.path, f.ua)
 	}
 }
@@ -161,9 +161,9 @@ func TestKeySentAsBearerWhenSet(t *testing.T) {
 }
 
 func TestModelsListsIDs(t *testing.T) {
-	f := newFake(t, 200, `{"data":[{"id":"fake/m1"},{"id":"group/qq-fast"}]}`)
+	f := newFake(t, 200, `{"data":[{"id":"fake/m1"},{"id":"group/mb-fast"}]}`)
 	ids, err := New(f.URL).Models(context.Background())
-	if err != nil || strings.Join(ids, ",") != "fake/m1,group/qq-fast" {
+	if err != nil || strings.Join(ids, ",") != "fake/m1,group/mb-fast" {
 		t.Fatalf("%v %v", ids, err)
 	}
 }
@@ -185,14 +185,14 @@ func TestGroupAddArgs(t *testing.T) {
 		got = append([]string{name}, args...)
 		return nil, nil
 	}
-	if err := c.GroupAdd(context.Background(), "qq-fast", []string{"a/x", "b/y"}); err != nil {
+	if err := c.GroupAdd(context.Background(), "mb-fast", []string{"a/x", "b/y"}); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(got, " ") != "magpie group add qq-fast models=a/x,b/y routing=order" {
+	if strings.Join(got, " ") != "magpie group add mb-fast models=a/x,b/y routing=order" {
 		t.Fatalf("args %q", got)
 	}
-	c.SetAgentModel(context.Background(), "pi", "group/qq-balanced")
-	if strings.Join(got, " ") != "magpie pi group/qq-balanced" {
+	c.SetAgentModel(context.Background(), "pi", "group/mb-balanced")
+	if strings.Join(got, " ") != "magpie pi group/mb-balanced" {
 		t.Fatalf("args %q", got)
 	}
 	c.Usage(context.Background(), "30d")
@@ -204,10 +204,10 @@ func TestGroupAddArgs(t *testing.T) {
 func TestGroupsParsesIDs(t *testing.T) {
 	c := New("http://127.0.0.1:1")
 	c.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		return []byte("  models    1 fake/m1  fake · m1\n  qq-fast  group/qq-fast  order  fake/m1\n  queqiao  group/queqiao  order  group/qq-balanced\n"), nil
+		return []byte("  models    1 fake/m1  fake · m1\n  mb-fast  group/mb-fast  order  fake/m1\n  mbridge  group/mbridge  order  group/mb-balanced\n"), nil
 	}
 	ids, err := c.Groups(context.Background())
-	if err != nil || strings.Join(ids, ",") != "qq-fast,queqiao" {
+	if err != nil || strings.Join(ids, ",") != "mb-fast,mbridge" {
 		t.Fatalf("%v %v", ids, err)
 	}
 }
@@ -217,16 +217,16 @@ func TestCLIErrorCarriesOutput(t *testing.T) {
 	c.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return []byte("magpie: no such provider"), io.ErrUnexpectedEOF
 	}
-	err := c.GroupAdd(context.Background(), "qq-fast", []string{"x/y"})
+	err := c.GroupAdd(context.Background(), "mb-fast", []string{"x/y"})
 	if err == nil || !strings.Contains(err.Error(), "no such provider") || !strings.Contains(err.Error(), "group add") {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestModelListReadsContextWindow(t *testing.T) {
-	f := newFake(t, 200, `{"data":[{"id":"group/qq-fast","context_window":200000},{"id":"x/y"}]}`)
+	f := newFake(t, 200, `{"data":[{"id":"group/mb-fast","context_window":200000},{"id":"x/y"}]}`)
 	ms, err := New(f.URL).ModelList(context.Background())
-	if err != nil || len(ms) != 2 || ms[0] != (Model{ID: "group/qq-fast", Context: 200000}) || ms[1].Context != 0 {
+	if err != nil || len(ms) != 2 || ms[0] != (Model{ID: "group/mb-fast", Context: 200000}) || ms[1].Context != 0 {
 		t.Fatalf("%+v %v", ms, err)
 	}
 }

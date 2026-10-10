@@ -7,7 +7,7 @@ import (
 
 // served is what /v1/models lists for a magpie with DeepSeek and
 // Moonshot configured (groups included, as magpie lists them).
-var served = []string{"deepseek/deepseek-v4-flash", "moonshot/kimi-k2.5", "group/qq-fast"}
+var served = []string{"deepseek/deepseek-v4-flash", "moonshot/kimi-k2.5", "group/mb-fast"}
 
 // A "<p>/model" placeholder nothing configured serves is no member at all
 // ("<p>" names no provider): it is reported, never written into a group,

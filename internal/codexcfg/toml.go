@@ -1,7 +1,7 @@
-// Package codexcfg writes queqiao's Codex profile: ~/.codex/queqiao.config.toml,
-// which `codex -p queqiao` reads, and the model catalog it names. Codex's
-// config.toml belongs to magpie and the user; queqiao only takes out what
-// qq-v0.1.x once put there (SP8 spec §5.6).
+// Package codexcfg writes mbridge's Codex profile: ~/.codex/mbridge.config.toml,
+// which `codex -p mbridge` reads, and the model catalog it names. Codex's
+// config.toml belongs to magpie and the user; mbridge only takes out what
+// v0.1.x once put there (SP8 spec §5.6).
 package codexcfg
 
 import (
@@ -37,18 +37,6 @@ func ReadTables(b []byte) (top []string, tables []Table) {
 		}
 	}
 	return top, tables
-}
-
-// join puts a file back together from ReadTables's parts.
-func join(top []string, tables []Table) []byte {
-	lines := append([]string(nil), top...)
-	for _, t := range tables {
-		lines = append(lines, t.Lines...)
-	}
-	if len(lines) == 0 {
-		return nil
-	}
-	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
 // value is the raw value of key in lines ("" when absent), a basic string

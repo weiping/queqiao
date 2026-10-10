@@ -1,13 +1,13 @@
 {
-  "name": "queqiao",
+  "name": "magpie-bridge",
   "owner": {
     "name": "weiping"
   },
   "plugins": [
     {
-      "name": "queqiao-router",
+      "name": "magpie-bridge",
       "source": "./clients/claude-code",
-      "description": "Per-turn tier routing for Claude Code via the queqiao gateway.",
+      "description": "Per-turn tier routing for Claude Code via the mbridge gateway.",
       "version": "0.2.0",
       "author": {
         "name": "weiping"

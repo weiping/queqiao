@@ -180,7 +180,7 @@ func (d *Deps) reviewTimeout() time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-// review handles POST /v1/queqiao/review (§3.3): 202 accepted into a
+// review handles POST /v1/bridge/review (§3.3): 202 accepted into a
 // background review, 204 when the turn does not qualify, 400 on a bad
 // request.
 func (d *Deps) review(w http.ResponseWriter, r *http.Request) {

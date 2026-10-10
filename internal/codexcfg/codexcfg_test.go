@@ -44,12 +44,12 @@ func TestCodexInitKeepsUserTablesAndIsIdempotent(t *testing.T) {
 	if len(changed) != 2 {
 		t.Fatalf("first init changed %v", changed)
 	}
-	profile := read(t, filepath.Join(dir, "queqiao.config.toml"))
+	profile := read(t, filepath.Join(dir, "mbridge.config.toml"))
 	for _, want := range []string{
-		`model_provider = "queqiao"`,
-		`model = "group/queqiao"`,
-		`model_catalog_json = ` + quote(filepath.Join(dir, "queqiao-models.json")),
-		"[model_providers.queqiao]",
+		`model_provider = "mbridge"`,
+		`model = "group/mbridge"`,
+		`model_catalog_json = ` + quote(filepath.Join(dir, "mbridge-models.json")),
+		"[model_providers.mbridge]",
 		`base_url = "http://127.0.0.1:3426/v1"`,
 		`wire_api = "responses"`,
 		`http_headers = { "x-openai-actor-authorization" = "magpie" }`,
@@ -67,47 +67,18 @@ func TestCodexInitKeepsUserTablesAndIsIdempotent(t *testing.T) {
 func TestCodexInitCopiesBearerOnlyWhenPresent(t *testing.T) {
 	dir := home(t, "user-config.toml")
 	Init(dir, "http://127.0.0.1:3426/v1")
-	if p := read(t, filepath.Join(dir, "queqiao.config.toml")); !strings.Contains(p, `experimental_bearer_token = "sk-gw-123"`) {
+	if p := read(t, filepath.Join(dir, "mbridge.config.toml")); !strings.Contains(p, `experimental_bearer_token = "sk-gw-123"`) {
 		t.Fatalf("no bearer:\n%s", p)
 	}
 	dir = home(t, "")
 	if _, err := Init(dir, "http://127.0.0.1:3426/v1"); err != nil {
 		t.Fatal(err)
 	}
-	if p := read(t, filepath.Join(dir, "queqiao.config.toml")); strings.Contains(p, "experimental_bearer_token") {
+	if p := read(t, filepath.Join(dir, "mbridge.config.toml")); strings.Contains(p, "experimental_bearer_token") {
 		t.Fatalf("bearer without a magpie table:\n%s", p)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "config.toml")); !os.IsNotExist(err) {
 		t.Fatal("init created config.toml")
-	}
-}
-
-func TestCleanLegacyRemovesOnlyQueqiaoTables(t *testing.T) {
-	dir := home(t, "qq-v0.1.4-config.toml")
-	orig := read(t, filepath.Join(dir, "config.toml"))
-	changed, err := CleanLegacy(dir)
-	if err != nil || !changed {
-		t.Fatalf("changed %v err %v", changed, err)
-	}
-	got := read(t, filepath.Join(dir, "config.toml"))
-	want := "model_provider = \"magpie\"\napproval_policy = \"on-request\"\n\n[model_providers.magpie]\nname = \"magpie\"\nbase_url = \"http://127.0.0.1:3425/v1\"\n"
-	if got != want {
-		t.Fatalf("got\n%s\nwant\n%s", got, want)
-	}
-	if bak := read(t, filepath.Join(dir, "config.toml.queqiao-bak")); bak != orig {
-		t.Fatal("backup is not the original")
-	}
-	// a config with nothing of queqiao's is left alone
-	dir = home(t, "user-config.toml")
-	before := read(t, filepath.Join(dir, "config.toml"))
-	if changed, err := CleanLegacy(dir); err != nil || changed {
-		t.Fatalf("changed %v err %v", changed, err)
-	}
-	if read(t, filepath.Join(dir, "config.toml")) != before {
-		t.Fatal("user config touched")
-	}
-	if _, err := os.Stat(filepath.Join(dir, "config.toml.queqiao-bak")); !os.IsNotExist(err) {
-		t.Fatal("backup made with nothing to clean")
 	}
 }
 
@@ -119,7 +90,7 @@ func TestCatalogShapeMatchesMagpies(t *testing.T) {
 	var ours struct {
 		Models []map[string]json.RawMessage `json:"models"`
 	}
-	if err := json.Unmarshal(Catalog([]string{"group/queqiao", "group/qq-fast"}), &ours); err != nil {
+	if err := json.Unmarshal(Catalog([]string{"group/mbridge", "group/mb-fast"}), &ours); err != nil {
 		t.Fatal(err)
 	}
 	keys := func(m map[string]json.RawMessage) string {
@@ -135,7 +106,7 @@ func TestCatalogShapeMatchesMagpies(t *testing.T) {
 	}
 	var slug string
 	json.Unmarshal(ours.Models[1]["slug"], &slug)
-	if slug != "group/qq-fast" {
+	if slug != "group/mb-fast" {
 		t.Fatalf("slug %q", slug)
 	}
 }

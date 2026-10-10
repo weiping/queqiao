@@ -20,15 +20,15 @@ func TestUnitContent(t *testing.T) {
 		path         string
 		must         []string
 	}{
-		{"darwin", "launchd.plist.golden", "/home/u/Library/LaunchAgents/io.github.weiping.queqiao.plist",
-			[]string{"<string>io.github.weiping.queqiao</string>", "<key>RunAtLoad</key>", "<key>KeepAlive</key>", "<string>/opt/q/queqiao</string>", "<string>serve</string>"}},
-		{"linux", "queqiao.service.golden", "/home/u/.config/systemd/user/queqiao.service",
-			[]string{"ExecStart=/opt/q/queqiao serve", "Restart=on-failure", "WantedBy=default.target"}},
-		{"windows", "task.xml.golden", "/home/u/.config/queqiao/queqiao-task.xml",
-			[]string{"<LogonTrigger>", "<Command>/opt/q/queqiao</Command>", "<Arguments>serve --detach</Arguments>"}},
+		{"darwin", "launchd.plist.golden", "/home/u/Library/LaunchAgents/io.github.weiping.magpie-bridge.plist",
+			[]string{"<string>io.github.weiping.magpie-bridge</string>", "<key>RunAtLoad</key>", "<key>KeepAlive</key>", "<string>/opt/q/mbridge</string>", "<string>serve</string>"}},
+		{"linux", "mbridge.service.golden", "/home/u/.config/systemd/user/mbridge.service",
+			[]string{"ExecStart=/opt/q/mbridge serve", "Restart=on-failure", "WantedBy=default.target"}},
+		{"windows", "task.xml.golden", "/home/u/.config/magpie-bridge/mbridge-task.xml",
+			[]string{"<LogonTrigger>", "<Command>/opt/q/mbridge</Command>", "<Arguments>serve --detach</Arguments>"}},
 	}
 	for _, c := range cases {
-		path, content := Unit(c.goos, "/home/u", "/home/u/.config/queqiao", "/opt/q/queqiao")
+		path, content := Unit(c.goos, "/home/u", "/home/u/.config/magpie-bridge", "/opt/q/mbridge")
 		if filepath.ToSlash(path) != c.path {
 			t.Errorf("%s: path %s, want %s", c.goos, path, c.path)
 		}
@@ -51,7 +51,7 @@ func TestUnitContent(t *testing.T) {
 	}
 }
 
-// Nine days of logging leave seven files: today's queqiaod.log and the six
+// Nine days of logging leave seven files: today's mbridge.log and the six
 // days before it.
 func TestDailyLogKeepsSeven(t *testing.T) {
 	dir := t.TempDir()
@@ -72,10 +72,10 @@ func TestDailyLogKeepsSeven(t *testing.T) {
 		}
 		t.Fatalf("%d files, want 7: %v", len(ents), names)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "queqiaod.log")); err != nil {
-		t.Fatal("no current queqiaod.log:", err)
+	if _, err := os.Stat(filepath.Join(dir, "mbridge.log")); err != nil {
+		t.Fatal("no current mbridge.log:", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "queqiaod-2026-10-02.log")); err == nil {
+	if _, err := os.Stat(filepath.Join(dir, "mbridge-2026-10-02.log")); err == nil {
 		t.Fatal("the oldest day was kept")
 	}
 }
@@ -85,17 +85,17 @@ func TestDailyLogKeepsSeven(t *testing.T) {
 func TestInstallTwiceIsIdempotent(t *testing.T) {
 	home := t.TempDir()
 	var calls []string
-	m := &Manager{GOOS: "linux", Home: home, ConfigDir: filepath.Join(home, ".config", "queqiao"),
+	m := &Manager{GOOS: "linux", Home: home, ConfigDir: filepath.Join(home, ".config", "magpie-bridge"),
 		Run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
 			calls = append(calls, name+" "+strings.Join(args, " "))
 			return nil, nil
 		}}
 	for i := 0; i < 2; i++ {
-		if err := m.Install(context.Background(), "/opt/q/queqiao"); err != nil {
+		if err := m.Install(context.Background(), "/opt/q/mbridge"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	path, want := Unit("linux", home, m.ConfigDir, "/opt/q/queqiao")
+	path, want := Unit("linux", home, m.ConfigDir, "/opt/q/mbridge")
 	got, err := os.ReadFile(path)
 	if err != nil || string(got) != string(want) {
 		t.Fatalf("unit not written as Unit says: %v", err)
@@ -104,7 +104,7 @@ func TestInstallTwiceIsIdempotent(t *testing.T) {
 		t.Fatalf("calls %v", calls)
 	}
 	// a second install (a new binary, a new unit) restarts what runs
-	if calls[1] != "systemctl --user enable queqiao.service" || calls[2] != "systemctl --user restart queqiao.service" {
+	if calls[1] != "systemctl --user enable mbridge.service" || calls[2] != "systemctl --user restart mbridge.service" {
 		t.Fatalf("calls %v", calls)
 	}
 }
@@ -113,20 +113,20 @@ func TestInstallTwiceIsIdempotent(t *testing.T) {
 // installed is not an error.
 func TestUninstallWhenNotInstalled(t *testing.T) {
 	home := t.TempDir()
-	m := &Manager{GOOS: "darwin", Home: home, ConfigDir: filepath.Join(home, ".config", "queqiao"),
+	m := &Manager{GOOS: "darwin", Home: home, ConfigDir: filepath.Join(home, ".config", "magpie-bridge"),
 		Run: func(ctx context.Context, name string, args ...string) ([]byte, error) { return nil, nil }}
 	if err := m.Uninstall(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// Restart is what `queqiao update` calls after replacing the binary: the
-// running queqiaod must be the new one.
+// Restart is what `mbridge update` calls after replacing the binary: the
+// running mbridge must be the new one.
 func TestRestartPerPlatform(t *testing.T) {
 	for goos, want := range map[string][]string{
-		"darwin":  {"launchctl kickstart -k gui/501/io.github.weiping.queqiao"},
-		"linux":   {"systemctl --user restart queqiao.service"},
-		"windows": {"schtasks /End /TN queqiao", "schtasks /Run /TN queqiao"},
+		"darwin":  {"launchctl kickstart -k gui/501/io.github.weiping.magpie-bridge"},
+		"linux":   {"systemctl --user restart mbridge.service"},
+		"windows": {"schtasks /End /TN mbridge", "schtasks /Run /TN mbridge"},
 	} {
 		home := t.TempDir()
 		var calls []string
@@ -158,7 +158,7 @@ func TestRestartPerPlatform(t *testing.T) {
 // serve detaches from the console Task Scheduler gives it, so no window
 // stays open for the user to close.
 func TestWindowsTaskIsTheUsersAndDetached(t *testing.T) {
-	_, b := UnitFor("windows", `C:\Users\u`, `C:\Users\u\.config\queqiao`, `C:\q\queqiao.exe`, `PC\u`)
+	_, b := UnitFor("windows", `C:\Users\u`, `C:\Users\u\.config\mbridge`, `C:\q\mbridge.exe`, `PC\u`)
 	x := string(b)
 	for _, want := range []string{"<UserId>PC\\u</UserId>", "<Arguments>serve --detach</Arguments>"} {
 		if strings.Count(x, want) == 0 {

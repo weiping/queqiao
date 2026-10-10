@@ -1,10 +1,10 @@
-// Package wire reads, from an agent's request body, only what queqiao's
+// Package wire reads, from an agent's request body, only what mbridge's
 // router needs: who is speaking in each message, their text, and the
 // tool calls and results. It understands the three protocols the agents
-// queqiao routes speak: Anthropic Messages, OpenAI Responses and OpenAI
+// mbridge routes speak: Anthropic Messages, OpenAI Responses and OpenAI
 // Chat Completions.
 //
-// The reading rules are magpie's, so that queqiao, now outside magpie,
+// The reading rules are magpie's, so that mbridge, now outside magpie,
 // sees a request exactly as the gateway did (SP8 spec §5.3). Each function
 // names the magpie function it follows, as of upstream 0d5fdbb2.
 package wire
@@ -28,7 +28,7 @@ const (
 )
 
 // ProtocolOf says which protocol a request path is, for the three paths
-// queqiao routes; ok is false for any other path.
+// mbridge routes; ok is false for any other path.
 func ProtocolOf(path string) (Protocol, bool) {
 	switch path {
 	case "/v1/messages", "/messages":

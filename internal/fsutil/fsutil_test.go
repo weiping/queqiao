@@ -12,11 +12,11 @@ func TestSetJSONKeepsOtherKeysAndOrder(t *testing.T) {
 	if err := os.WriteFile(p, []byte(`{"a":1,"env":{"X":"y"},"z":[1,2]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := SetJSON(p, KV{Path: "env.ANTHROPIC_MODEL", Value: "group/queqiao"}); err != nil {
+	if err := SetJSON(p, KV{Path: "env.ANTHROPIC_MODEL", Value: "group/mbridge"}); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(p)
-	want := "{\n  \"a\": 1,\n  \"env\": {\n    \"X\": \"y\",\n    \"ANTHROPIC_MODEL\": \"group/queqiao\"\n  },\n  \"z\": [\n    1,\n    2\n  ]\n}\n"
+	want := "{\n  \"a\": 1,\n  \"env\": {\n    \"X\": \"y\",\n    \"ANTHROPIC_MODEL\": \"group/mbridge\"\n  },\n  \"z\": [\n    1,\n    2\n  ]\n}\n"
 	if string(b) != want {
 		t.Fatalf("got\n%s\nwant\n%s", b, want)
 	}
@@ -99,17 +99,17 @@ func TestConfigDirHonoursXDGAndOverride(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
-	t.Setenv("QUEQIAO_CONFIG_DIR", "")
+	t.Setenv("MBRIDGE_CONFIG_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
-	if got, want := ConfigDir(), filepath.Join(home, ".config", "queqiao"); got != want {
+	if got, want := ConfigDir(), filepath.Join(home, ".config", "magpie-bridge"); got != want {
 		t.Fatalf("default %q want %q", got, want)
 	}
 	x := filepath.Join(home, "x")
 	t.Setenv("XDG_CONFIG_HOME", x)
-	if got := ConfigDir(); got != filepath.Join(x, "queqiao") {
+	if got := ConfigDir(); got != filepath.Join(x, "magpie-bridge") {
 		t.Fatalf("xdg %q", got)
 	}
-	t.Setenv("QUEQIAO_CONFIG_DIR", "/o")
+	t.Setenv("MBRIDGE_CONFIG_DIR", "/o")
 	if got := ConfigDir(); got != "/o" {
 		t.Fatalf("override %q", got)
 	}

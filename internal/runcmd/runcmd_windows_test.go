@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// queqiaod runs from a scheduled task with no console; the commands it
+// mbridge runs from a scheduled task with no console; the commands it
 // starts (magpie, gh) must not each open a window.
 func TestNoWindowWithoutConsole(t *testing.T) {
 	old := hasConsole

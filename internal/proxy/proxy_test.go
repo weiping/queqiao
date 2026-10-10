@@ -17,16 +17,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weiping/queqiao/internal/router"
+	"github.com/weiping/magpie-bridge/internal/router"
 )
 
 const routerJSON = `{
   "version": 1,
-  "router_group": "queqiao",
+  "router_group": "mbridge",
   "tiers": {
-    "fast":        { "group": "qq-fast",     "claude_alias": "haiku",  "criteria": "fast criteria" },
-    "balanced":    { "group": "qq-balanced", "claude_alias": "sonnet", "criteria": "balanced criteria" },
-    "performance": { "group": "qq-perf",     "claude_alias": "opus",   "criteria": "perf criteria" }
+    "fast":        { "group": "mb-fast",     "claude_alias": "haiku",  "criteria": "fast criteria" },
+    "balanced":    { "group": "mb-balanced", "claude_alias": "sonnet", "criteria": "balanced criteria" },
+    "performance": { "group": "mb-perf",     "claude_alias": "opus",   "criteria": "perf criteria" }
   },
   "default_tier": "balanced",
   "classifier": "typesafe/jev-latest",
@@ -142,7 +142,7 @@ func responses(text string, withResult bool) string {
 			map[string]any{"type": "function_call", "call_id": "c1", "name": "exec_command", "arguments": "{}"},
 			map[string]any{"type": "function_call_output", "call_id": "c1", "output": "ok"})
 	}
-	b, _ := json.Marshal(map[string]any{"model": "group/queqiao", "stream": true, "input": items})
+	b, _ := json.Marshal(map[string]any{"model": "group/mbridge", "stream": true, "input": items})
 	return string(b)
 }
 
@@ -183,11 +183,11 @@ func TestProxyStreamsChunksAsTheyCome(t *testing.T) {
 
 func TestProxyRewritesOnlyTopLevelModel(t *testing.T) {
 	e := setup(t, router.TierPerformance)
-	body := "\xef\xbb\xbf" + `{"metadata":{"model":"group/queqiao"},"model" : "group/queqiao","stream":true,` +
+	body := "\xef\xbb\xbf" + `{"metadata":{"model":"group/mbridge"},"model" : "group/mbridge","stream":true,` +
 		`"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"redesign it"}]}]}`
 	e.do(t, "/v1/responses", codexHdr, body)
 	got := string(e.up.bodies[0])
-	want := strings.Replace(body, `"model" : "group/queqiao"`, `"model" : "group/qq-perf"`, 1)
+	want := strings.Replace(body, `"model" : "group/mbridge"`, `"model" : "group/mb-perf"`, 1)
 	if got != want {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
@@ -210,7 +210,7 @@ func TestProxySameTurnSameTier(t *testing.T) {
 	e := setup(t, router.TierFast, router.TierPerformance)
 	e.do(t, "/v1/responses", codexHdr, responses("look at the logs", false))
 	e.do(t, "/v1/responses", codexHdr, responses("look at the logs", true))
-	if e.up.models[0] != "group/qq-fast" || e.up.models[1] != "group/qq-fast" {
+	if e.up.models[0] != "group/mb-fast" || e.up.models[1] != "group/mb-fast" {
 		t.Fatalf("models %v", e.up.models)
 	}
 	if e.cls.asks != 1 {
@@ -221,7 +221,7 @@ func TestProxySameTurnSameTier(t *testing.T) {
 func TestProxyNewTurnDecidesAgain(t *testing.T) {
 	e := setup(t, router.TierFast, router.TierPerformance)
 	e.do(t, "/v1/responses", codexHdr, responses("look at the logs", false))
-	two, _ := json.Marshal(map[string]any{"model": "group/queqiao", "input": []any{
+	two, _ := json.Marshal(map[string]any{"model": "group/mbridge", "input": []any{
 		map[string]any{"type": "message", "role": "user", "content": []any{map[string]any{"type": "input_text", "text": "look at the logs"}}},
 		map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": "done"}}},
 		map[string]any{"type": "message", "role": "user", "content": []any{map[string]any{"type": "input_text", "text": "now redesign the cache"}}},
@@ -230,7 +230,7 @@ func TestProxyNewTurnDecidesAgain(t *testing.T) {
 	if e.cls.asks != 2 {
 		t.Fatalf("asks %d", e.cls.asks)
 	}
-	if e.up.models[1] == e.up.models[0] && e.up.models[1] != "group/qq-perf" {
+	if e.up.models[1] == e.up.models[0] && e.up.models[1] != "group/mb-perf" {
 		t.Fatalf("models %v", e.up.models)
 	}
 }
@@ -259,7 +259,7 @@ func TestProxyHintOrder(t *testing.T) {
 				hdr[k] = v
 			}
 			e.do(t, "/v1/responses", hdr, responses(prompt, false))
-			if e.up.models[0] != "group/qq-perf" || e.cls.asks != 0 {
+			if e.up.models[0] != "group/mb-perf" || e.cls.asks != 0 {
 				t.Fatalf("model %v asks %d", e.up.models, e.cls.asks)
 			}
 		})
@@ -279,9 +279,9 @@ func TestProxyPassesOtherModelsUntouched(t *testing.T) {
 func TestProxyOversizeBodyPassesThrough(t *testing.T) {
 	e := setup(t)
 	pad := strings.Repeat("x", MaxBody+1)
-	body := `{"model":"group/queqiao","pad":"` + pad + `"}`
+	body := `{"model":"group/mbridge","pad":"` + pad + `"}`
 	e.do(t, "/v1/responses", codexHdr, body)
-	if e.up.models[0] != "group/queqiao" || len(e.up.bodies[0]) != len(body) {
+	if e.up.models[0] != "group/mbridge" || len(e.up.bodies[0]) != len(body) {
 		t.Fatalf("model %q len %d", e.up.models[0], len(e.up.bodies[0]))
 	}
 	found := false
@@ -348,10 +348,10 @@ func TestServeBadConfigPassesThrough(t *testing.T) {
 	defer srv.Close()
 	res, _ := http.Post(srv.URL+"/v1/responses", "application/json", strings.NewReader(responses("hi", false)))
 	res.Body.Close()
-	if up.models[0] != "group/queqiao" {
+	if up.models[0] != "group/mbridge" {
 		t.Fatalf("rewritten without a config: %v", up.models)
 	}
-	res, _ = http.Get(srv.URL + "/v1/queqiao/router")
+	res, _ = http.Get(srv.URL + "/v1/bridge/router")
 	b, _ := io.ReadAll(res.Body)
 	if !bytes.Contains(b, []byte("unexpected EOF")) {
 		t.Fatalf("status %s", b)
@@ -367,7 +367,7 @@ func TestServePortInUseExplains(t *testing.T) {
 	}
 }
 
-// queqiaod forwards from loopback, where magpie asks no key: listening
+// mbridge forwards from loopback, where magpie asks no key: listening
 // beyond this computer would hand its subscriptions to the network
 // (spec §5.5). Serve refuses before it opens the port.
 func TestServeRefusesNonLoopbackListen(t *testing.T) {

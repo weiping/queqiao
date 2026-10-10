@@ -1,6 +1,6 @@
 # Notes for coding agents
 
-queqiao is a model router that runs beside official
+Magpie Bridge (command `mbridge`) is a model router that runs beside official
 [magpie](https://github.com/yetone/magpie). It does not contain or import
 magpie's code: everything it asks of magpie goes through `internal/magpie`,
 over magpie's public HTTP endpoints (`/v1/systemone`, `/v1/chat/completions`,
@@ -13,20 +13,20 @@ change: update the SP8 spec first
 
 | Path | What |
 | --- | --- |
-| `cmd/queqiao` | the one binary: CLI and `queqiao serve` (queqiaod) |
+| `cmd/mbridge` | the one binary: CLI and `mbridge serve` (the daemon) |
 | `internal/router` | tier policy, classifier, review, calibration, reports |
 | `internal/wire` | the three-protocol request parser the router and proxy read |
-| `internal/proxy` | queqiaod's reverse proxy for Codex and gateway mode |
+| `internal/proxy` | mbridge's reverse proxy for Codex and gateway mode |
 | `internal/magpie` | the only place that talks to magpie |
-| `internal/codexcfg` | Codex's `queqiao.config.toml` and model catalog |
+| `internal/codexcfg` | Codex's `mbridge.config.toml` and model catalog |
 | `internal/harness` | Codex command hooks |
-| `internal/runcmd` | every command queqiao runs (no window on Windows) |
+| `internal/runcmd` | every command mbridge runs (no window on Windows) |
 | `clients/` | Claude Code mod, Codex plugin, Pi extension |
 
 ## Contract with magpie
 
 `contract/` runs against the latest official magpie release every day. When it
-goes red, magpie changed something queqiao relies on: fix `internal/magpie`
+goes red, magpie changed something mbridge relies on: fix `internal/magpie`
 (and the contract test) rather than working around it elsewhere.
 
 ## Lessons

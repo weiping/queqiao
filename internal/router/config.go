@@ -70,7 +70,7 @@ type Config struct {
 	FixedAgents       map[string]Tier  `json:"fixed_agents"`
 	Experiment        ExperimentConfig `json:"experiment"`
 	Review            ReviewConfig     `json:"review"`
-	// Listen is where queqiaod serves (SP8); MagpieURL where official
+	// Listen is where mbridge serves (SP8); MagpieURL where official
 	// magpie's gateway is.
 	Listen    string `json:"listen,omitempty"`
 	MagpieURL string `json:"magpie_url,omitempty"`
@@ -85,8 +85,8 @@ var defaultFixedAgents = map[string]Tier{
 	"explorer":          TierFast,
 }
 
-// Load reads globalPath (typically ~/.config/queqiao/router.json), applies
-// defaults, and merges the project-level <cwd>/.queqiao/router.json, which
+// Load reads globalPath (typically ~/.config/magpie-bridge/router.json), applies
+// defaults, and merges the project-level <cwd>/.mbridge/router.json, which
 // may override only each tier's criteria — anything else it says is
 // ignored; a missing or unparseable project file is no error. Whether the
 // tier groups actually exist in the gateway is not checked here: that
@@ -111,7 +111,7 @@ func Load(globalPath, cwd string) (Config, error) {
 // defaults fills the fields §4.6 gives defaults to.
 func (c *Config) defaults() {
 	if c.RouterGroup == "" {
-		c.RouterGroup = "queqiao"
+		c.RouterGroup = "mbridge"
 	}
 	if c.DefaultTier == "" {
 		c.DefaultTier = TierBalanced
@@ -210,7 +210,7 @@ func (c Config) validate() error {
 	return nil
 }
 
-// mergeProjectCriteria applies <cwd>/.queqiao/router.json's tier criteria
+// mergeProjectCriteria applies <cwd>/.mbridge/router.json's tier criteria
 // over the global config, ignoring everything else the project file says.
 func (c *Config) mergeProjectCriteria(cwd string) {
 	for tier, criteria := range ProjectCriteria(cwd) {
@@ -221,14 +221,14 @@ func (c *Config) mergeProjectCriteria(cwd string) {
 	}
 }
 
-// ProjectCriteria reads <cwd>/.queqiao/router.json's tier criteria, or
+// ProjectCriteria reads <cwd>/.mbridge/router.json's tier criteria, or
 // nil when there is nothing to apply (§4.6: criteria are the only key a
 // project file may touch).
 func ProjectCriteria(cwd string) map[Tier]string {
 	if cwd == "" {
 		return nil
 	}
-	b, err := os.ReadFile(filepath.Join(cwd, ".queqiao", "router.json"))
+	b, err := os.ReadFile(filepath.Join(cwd, ".mbridge", "router.json"))
 	if err != nil {
 		return nil
 	}

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/weiping/queqiao/internal/magpie"
-	"github.com/weiping/queqiao/internal/wire"
+	"github.com/weiping/magpie-bridge/internal/magpie"
+	"github.com/weiping/magpie-bridge/internal/wire"
 )
 
 // stickyTurn is the router's own in-turn record: within a turn every
@@ -19,7 +19,7 @@ type stickyTurn struct {
 }
 
 // Route is what the router decided for a request of the router group:
-// the tier, the group to send it to (group/qq-…), why, and whether a hint
+// the tier, the group to send it to (group/mb-…), why, and whether a hint
 // stored by /turn answered.
 type Route struct {
 	Tier   Tier
@@ -30,7 +30,7 @@ type Route struct {
 	Hint   bool
 }
 
-// Router decides the router group's requests (SP8: called by queqiaod's
+// Router decides the router group's requests (SP8: called by mbridge's
 // proxy, which used to be the gateway hook): a tier per new turn, the turn
 // keeping it until its next turn begins.
 type Router struct {

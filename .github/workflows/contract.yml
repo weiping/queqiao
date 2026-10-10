@@ -1,0 +1,96 @@
+name: magpie contract
+
+# mbridge relies on official magpie's CLI and HTTP surfaces (SP8 §2.2).
+# Every day, and on every change here, the contract and end-to-end tests
+# run against the newest magpie release. A scheduled run that fails opens
+# an issue (label: contract) for that magpie version, or comments on the
+# one already open.
+
+on:
+  schedule:
+    - cron: '17 1 * * *' # 09:17 Beijing
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  contract:
+    name: contract (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Official magpie
+        id: magpie
+        shell: bash
+        run: |
+          out=$(sh scripts/fetch-magpie.sh "$RUNNER_TEMP/magpie")
+          echo "bin=$(echo "$out" | sed -n 1p)" >> "$GITHUB_OUTPUT"
+          echo "version=$(echo "$out" | sed -n 2p)" >> "$GITHUB_OUTPUT"
+          echo "magpie $(echo "$out" | sed -n 2p)"
+
+      - name: Contract
+        shell: bash
+        run: go test -count=1 -v -tags contract ./contract/ -magpie="${{ steps.magpie.outputs.bin }}"
+
+      - name: End to end
+        shell: bash
+        run: go test -count=1 -v -tags e2e ./e2e/ -magpie="${{ steps.magpie.outputs.bin }}"
+
+      # mbridge service install on a real service manager (SP8 Task 11)
+      - name: Service (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          make build
+          ./mbridge service install
+          for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:3426/v1/bridge/router && break; sleep 1; done
+          curl -fsS http://127.0.0.1:3426/v1/bridge/router >/dev/null
+          ./mbridge service status
+          ./mbridge service uninstall
+
+      - name: Service (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          make build
+          sudo loginctl enable-linger "$USER"
+          XDG_RUNTIME_DIR=/run/user/$(id -u)
+          export XDG_RUNTIME_DIR
+          for _ in $(seq 1 10); do [ -S "$XDG_RUNTIME_DIR/bus" ] && break; sleep 1; done
+          ./mbridge service install
+          for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:3426/v1/bridge/router && break; sleep 1; done
+          curl -fsS http://127.0.0.1:3426/v1/bridge/router >/dev/null
+          ./mbridge service status
+          ./mbridge service uninstall
+
+      - name: Open or update the issue
+        if: failure() && github.event_name == 'schedule'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          V: ${{ steps.magpie.outputs.version }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OS: ${{ matrix.os }}
+        run: |
+          title="magpie $V broke mbridge's contract"
+          n=$(gh issue list --label contract --state open --search "$title in:title" --json number --jq '.[0].number')
+          if [ -n "$n" ]; then
+            gh issue comment "$n" --body "Still failing on $OS: $RUN"
+          else
+            gh label create contract --color B60205 --description "official magpie changed something mbridge relies on" 2>/dev/null || true
+            gh issue create --label contract --title "$title" --body "The contract or e2e tests failed against official magpie $V on $OS: $RUN
+
+          Fix internal/magpie (and the contract test) for what magpie changed; see AGENTS.md."
+          fi

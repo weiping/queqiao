@@ -1,124 +1,111 @@
-# 鹊桥 queqiao
+# 鹊桥 Magpie Bridge
 
 给编码 Agent 用的模型路由器：在 Agent 的 harness 里判断每一轮任务有多难，在本地网关里把请求派给合适的模型档位。简单的提问交给便宜的快模型，跨文件改动和难查的 bug 交给最强的模型。
 
-queqiao 和官方 [magpie](https://github.com/yetone/magpie) 并排运行：magpie 是本地模型网关，queqiao 是它旁边的路由器（后台进程 queqiaod，默认 `127.0.0.1:3426`）。名字取自“鹊桥”：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。queqiao 不含、也不修改 magpie 的代码，先装官方 magpie，再装 queqiao。
+Magpie Bridge 和官方 [magpie](https://github.com/yetone/magpie) 并排运行：magpie 是本地模型网关，Magpie Bridge 是它旁边的路由器，命令叫 `mbridge`，后台进程 `mbridge serve` 默认监听 `127.0.0.1:3426`。中文名“鹊桥”，英文名是它的直译：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。项目早期曾叫 queqiao（鹊桥的拼音）。Magpie Bridge 不含、也不修改 magpie 的代码：先装官方 magpie，再装 Magpie Bridge。
 
-> **状态：** 自 SP8（2026-10-10）起 queqiao 不再是 magpie 的 fork，原来的上游镜像分支改名为 `archive/magpie-mirror`，已停止同步，开发主干是 `main`。qq-v0.1.x 的用户用 `queqiao migrate` 把数据交还官方 magpie。设计见 [`docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md`](docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md)。
+> **状态：** 自 SP8（2026-10-10）起不再是 magpie 的 fork，原来的上游镜像分支改名为 `archive/magpie-mirror`，开发主干是 `main`。设计见 [`docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md`](docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md) 和 [`docs/superpowers/specs/2026-10-10-magpie-bridge-sp9-rename-design.md`](docs/superpowers/specs/2026-10-10-magpie-bridge-sp9-rename-design.md)。
 
 ## 要做什么
 
 - **事前选档**：每一轮用户发话时，插件把用户原话、计划模式、Agent 和子代理类型交给分类器（默认用 TypeSafe 的 [Jev](https://docs.typesafe.ai/introduction)），选出 `fast`、`balanced`、`performance` 三档之一。
 - **事后升档**：用户说上一轮不对，或者上一轮工具调用失败过半，下一轮自动升一档。
-- **事后复核**（可选，默认关闭）：轮末把这一轮的请求和最终回复交给分类器判「到底有没有解决」，命中就下一轮升档；先把 `review.mode` 设 `shadow` 攒样本、用 `queqiao router calibrate` 看阈值站不站得住，再切 `act`。开启后回复会发给你配的分类器厂商，所以默认关。
+- **事后复核**（可选，默认关闭）：轮末把这一轮的请求和最终回复交给分类器判「到底有没有解决」，命中就下一轮升档；先把 `review.mode` 设 `shadow` 攒样本、用 `mbridge router calibrate` 看阈值站不站得住，再切 `act`。开启后回复会发给你配的分类器厂商，所以默认关。
 - **子代理单独选档**：从零开始的子代理单独选档；继承父会话上下文的 fork 子代理跟随父会话的档位，保住 prompt cache。
 - **档位与模型解耦**：每一档是网关里的一个路由组，组内有跨厂商的失败转移成员。换模型只改配置。
 - **失败安全**：分类器、hook、网关任何一环出错，请求照常完成，只是少了路由。
-- **自带验收**：按会话分组做线上 A/B，统计成本、合并 PR 的比例和手动换模型的次数；`queqiao router calibrate` 另外用「下一轮的不满 / 手动升档 / 工具失败」当标签，给出各分数分段的选低率与建议阈值。
+- **自带验收**：按会话分组做线上 A/B，统计成本、合并 PR 的比例和手动换模型的次数；`mbridge router calibrate` 另外用「下一轮的不满 / 手动升档 / 工具失败」当标签，给出各分数分段的选低率与建议阈值。
 
 ## 组件
 
 | 组件 | 用于 | 状态 |
 | --- | --- | --- |
-| queqiaod（`queqiao serve`）：`/v1/queqiao/*` 与 Codex、网关模式的代理（`internal/router/`、`internal/proxy/`） | 所有 Agent | SP8 起独立于 magpie |
-| Claude Code 插件 `queqiao-router`（`clients/claude-code/`） | Claude Code | 0.2.0，默认连 3426 |
-| Pi 包 `@weiping/pi-queqiao`（`clients/pi/`） | Pi | 0.2.0，自报工具统计 |
-| Codex 插件 `queqiao-router-codex`（`clients/codex/`） | Codex | 0.2.0，配合 `codex -p queqiao` |
-| 报表、复核与校准（`queqiao router report`、`calibrate`） | 所有 Agent | 成本取 magpie 的 `usage --csv` |
-| 迁移（`queqiao migrate`） | qq-v0.1.x 用户 | 可预演、可回滚 |
+| 守护进程（`mbridge serve`）：`/v1/bridge/*` 与 Codex、网关模式的代理（`internal/router/`、`internal/proxy/`） | 所有 Agent | SP8 起独立于 magpie |
+| Claude Code 插件 `magpie-bridge`（`clients/claude-code/`） | Claude Code | 0.2.0，默认连 3426 |
+| Pi 包 `@weiping/pi-magpie-bridge`（`clients/pi/`） | Pi | 0.2.0，自报工具统计 |
+| Codex 插件 `magpie-bridge-codex`（`clients/codex/`） | Codex | 0.2.0，配合 `codex -p mbridge` |
+| 报表、复核与校准（`mbridge router report`、`calibrate`） | 所有 Agent | 成本取 magpie 的 `usage --csv` |
 
 ## 快速开始
 
 1. **先装官方 magpie**（[yetone/magpie](https://github.com/yetone/magpie)），让它的网关跑在默认的 `127.0.0.1:3425`，配好你的厂商和订阅。
 
-2. **再装 queqiao**（下载经 SHA-256 校验，装进 `~/.local/bin`，并注册登录时启动的 queqiaod）：
+2. **再装 mbridge**（下载经 SHA-256 校验，装进 `~/.local/bin`，并注册登录时启动的 mbridge）：
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/main/install.sh | sh
+   curl -fsSL https://raw.githubusercontent.com/weiping/magpie-bridge/main/install.sh | sh
    ```
 
    Windows（PowerShell）：
 
    ```powershell
-   irm https://raw.githubusercontent.com/weiping/queqiao/main/install.ps1 | iex
+   irm https://raw.githubusercontent.com/weiping/magpie-bridge/main/install.ps1 | iex
    ```
 
-   指定版本或目录：`… | sh -s -- --version qq-v0.2.0 --bin-dir ~/bin`；不想开机启动加 `--no-service`，之后手动 `queqiao serve`。升级用 `queqiao update`。
+   指定版本或目录：`… | sh -s -- --version v0.2.0 --bin-dir ~/bin`；不想开机启动加 `--no-service`，之后手动 `mbridge serve`。升级用 `mbridge update`。
 
 3. **建档位并接上 Agent**：
 
    ```sh
-   queqiao router init --preset cn       # 在 magpie 里建四个路由组，写 router.json，接好 Claude Code 和 Pi（还有 frontier/anthropic 预设）
-   queqiao status                        # magpie、queqiaod、分组是否齐全，最近的决策
-   queqiao router check                  # 分组在不在、上下文窗口够不够（加 --yes 再发真实请求，会计费）
+   mbridge router init --preset cn       # 在 magpie 里建四个路由组，写 router.json，接好 Claude Code 和 Pi（还有 frontier/anthropic 预设）
+   mbridge status                        # magpie、mbridge、分组是否齐全，最近的决策
+   mbridge router check                  # 分组在不在、上下文窗口够不够（加 --yes 再发真实请求，会计费）
    ```
 
 4. **装插件**：
 
    ```sh
    # Claude Code（需要 ≥ v2.1.287）
-   claude plugin marketplace add weiping/queqiao
-   claude plugin install queqiao-router@queqiao        # 默认连 http://127.0.0.1:3426
+   claude plugin marketplace add weiping/magpie-bridge
+   claude plugin install magpie-bridge@magpie-bridge        # 默认连 http://127.0.0.1:3426
 
-   # Codex（需要 queqiao 在 PATH 里，装完在 /hooks 里信任 hook）
-   codex plugin marketplace add weiping/queqiao
-   codex plugin add queqiao-router-codex@queqiao
-   codex -p queqiao                                     # 用 queqiao 的 profile 启动，请求经 queqiaod 选档
+   # Codex（需要 mbridge 在 PATH 里，装完在 /hooks 里信任 hook）
+   codex plugin marketplace add weiping/magpie-bridge
+   codex plugin add magpie-bridge-codex@magpie-bridge
+   codex -p mbridge                                     # 用 mbridge 的 profile 启动，请求经 mbridge 选档
 
    # Pi
-   pi install npm:@weiping/pi-queqiao                   # 升级：pi update
+   pi install npm:@weiping/pi-magpie-bridge                   # 升级：pi update
    ```
 
-Claude Code 和 Pi 的请求直接发给 magpie，插件逐轮把模型切到 `group/qq-<档>`；Codex 的请求先到 queqiaod，代理按轮把 `group/queqiao` 改写成某一档再转给 magpie。没有插件的 Agent 把 base URL 设成 `http://127.0.0.1:3426/v1`、模型设成 `group/queqiao`，就是网关模式。
+Claude Code 和 Pi 的请求直接发给 magpie，插件逐轮把模型切到 `group/mb-<档>`；Codex 的请求先到 mbridge，代理按轮把 `group/mbridge` 改写成某一档再转给 magpie。没有插件的 Agent 把 base URL 设成 `http://127.0.0.1:3426/v1`、模型设成 `group/mbridge`，就是网关模式。
 
 其他命令：
 
 ```sh
-queqiao router calibrate              # 三个分数各自的选低率与建议阈值（先跑 shadow 攒样本）
-queqiao router report --since 14d     # 线上实验报表：成本、合并率、升档来源、未升档轮次的选低率
-queqiao service install|uninstall|status
-queqiao version                       # queqiao 和 magpie 的版本
+mbridge router calibrate              # 三个分数各自的选低率与建议阈值（先跑 shadow 攒样本）
+mbridge router report --since 14d     # 线上实验报表：成本、合并率、升档来源、未升档轮次的选低率
+mbridge service install|uninstall|status
+mbridge version                       # mbridge 和 magpie 的版本
 ```
-
-### 从 qq-v0.1.x 升级
-
-qq-v0.1.x 是 magpie 的改名版，provider、账号、分组和用量都存在 `~/.config/queqiao`。装好官方 magpie 和新版 queqiao 后，先退出旧的 queqiao App（或 `queqiao serve`）和官方 magpie（3425 端口上不能有网关在跑），再：
-
-```sh
-queqiao migrate --dry-run     # 看会移动哪些文件
-queqiao migrate               # 先整体备份到 ~/.config/queqiao-migration/sp8-<时间>/，再把 magpie 的文件交给 ~/.config/magpie
-queqiao migrate restore       # 反悔：按备份里的记录原样放回，旧版可以照常启动
-```
-
-`router.json`、`router.jsonl` 和日志留在 `~/.config/queqiao`。如果 `~/.config/magpie` 里已经有官方 magpie 的配置，它会被整体移进备份（`magpie-before/`），不做合并，迁移后 magpie 用的是你 qq-v0.1.x 的数据。迁移完再启动官方 magpie。旧 App 和它的登录项移进备份；Windows 上的旧登录项请运行 `magpie autostart on` 改指向官方 magpie。
-
-更早用 `migrate-from-magpie.sh` 从 magpie 迁到 qq-v0.1.x 的备份在 `~/.config/queqiao-migration/backup`：要手动退回，把其中 `magpie-config` 复制回 `~/.config/magpie`，`removed/` 里的东西放回原处即可。
 
 ## 配置
 
-queqiao 的路由配置有两处：magpie 里的四个路由组（存在 magpie 自己的配置里），和 `~/.config/queqiao/router.json`。两者都由 `queqiao router init --preset <frontier|anthropic|cn>` 生成，之后直接改文件即可。
+mbridge 的路由配置有两处：magpie 里的四个路由组（存在 magpie 自己的配置里），和 `~/.config/magpie-bridge/router.json`。两者都由 `mbridge router init --preset <frontier|anthropic|cn>` 生成，之后直接改文件即可。
 
 ### 路由组
 
 | 组 | 用途 | 路由策略 |
 | --- | --- | --- |
-| `qq-fast` / `qq-balanced` / `qq-perf` | 三个档位组，各自是「主成员 + 失败转移成员」的列表 | `order` |
-| `queqiao` | 路由组：Codex 和网关模式的请求带着 `group/queqiao` 进 queqiaod，代理按轮改写成某一档；绕过 queqiaod 直接请求它时，magpie 按顺序落到 balanced | `order` |
+| `mb-fast` / `mb-balanced` / `mb-perf` | 三个档位组，各自是「主成员 + 失败转移成员」的列表 | `order` |
+| `mbridge` | 路由组：Codex 和网关模式的请求带着 `group/mbridge` 进 mbridge，代理按轮改写成某一档；绕过 mbridge 直接请求它时，magpie 按顺序落到 balanced | `order` |
 
-换模型只改档位组的成员，例如 `magpie group set qq-fast models=glm/glm-5.3-flash:high,deepseek/deepseek-v4-flash`。成员可以带 `:effort` 后缀指定推理强度。
+换模型只改档位组的成员，例如 `magpie group set mb-fast models=glm/glm-5.3-flash:high,deepseek/deepseek-v4-flash`。成员可以带 `:effort` 后缀指定推理强度。
+
+`mb-fast`、`mb-balanced`、`mb-perf`、`mbridge` 这四个分组名归 Magpie Bridge 使用：`mbridge router init` 会直接覆盖同名分组，别拿它们做别的用途。
 
 ### `router.json`
 
-`queqiao router init` 生成的默认值如下，字段都可以改：
+`mbridge router init` 生成的默认值如下，字段都可以改：
 
 ```json
 {
   "version": 1,
-  "router_group": "queqiao",
+  "router_group": "mbridge",
   "tiers": {
-    "fast":        { "group": "qq-fast",     "claude_alias": "haiku",  "criteria": "…" },
-    "balanced":    { "group": "qq-balanced", "claude_alias": "sonnet", "criteria": "…" },
-    "performance": { "group": "qq-perf",     "claude_alias": "opus",   "criteria": "…" }
+    "fast":        { "group": "mb-fast",     "claude_alias": "haiku",  "criteria": "…" },
+    "balanced":    { "group": "mb-balanced", "claude_alias": "sonnet", "criteria": "…" },
+    "performance": { "group": "mb-perf",     "claude_alias": "opus",   "criteria": "…" }
   },
   "default_tier": "balanced",
   "classifier": "local",
@@ -139,8 +126,8 @@ queqiao 的路由配置有两处：magpie 里的四个路由组（存在 magpie 
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `router_group` | `queqiao` | 路由组名，Agent 的模型指到 `group/<这个名字>` |
-| `listen` | `127.0.0.1:3426` | queqiaod 的监听地址 |
+| `router_group` | `mbridge` | 路由组名，Agent 的模型指到 `group/<这个名字>` |
+| `listen` | `127.0.0.1:3426` | mbridge 的监听地址 |
 | `magpie_url` | `http://127.0.0.1:3425` | 官方 magpie 网关的地址 |
 | `tiers.<档>.group` | — | 该档对应的网关路由组 |
 | `tiers.<档>.claude_alias` | — | Claude Code 侧的别名映射（`haiku`/`sonnet`/`opus`） |
@@ -164,7 +151,7 @@ queqiao 的路由配置有两处：magpie 里的四个路由组（存在 magpie 
 | `experiment.control_tier` | `performance` | 对照组钉死的档位 |
 | `experiment.salt` | init 随机生成 | 分组哈希的盐，**写死后不要改**，否则实验前后不可比 |
 
-配置无效时路由自动降级：queqiaod 照常启动，代理只做透传，`group/queqiao` 由 magpie 按顺序落到 balanced。`queqiao router status` 会报告具体的配置错误。
+配置无效时路由自动降级：mbridge 照常启动，代理只做透传，`group/mbridge` 由 magpie 按顺序落到 balanced。`mbridge router status` 会报告具体的配置错误。
 
 ### 分类器：TypeSafe Jev
 
@@ -176,7 +163,7 @@ magpie provider add typesafe <api-key>
 ```
 
 ```jsonc
-// 2. ~/.config/queqiao/router.json
+// 2. ~/.config/magpie-bridge/router.json
 {
   "classifier": "typesafe/jev-latest",
   "classify_timeout_ms": 1500
@@ -191,15 +178,15 @@ magpie provider add typesafe <api-key>
 
 默认 `"review": {"mode": "off"}`——**默认关闭**，因为开启后每轮的回复会被发给分类器厂商（走你已配置的 classifier 渠道）。想用它，按这三步走：
 
-1. `"mode": "shadow"`：复核照常发出，但只把 `would_review` 记进 `~/.config/queqiao/router.jsonl`，路由行为一点不变。跑几天，攒样本。
-2. `queqiao router calibrate`：看三个分数（档位置信度、不满分数、复核分数）各自的选低率和建议阈值。样本不足 30 的分段会标「样本不足」。标签只反映**用户表达出来的不满**，所以顶部有提示；要更准的判断用 `queqiao router calibrate --csv` 导出逐轮明细人工核对。
+1. `"mode": "shadow"`：复核照常发出，但只把 `would_review` 记进 `~/.config/magpie-bridge/router.jsonl`，路由行为一点不变。跑几天，攒样本。
+2. `mbridge router calibrate`：看三个分数（档位置信度、不满分数、复核分数）各自的选低率和建议阈值。样本不足 30 的分段会标「样本不足」。标签只反映**用户表达出来的不满**，所以顶部有提示；要更准的判断用 `mbridge router calibrate --csv` 导出逐轮明细人工核对。
 3. 数字站得住再切 `"mode": "act"`：复核命中时下一轮按 R3 升档，`router.jsonl` 的 decide 事件里 reason 会是 `R3-review`。
 
 复核在后台跑，本轮回复不等它；结果晚到（下一轮已经开始）就丢弃，不会配错轮次。
 
 ### 项目级覆盖
 
-在项目根目录放 `.queqiao/router.json`，只能覆盖各档的 `criteria`（比如告诉分类器「这个仓库的改动大多是跨服务的」），其余字段一律忽略：
+在项目根目录放 `.mbridge/router.json`，只能覆盖各档的 `criteria`（比如告诉分类器「这个仓库的改动大多是跨服务的」），其余字段一律忽略：
 
 ```json
 {
@@ -213,9 +200,9 @@ magpie provider add typesafe <api-key>
 
 | 变量 | 说明 |
 | --- | --- |
-| `QUEQIAO_URL` | 插件和 hook 访问 queqiaod 的地址，默认 `http://127.0.0.1:3426`。Codex 的 hook 子进程不继承自定义环境变量，请让 queqiaod 跑在默认端口 |
+| `MBRIDGE_URL` | 插件和 hook 访问 mbridge 的地址，默认 `http://127.0.0.1:3426`。Codex 的 hook 子进程不继承自定义环境变量，请让 mbridge 跑在默认端口 |
 
-Claude Code 插件的地址另有 `gateway_url` 设置（`claude plugin install queqiao-router@queqiao --config gateway_url=…`）。
+Claude Code 插件的地址另有 `gateway_url` 设置（`claude plugin install magpie-bridge@magpie-bridge --config gateway_url=…`）。
 
 ## 分支与发版
 
@@ -224,14 +211,14 @@ Claude Code 插件的地址另有 `gateway_url` 设置（`claude plugin install 
 | `main`（默认分支） | 开发主干 |
 | `archive/magpie-mirror` | SP8 之前的上游 magpie 镜像，已停止同步，只作历史参考 |
 | `qq/<名字>` | 功能分支，完成后 PR 合回 `main` |
-| `qq-v*` 标签 | 推送后构建六个二进制（darwin、linux、windows 的 amd64 和 arm64）和 `checksums.txt` 并发布 Release |
+| `v*` 标签 | 推送后构建六个二进制（darwin、linux、windows 的 amd64 和 arm64）和 `checksums.txt` 并发布 Release |
 
-queqiao 和 magpie 之间只走公开接口（HTTP、CLI、usage CSV），全部集中在 `internal/magpie`。CI 每天拿官方最新的 magpie 跑契约测试（`contract/`），接口变了会自动开 issue。
+Magpie Bridge 和 magpie 之间只走公开接口（HTTP、CLI、usage CSV），全部集中在 `internal/magpie`。CI 每天拿官方最新的 magpie 跑契约测试（`contract/`），接口变了会自动开 issue。
 
 ## 构建与测试
 
 ```sh
-make build                        # ./queqiao，纯 Go，不需要 cgo
+make build                        # ./mbridge，纯 Go，不需要 cgo
 make test                         # go vet、go test 和安装脚本的测试
 cd clients/pi && npx vitest run   # Pi 扩展
 ```
@@ -244,4 +231,4 @@ cd clients/pi && npx vitest run   # Pi 扩展
 
 ## 许可
 
-MIT。queqiao 曾是 [yetone/magpie](https://github.com/yetone/magpie) 的 fork，上游的版权声明保留在 [LICENSE](LICENSE) 中。
+MIT。mbridge 曾是 [yetone/magpie](https://github.com/yetone/magpie) 的 fork，上游的版权声明保留在 [LICENSE](LICENSE) 中。

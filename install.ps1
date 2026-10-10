@@ -1,27 +1,27 @@
-# queqiao installer for Windows:
-#   irm https://raw.githubusercontent.com/weiping/queqiao/main/install.ps1 | iex
+# mbridge installer for Windows:
+#   irm https://raw.githubusercontent.com/weiping/magpie-bridge/main/install.ps1 | iex
 #
-# queqiao runs beside official magpie (https://github.com/yetone/magpie):
-# install magpie first. This downloads queqiao from the latest GitHub
+# mbridge runs beside official magpie (https://github.com/yetone/magpie):
+# install magpie first. This downloads mbridge from the latest GitHub
 # Release, checks its SHA-256 against the release's checksums.txt, puts
-# queqiao.exe in ~\.local\bin and runs queqiaod at logon
-# (queqiao service install). queqiaod listens on 127.0.0.1:3426.
+# mbridge.exe in ~\.local\bin and runs mbridge at logon
+# (mbridge service install). mbridge listens on 127.0.0.1:3426.
 #
-#   .\install.ps1 -Version qq-v0.2.0     install this release, not the latest
+#   .\install.ps1 -Version v0.2.0     install this release, not the latest
 #   .\install.ps1 -BinDir C:\bin         install somewhere else
-#   .\install.ps1 -NoService             don't run queqiaod at logon
+#   .\install.ps1 -NoService             don't run mbridge at logon
 param(
-  [string] $Version = $env:QUEQIAO_VERSION,
-  [string] $BinDir = $env:QUEQIAO_BIN_DIR,
+  [string] $Version = $env:MBRIDGE_VERSION,
+  [string] $BinDir = $env:MBRIDGE_BIN_DIR,
   [switch] $NoService
 )
 
 $ErrorActionPreference = "Stop"
-$repo = "weiping/queqiao"
-function Fail($msg) { [Console]::Error.WriteLine("queqiao: $msg"); exit 1 }
+$repo = "weiping/magpie-bridge"
+function Fail($msg) { [Console]::Error.WriteLine("mbridge: $msg"); exit 1 }
 
 if (-not (Get-Command magpie -ErrorAction SilentlyContinue)) {
-  Fail "queqiao needs official magpie: install it first from https://github.com/yetone/magpie, then run this again"
+  Fail "mbridge needs official magpie: install it first from https://github.com/yetone/magpie, then run this again"
 }
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -35,12 +35,12 @@ switch ($env:PROCESSOR_ARCHITECTURE) {
 if (-not $Version) {
   $rel = Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest"
   $Version = $rel.tag_name
-  if (-not $Version) { Fail "could not learn the latest release (rate limited? use -Version qq-v<x.y.z>)" }
+  if (-not $Version) { Fail "could not learn the latest release (rate limited? use -Version v<x.y.z>)" }
 }
 
-$asset = "queqiao-windows-$arch.exe"
-$base = if ($env:QUEQIAO_DOWNLOAD_BASE) { $env:QUEQIAO_DOWNLOAD_BASE } else { "https://github.com/$repo/releases/download/$Version" }
-Write-Host "  queqiao $Version (windows/$arch)"
+$asset = "mbridge-windows-$arch.exe"
+$base = if ($env:MBRIDGE_DOWNLOAD_BASE) { $env:MBRIDGE_DOWNLOAD_BASE } else { "https://github.com/$repo/releases/download/$Version" }
+Write-Host "  mbridge $Version (windows/$arch)"
 
 if (-not $BinDir) { $BinDir = Join-Path $env:USERPROFILE ".local\bin" }
 $tmp = New-Item -ItemType Directory -Force -Path (Join-Path $env:TEMP ([IO.Path]::GetRandomFileName()))
@@ -61,7 +61,7 @@ try {
   if ($want -ne $got) { Fail "SHA-256 mismatch for $asset (want $want, got $got): the download is refused" }
 
   New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-  $exe = Join-Path $BinDir "queqiao.exe"
+  $exe = Join-Path $BinDir "mbridge.exe"
   Copy-Item "$tmp\$asset" $exe -Force
   Write-Host "  installed to $exe"
 
@@ -72,22 +72,14 @@ try {
 
   if (-not $NoService) {
     & $exe service install
-    if ($LASTEXITCODE -ne 0) { Write-Host "  queqiao service install failed; run queqiaod yourself: queqiao serve" }
-  }
-
-  $cfg = if ($env:XDG_CONFIG_HOME) { $env:XDG_CONFIG_HOME } else { Join-Path $env:USERPROFILE ".config" }
-  if (Test-Path (Join-Path $cfg "queqiao\providers.json")) {
-    Write-Host ""
-    Write-Host "  qq-v0.1.x data found in $cfg\queqiao: hand it to official magpie with"
-    Write-Host "    queqiao migrate --dry-run     # see what moves"
-    Write-Host "    queqiao migrate               # do it (queqiao migrate restore undoes it)"
+    if ($LASTEXITCODE -ne 0) { Write-Host "  mbridge service install failed; run mbridge yourself: mbridge serve" }
   }
 
   Write-Host ""
   Write-Host "  next:"
-  Write-Host "    queqiao router init --preset cn    # tier groups in magpie + router.json"
-  Write-Host "    queqiao status                     # magpie, queqiaod, groups, recent decisions"
-  Write-Host "    codex -p queqiao                   # Codex through queqiaod"
+  Write-Host "    mbridge router init --preset cn    # tier groups in magpie + router.json"
+  Write-Host "    mbridge status                     # magpie, mbridge, groups, recent decisions"
+  Write-Host "    codex -p mbridge                   # Codex through mbridge"
 } finally {
   Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }

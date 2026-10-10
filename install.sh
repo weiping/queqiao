@@ -1,25 +1,25 @@
 #!/bin/sh
-# queqiao installer: curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/main/install.sh | sh
+# mbridge installer: curl -fsSL https://raw.githubusercontent.com/weiping/magpie-bridge/main/install.sh | sh
 #
-# queqiao runs beside official magpie (https://github.com/yetone/magpie):
-# install magpie first. This puts queqiao in ~/.local/bin, checked against
-# the release's SHA-256, and runs queqiaod at login (queqiao service
-# install). queqiaod listens on 127.0.0.1:3426; magpie keeps 3425.
+# mbridge runs beside official magpie (https://github.com/yetone/magpie):
+# install magpie first. This puts mbridge in ~/.local/bin, checked against
+# the release's SHA-256, and runs mbridge at login (mbridge service
+# install). mbridge listens on 127.0.0.1:3426; magpie keeps 3425.
 #
-# Options (… | sh -s -- --version qq-v0.2.0):
+# Options (… | sh -s -- --version v0.2.0):
 #   --version <tag>    install this release instead of the latest
-#                      (QUEQIAO_VERSION= does the same)
-#   --bin-dir <dir>    install somewhere else (QUEQIAO_BIN_DIR= does the same)
-#   --no-service       don't run queqiaod at login
+#                      (MBRIDGE_VERSION= does the same)
+#   --bin-dir <dir>    install somewhere else (MBRIDGE_BIN_DIR= does the same)
+#   --no-service       don't run mbridge at login
 set -eu
 
-repo=weiping/queqiao
-tag="${QUEQIAO_VERSION:-}"
-bin="${QUEQIAO_BIN_DIR:-}"
+repo=weiping/magpie-bridge
+tag="${MBRIDGE_VERSION:-}"
+bin="${MBRIDGE_BIN_DIR:-}"
 service=1
 
 say() { printf '  %s\n' "$*"; }
-die() { printf 'queqiao: %s\n' "$*" >&2; exit 1; }
+die() { printf 'mbridge: %s\n' "$*" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -35,29 +35,29 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-command -v magpie >/dev/null 2>&1 || die "queqiao needs official magpie: install it first from https://github.com/yetone/magpie, then run this again"
+command -v magpie >/dev/null 2>&1 || die "mbridge needs official magpie: install it first from https://github.com/yetone/magpie, then run this again"
 
 case "$(uname -s)" in
   Darwin) os=darwin ;;
   Linux) os=linux ;;
-  *) die "no prebuilt queqiao for $(uname -s); build from source: make build" ;;
+  *) die "no prebuilt mbridge for $(uname -s); build from source: make build" ;;
 esac
 case "$(uname -m)" in
   x86_64|amd64) arch=amd64 ;;
   arm64|aarch64) arch=arm64 ;;
-  *) die "no prebuilt queqiao for $(uname -m); build from source: make build" ;;
+  *) die "no prebuilt mbridge for $(uname -m); build from source: make build" ;;
 esac
 bin="${bin:-$HOME/.local/bin}"
 command -v curl >/dev/null || die "curl is needed"
 
 if [ -z "$tag" ]; then
   tag=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
-  [ -n "$tag" ] || die "could not learn the latest release of $repo (rate limited? pass --version qq-v<x.y.z>)"
+  [ -n "$tag" ] || die "could not learn the latest release of $repo (rate limited? pass --version v<x.y.z>)"
 fi
-say "queqiao $tag ($os/$arch)"
+say "mbridge $tag ($os/$arch)"
 
-asset="queqiao-$os-$arch"
-base="${QUEQIAO_DOWNLOAD_BASE:-https://github.com/$repo/releases/download/$tag}"
+asset="mbridge-$os-$arch"
+base="${MBRIDGE_DOWNLOAD_BASE:-https://github.com/$repo/releases/download/$tag}"
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 curl -fsSL -o "$tmp/$asset" "$base/$asset" || die "no $asset in release $tag"
@@ -76,9 +76,9 @@ fi
 [ "$want" = "$got" ] || die "SHA-256 mismatch for $asset (want $want, got $got): the download is refused"
 
 mkdir -p "$bin"
-mv "$tmp/$asset" "$bin/queqiao"
-chmod +x "$bin/queqiao"
-say "installed to $bin/queqiao"
+mv "$tmp/$asset" "$bin/mbridge"
+chmod +x "$bin/mbridge"
+say "installed to $bin/mbridge"
 
 case ":$PATH:" in
   *":$bin:"*) ;;
@@ -86,24 +86,13 @@ case ":$PATH:" in
 esac
 
 if [ "$service" = 1 ]; then
-  "$bin/queqiao" service install || say "queqiao service install failed; run queqiaod yourself: queqiao serve"
-fi
-
-# qq-v0.1.x kept magpie's data in queqiao's folder
-cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
-if [ -f "$cfg/queqiao/providers.json" ]; then
-  cat <<EOF
-
-  qq-v0.1.x data found in $cfg/queqiao: hand it to official magpie with
-    queqiao migrate --dry-run     # see what moves
-    queqiao migrate               # do it (queqiao migrate restore undoes it)
-EOF
+  "$bin/mbridge" service install || say "mbridge service install failed; run mbridge yourself: mbridge serve"
 fi
 
 cat <<EOF
 
   next:
-    queqiao router init --preset cn    # tier groups in magpie + router.json (frontier/anthropic also exist)
-    queqiao status                     # magpie, queqiaod, groups, recent decisions
-    codex -p queqiao                   # Codex through queqiaod; Claude Code and Pi: their plugins
+    mbridge router init --preset cn    # tier groups in magpie + router.json (frontier/anthropic also exist)
+    mbridge status                     # magpie, mbridge, groups, recent decisions
+    codex -p mbridge                   # Codex through mbridge; Claude Code and Pi: their plugins
 EOF

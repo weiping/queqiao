@@ -1,5 +1,5 @@
 /**
- * The queqiao gateway's §6.4 endpoints, as the Pi extension calls them.
+ * The mbridge gateway's §6.4 endpoints, as the Pi extension calls them.
  * Every call is fail-safe: the router's worst outcome is "keep the model".
  */
 
@@ -7,7 +7,7 @@ export interface TurnRequest {
   session: string
   prompt: string
   agent?: string
-  /** Project dir; lets the gateway load .queqiao/router.json criteria. */
+  /** Project dir; lets the gateway load .mbridge/router.json criteria. */
   cwd?: string
   parentSession?: string
   /** The main session's tool results since the last turn (SP8). */
@@ -40,7 +40,7 @@ export interface ReviewBody {
 /** The budget §6.8 gives the /turn call, in ms. */
 export const TURN_BUDGET_MS = 1500
 
-export class QueqiaoClient {
+export class MbridgeClient {
   constructor(base: string) {
     // tolerate a trailing slash: "//v1/..." would hit the gateway's path
     // cleaning and turn a POST into a redirect
@@ -49,7 +49,7 @@ export class QueqiaoClient {
 
   private readonly base: string
 
-  /** POST /v1/queqiao/turn; null on any failure, timeout included. */
+  /** POST /v1/bridge/turn; null on any failure, timeout included. */
   async turn(req: TurnRequest): Promise<TurnResponse | null> {
     const body: Record<string, unknown> = {
       harness: "pi",
@@ -62,13 +62,13 @@ export class QueqiaoClient {
     if (req.parentSession !== undefined) body.parent_session = req.parentSession
     if (req.toolCalls !== undefined) body.tool_calls = req.toolCalls
     if (req.toolFailures !== undefined) body.tool_failures = req.toolFailures
-    const out = (await this.post("/v1/queqiao/turn", body, TURN_BUDGET_MS)) as TurnResponse | null
+    const out = (await this.post("/v1/bridge/turn", body, TURN_BUDGET_MS)) as TurnResponse | null
     if (out === null || typeof out.tier !== "string" || typeof out.group !== "string") return null
     return out
   }
 
   /**
-   * POST /v1/queqiao/review; fire-and-forget (SP7 §3.5). The answer has
+   * POST /v1/bridge/review; fire-and-forget (SP7 §3.5). The answer has
    * already been delivered, so nothing waits on the gateway here.
    */
   review(body: ReviewBody): void {
@@ -82,25 +82,25 @@ export class QueqiaoClient {
     if (body.toolCalls !== undefined) payload.tool_calls = body.toolCalls
     if (body.toolFailures !== undefined) payload.tool_failures = body.toolFailures
     try {
-      void fetch(this.base + "/v1/queqiao/review", this.init(payload)).catch(() => {})
+      void fetch(this.base + "/v1/bridge/review", this.init(payload)).catch(() => {})
     } catch {
       // a review that never arrives just means no R3-review next turn
     }
   }
 
-  /** POST /v1/queqiao/feedback; fire-and-forget. */
+  /** POST /v1/bridge/feedback; fire-and-forget. */
   async feedback(fb: Feedback): Promise<void> {
-    await this.post("/v1/queqiao/feedback", fb).then(
+    await this.post("/v1/bridge/feedback", fb).then(
       () => {},
       () => {},
     )
   }
 
-  /** POST /v1/queqiao/lineage; marks a derived session; never throws. */
+  /** POST /v1/bridge/lineage; marks a derived session; never throws. */
   async lineage(mark: { session: string; parentSession?: string; source: string }): Promise<void> {
     const body: Record<string, unknown> = { session: mark.session, source: mark.source }
     if (mark.parentSession !== undefined) body.parent_session = mark.parentSession
-    await this.post("/v1/queqiao/lineage", body).then(
+    await this.post("/v1/bridge/lineage", body).then(
       () => {},
       () => {},
     )
@@ -111,7 +111,7 @@ export class QueqiaoClient {
     // clock a test rig cannot drive) so a hung gateway still returns null
     let abort: (() => void) | undefined
     const expired = timeoutMs !== undefined ? new Promise<never>((_, reject) => {
-      const t = setTimeout(() => reject(new Error("queqiao: budget spent")), timeoutMs)
+      const t = setTimeout(() => reject(new Error("mbridge: budget spent")), timeoutMs)
       abort = () => clearTimeout(t)
     }) : undefined
     try {

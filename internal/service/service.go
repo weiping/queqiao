@@ -1,6 +1,6 @@
-// Package service runs queqiaod at login (SP8 §5.7): a launchd user agent
+// Package service runs mbridge at login (SP8 §5.7): a launchd user agent
 // on macOS, a systemd user unit on Linux, a logon-triggered scheduled task
-// on Windows. Each runs `queqiao serve`.
+// on Windows. Each runs `mbridge serve`.
 package service
 
 import (
@@ -15,15 +15,15 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/weiping/queqiao/internal/fsutil"
-	"github.com/weiping/queqiao/internal/runcmd"
+	"github.com/weiping/magpie-bridge/internal/fsutil"
+	"github.com/weiping/magpie-bridge/internal/runcmd"
 )
 
 // Label is the launchd label; Name the systemd unit's and the scheduled
 // task's name.
 const (
-	Label = "io.github.weiping.queqiao"
-	Name  = "queqiao"
+	Label = "io.github.weiping.magpie-bridge"
+	Name  = "mbridge"
 )
 
 // Manager installs the unit for one platform; tests set its fields.
@@ -94,7 +94,7 @@ const plist = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 const systemdUnit = `[Unit]
-Description=queqiaod, the queqiao model router beside magpie
+Description=Magpie Bridge, the model router beside magpie
 After=network.target
 
 [Service]
@@ -109,7 +109,7 @@ WantedBy=default.target
 const taskXML = `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>queqiaod, the queqiao model router beside magpie</Description>
+    <Description>Magpie Bridge, the model router beside magpie</Description>
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>
@@ -179,8 +179,8 @@ func (m *Manager) Install(ctx context.Context, exe string) error {
 	return m.Restart(ctx)
 }
 
-// Restart starts queqiaod again, the binary now at the unit's path; not
-// installed is nothing to do. queqiao update calls it.
+// Restart starts mbridge again, the binary now at the unit's path; not
+// installed is nothing to do. mbridge update calls it.
 func (m *Manager) Restart(ctx context.Context) error {
 	if path, _ := Unit(m.GOOS, m.Home, m.ConfigDir, ""); !exists(path) {
 		return nil
@@ -220,12 +220,12 @@ func (m *Manager) Uninstall(ctx context.Context) error {
 	return nil
 }
 
-// Status says whether the service manager has queqiaod running, with its
+// Status says whether the service manager has mbridge running, with its
 // own words for it.
 func (m *Manager) Status(ctx context.Context) (running bool, detail string, err error) {
 	path, _ := Unit(m.GOOS, m.Home, m.ConfigDir, "")
 	if _, err := os.Stat(path); err != nil {
-		return false, "not installed (queqiao service install)", nil
+		return false, "not installed (mbridge service install)", nil
 	}
 	var out []byte
 	switch m.GOOS {

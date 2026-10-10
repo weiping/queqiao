@@ -2,8 +2,8 @@
   "mode": "shadow",
   "permission": {
     "extra_deny_patterns": [
-      "\\.config/(magpie|queqiao)(/|\\s|$)",
-      "Application Support/(magpie|queqiao)(/|\\s|$)",
+      "\\.config/(magpie|magpie-bridge)(/|\\s|$)",
+      "Application Support/(magpie|magpie-bridge)(/|\\s|$)",
       "\\bwrangler deploy\\b",
       "\\bgh workflow run\\b",
       "\\bgh secret (set|delete)\\b"

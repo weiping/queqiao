@@ -1,7 +1,7 @@
 /magpie
-/queqiao
+/mbridge
 /magpie.exe
-/queqiao.exe
+/mbridge.exe
 /magpie.app/
 /dist/
 /magpie-dev
@@ -14,4 +14,4 @@ memory/
 .pi/url-cache/
 
 node_modules/
-queqiao.app/
+mbridge.app/

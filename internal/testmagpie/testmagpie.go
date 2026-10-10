@@ -1,8 +1,8 @@
-// Package testmagpie runs an official magpie binary for queqiao's contract
+// Package testmagpie runs an official magpie binary for mbridge's contract
 // and end-to-end tests (SP8 Task 14): an isolated HOME, a gateway on a free
 // loopback port (MAGPIE_ADDR), and a fake OpenAI-compatible upstream
 // registered as the custom provider "fake". Tests that import it skip
-// unless -magpie (or QUEQIAO_TEST_MAGPIE) names the binary.
+// unless -magpie (or MBRIDGE_TEST_MAGPIE) names the binary.
 package testmagpie
 
 import (
@@ -24,13 +24,13 @@ import (
 	"time"
 )
 
-var binFlag = flag.String("magpie", os.Getenv("QUEQIAO_TEST_MAGPIE"), "official magpie binary for contract and e2e tests")
+var binFlag = flag.String("magpie", os.Getenv("MBRIDGE_TEST_MAGPIE"), "official magpie binary for contract and e2e tests")
 
 // Bin is the magpie binary under test; the test skips without one.
 func Bin(t *testing.T) string {
 	t.Helper()
 	if *binFlag == "" {
-		t.Skip("no magpie binary: pass -magpie=<path> or set QUEQIAO_TEST_MAGPIE")
+		t.Skip("no magpie binary: pass -magpie=<path> or set MBRIDGE_TEST_MAGPIE")
 	}
 	p, err := filepath.Abs(*binFlag)
 	if err != nil {

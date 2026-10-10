@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/weiping/queqiao/internal/wire"
+	"github.com/weiping/magpie-bridge/internal/wire"
 )
 
 // hdr builds headers with a Claude-Code-style session id.
@@ -47,7 +47,7 @@ func TestRouteRouterGroupNewTurn(t *testing.T) {
 	d, fc, _ := testDeps(t, &Verdict{Tier: TierBalanced, TierConfidence: 0.9, Dissatisfied: 0})
 	h := NewRouter(d)
 	hit := route(h, hdr("s1"), irReq("hello"), "claude-code")
-	if hit.Group != "group/qq-balanced" || hit.Tier != TierBalanced || hit.Source != "llm" {
+	if hit.Group != "group/mb-balanced" || hit.Tier != TierBalanced || hit.Source != "llm" {
 		t.Fatalf("hit: %+v", hit)
 	}
 	if len(fc.questions) != 1 {
@@ -72,7 +72,7 @@ func TestRouteInTurnKeepsTierWithoutClassifying(t *testing.T) {
 		),
 	}
 	hit := route(h, hdr("s1"), follow, "claude-code")
-	if hit.Group != "group/qq-balanced" || hit.Reason != "R-held" {
+	if hit.Group != "group/mb-balanced" || hit.Reason != "R-held" {
 		t.Fatalf("in-turn hit: %+v", hit)
 	}
 	if len(fc.questions) != 1 {
@@ -111,7 +111,7 @@ func TestRouteHintConsumed(t *testing.T) {
 	hdr := hdr("s1")
 	hdr.Set("x-codex-turn-metadata", `{"turn_id":"t-9"}`)
 	hit := route(h, hdr, req, "codex")
-	if hit.Group != "group/qq-fast" || !hit.Hint {
+	if hit.Group != "group/mb-fast" || !hit.Hint {
 		t.Fatalf("hint hit: %+v", hit)
 	}
 	if len(fc.questions) != 0 {

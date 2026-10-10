@@ -88,7 +88,7 @@ func TestTurnReturnsTierAndReason(t *testing.T) {
 	srv := testServer(d)
 	defer srv.Close()
 
-	res := postJSON(t, srv.URL+"/v1/queqiao/turn", map[string]any{
+	res := postJSON(t, srv.URL+"/v1/bridge/turn", map[string]any{
 		"session": "s1", "prompt": "hello there", "harness": "claude-code",
 	})
 	if res.StatusCode != 200 {
@@ -106,7 +106,7 @@ func TestTurnReturnsTierAndReason(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Tier != TierBalanced || out.Group != "group/qq-balanced" || out.ClaudeAlias != "sonnet" {
+	if out.Tier != TierBalanced || out.Group != "group/mb-balanced" || out.ClaudeAlias != "sonnet" {
 		t.Fatalf("out: %+v", out)
 	}
 	if out.Reason != "R6-adopt" || out.Source != "llm" || out.Confidence != 0.9 || out.Arm != "router" {
@@ -129,7 +129,7 @@ func TestTurnRequiresSessionAndPrompt(t *testing.T) {
 		{"prompt": "hi"},
 		{"session": "s"},
 	} {
-		res := postJSON(t, srv.URL+"/v1/queqiao/turn", body)
+		res := postJSON(t, srv.URL+"/v1/bridge/turn", body)
 		if res.StatusCode != 400 {
 			t.Fatalf("body %v: status %d", body, res.StatusCode)
 		}
@@ -142,7 +142,7 @@ func TestTurnControlArmReturnsControlTier(t *testing.T) {
 	// RouterPercent 0 → always control
 	srv := testServer(d)
 	defer srv.Close()
-	res := postJSON(t, srv.URL+"/v1/queqiao/turn", map[string]any{"session": "any", "prompt": "hi"})
+	res := postJSON(t, srv.URL+"/v1/bridge/turn", map[string]any{"session": "any", "prompt": "hi"})
 	var out struct {
 		Tier Tier   `json:"tier"`
 		Arm  string `json:"arm"`
@@ -169,7 +169,7 @@ func TestTurnStoresHint(t *testing.T) {
 	d, _, _ := testDeps(t, &Verdict{Tier: TierFast, TierConfidence: 0.9, Dissatisfied: 0})
 	srv := testServer(d)
 	defer srv.Close()
-	res := postJSON(t, srv.URL+"/v1/queqiao/turn", map[string]any{
+	res := postJSON(t, srv.URL+"/v1/bridge/turn", map[string]any{
 		"session": "codex-s", "prompt": "do a thing", "harness": "codex",
 		"turn_id": "t-42", "store_hint": true,
 	})
@@ -186,7 +186,7 @@ func TestFeedback204AndEvent(t *testing.T) {
 	d, _, events := testDeps(t, nil)
 	srv := testServer(d)
 	defer srv.Close()
-	res := postJSON(t, srv.URL+"/v1/queqiao/feedback", map[string]any{
+	res := postJSON(t, srv.URL+"/v1/bridge/feedback", map[string]any{
 		"session": "s1", "kind": "pr_created", "value": "https://github.com/o/r/pull/1",
 	})
 	if res.StatusCode != 204 {
@@ -209,7 +209,7 @@ func TestSessionEndpoint(t *testing.T) {
 	srv := testServer(d)
 	defer srv.Close()
 
-	res, err := http.Get(srv.URL + "/v1/queqiao/session?id=sess-9")
+	res, err := http.Get(srv.URL + "/v1/bridge/session?id=sess-9")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,11 +220,11 @@ func TestSessionEndpoint(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
 		t.Fatal(err)
 	}
-	if res.StatusCode != 200 || out.Tier != TierPerformance || out.Group != "group/qq-perf" {
+	if res.StatusCode != 200 || out.Tier != TierPerformance || out.Group != "group/mb-perf" {
 		t.Fatalf("session: %d %+v", res.StatusCode, out)
 	}
 
-	res, _ = http.Get(srv.URL + "/v1/queqiao/session?id=missing")
+	res, _ = http.Get(srv.URL + "/v1/bridge/session?id=missing")
 	if res.StatusCode != 404 {
 		t.Fatalf("missing session: %d", res.StatusCode)
 	}
@@ -234,7 +234,7 @@ func TestLineageMarksDerived(t *testing.T) {
 	d, _, _ := testDeps(t, nil)
 	srv := testServer(d)
 	defer srv.Close()
-	res := postJSON(t, srv.URL+"/v1/queqiao/lineage", map[string]any{
+	res := postJSON(t, srv.URL+"/v1/bridge/lineage", map[string]any{
 		"session": "pi-fork", "parent_session": "pi-main", "source": "pi-fork",
 	})
 	if res.StatusCode != 204 {
@@ -251,9 +251,9 @@ func TestRouterStatus(t *testing.T) {
 	defer srv.Close()
 	// two turns → two decisions in the ring
 	for i := 0; i < 2; i++ {
-		postJSON(t, srv.URL+"/v1/queqiao/turn", map[string]any{"session": "s1", "prompt": "hi"})
+		postJSON(t, srv.URL+"/v1/bridge/turn", map[string]any{"session": "s1", "prompt": "hi"})
 	}
-	res, err := http.Get(srv.URL + "/v1/queqiao/router")
+	res, err := http.Get(srv.URL + "/v1/bridge/router")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestRouterStatus(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
 		t.Fatal(err)
 	}
-	if !out.Valid || out.Tiers["fast"]["group"] != "qq-fast" {
+	if !out.Valid || out.Tiers["fast"]["group"] != "mb-fast" {
 		t.Fatalf("status: %+v", out)
 	}
 	if len(out.Decisions) != 2 {
@@ -360,7 +360,7 @@ func TestExperimentToggleFlipsTheArm(t *testing.T) {
 
 	arm := func() (string, Tier) {
 		t.Helper()
-		res := postJSON(t, srv.URL+"/v1/queqiao/turn", map[string]any{"session": "toggle-1", "prompt": "hi"})
+		res := postJSON(t, srv.URL+"/v1/bridge/turn", map[string]any{"session": "toggle-1", "prompt": "hi"})
 		defer res.Body.Close()
 		var out struct {
 			Tier Tier   `json:"tier"`

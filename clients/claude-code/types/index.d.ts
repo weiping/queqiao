@@ -1,9 +1,9 @@
-// The $.state contract of queqiao-router (§6.7 of the design spec).
+// The $.state contract of magpie-bridge (§6.7 of the design spec).
 // plugin.json's "types" points here so claude plugin validate checks that
 // register.ts reads and writes these keys, and only these keys.
 declare module 'claude-code' {
   interface PluginState {
-    'queqiao-router': {
+    'magpie-bridge': {
       /** This turn's decision; null when /turn failed or hasn't run. */
       turn: { turnId: string; tier: 'fast' | 'balanced' | 'performance'; group: string } | null
       /** The main session's latest tier, for pinning derived agents. */

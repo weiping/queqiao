@@ -1,18 +1,18 @@
 {
-  "name": "@weiping/pi-queqiao",
+  "name": "@weiping/pi-magpie-bridge",
   "version": "0.2.0",
-  "description": "Route every Pi turn across queqiao's fast/balanced/performance tiers via the queqiao gateway.",
+  "description": "Route every Pi turn across mbridge's fast/balanced/performance tiers via the mbridge gateway.",
   "keywords": [
     "pi-package"
   ],
   "pi": {
     "extensions": [
-      "./extensions/queqiao.js"
+      "./extensions/mbridge.js"
     ]
   },
   "type": "module",
-  "main": "./extensions/queqiao.js",
-  "types": "./extensions/queqiao.d.ts",
+  "main": "./extensions/mbridge.js",
+  "types": "./extensions/mbridge.d.ts",
   "files": [
     "extensions",
     "src"
