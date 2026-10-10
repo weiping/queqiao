@@ -65,6 +65,7 @@ export default function (pi: ExtensionAPI): void {
       void client.lineage({ session, source: "pi-fork" })
     }
     parentSent = false
+    void client.learnBudget() // SP10: how long a turn may wait
     lastTier = null
     lastPrompt = ""
     lastAutoModel = ""
