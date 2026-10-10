@@ -8,7 +8,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
+
+	"github.com/weiping/magpie-bridge/internal/fsutil"
+	"github.com/weiping/magpie-bridge/internal/router"
 )
 
 /**
@@ -20,7 +24,8 @@ import (
  * package stays harness-agnostic.
  */
 
-// Budget is the HTTP budget a /turn call gets, matching §6.6/§6.9.
+// Budget is the HTTP budget a /turn call gets when router.json can't tell
+// (§6.6/§6.9); SP10 lets router.json raise it (Client.TurnBudget).
 const Budget = 1500 * time.Millisecond
 
 // ReviewBudget is the budget an end-of-turn review gets (SP7 §3.5): the
@@ -31,6 +36,15 @@ const ReviewBudget = time.Second
 type Client struct {
 	Base string
 	HTTP *http.Client
+	// TurnBudget is how long Turn waits (SP10); zero means Budget.
+	TurnBudget time.Duration
+}
+
+func (c *Client) budget() time.Duration {
+	if c.TurnBudget > 0 {
+		return c.TurnBudget
+	}
+	return Budget
 }
 
 // NewClient points at MBRIDGE_URL, or the default gateway on loopback.
@@ -39,13 +53,19 @@ func NewClient() *Client {
 	if base == "" {
 		base = "http://127.0.0.1:3426"
 	}
-	return &Client{Base: base, HTTP: http.DefaultClient}
+	c := &Client{Base: base, HTTP: http.DefaultClient}
+	// the hook runs beside mbridge: router.json says how long a turn may
+	// take (SP10); unreadable means the old 1500 ms
+	if cfg, err := router.Load(filepath.Join(fsutil.ConfigDir(), "router.json"), ""); err == nil {
+		c.TurnBudget = time.Duration(cfg.TurnBudgetMs()) * time.Millisecond
+	}
+	return c
 }
 
 // Turn posts a /turn request and parses the reply. The ctx or the budget
 // bounds the wait, whichever ends first.
 func (c *Client) Turn(ctx context.Context, body map[string]any) (map[string]any, error) {
-	tctx, cancel := context.WithTimeout(ctx, Budget)
+	tctx, cancel := context.WithTimeout(ctx, c.budget())
 	defer cancel()
 	var out map[string]any
 	if err := c.post(tctx, "/v1/bridge/turn", body, &out); err != nil {

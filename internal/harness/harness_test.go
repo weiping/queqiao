@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -121,5 +123,41 @@ func TestHarnessDefaultURLIs3426(t *testing.T) {
 	t.Setenv("MBRIDGE_URL", "")
 	if got := NewClient().Base; got != "http://127.0.0.1:3426" {
 		t.Fatalf("base %q", got)
+	}
+}
+
+// SP10: the Codex hook waits as long as router.json lets a turn take.
+func TestTurnWaitsTheConfiguredBudget(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(1800 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"tier":"fast","group":"group/mb-fast","reason":"R6-adopt"}`))
+	}))
+	defer srv.Close()
+	c := &Client{Base: srv.URL, HTTP: srv.Client(), TurnBudget: 3 * time.Second}
+	out, err := c.Turn(context.Background(), map[string]any{})
+	if err != nil {
+		t.Fatalf("a 1.8 s /turn within a 3 s budget failed: %v", err)
+	}
+	if out["tier"] != "fast" {
+		t.Fatalf("out %v", out)
+	}
+}
+
+func TestNewClientReadsTheBudgetFromRouterJSON(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("MBRIDGE_CONFIG_DIR", dir)
+	if c := NewClient(); c.budget() != Budget {
+		t.Fatalf("no router.json: budget %v, want %v", c.budget(), Budget)
+	}
+	cfg := `{"version":1,"router_group":"mbridge","default_tier":"balanced","classifier":"typesafe/jev-latest",
+	  "classify_timeout_ms":2500,
+	  "tiers":{"fast":{"group":"mb-fast","claude_alias":"haiku","criteria":"f"},
+	           "balanced":{"group":"mb-balanced","claude_alias":"sonnet","criteria":"b"},
+	           "performance":{"group":"mb-perf","claude_alias":"opus","criteria":"p"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "router.json"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if c := NewClient(); c.budget() != 3*time.Second {
+		t.Fatalf("classify 2500: budget %v, want 3s", c.budget())
 	}
 }

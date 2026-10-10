@@ -120,7 +120,7 @@ func (c *Config) defaults() {
 		c.Classifier = "local"
 	}
 	if c.ClassifyTimeoutMs == 0 {
-		c.ClassifyTimeoutMs = 1500
+		c.ClassifyTimeoutMs = 2500 // SP10: Jev's first turn after a pause takes ~1.5–2 s
 	}
 	if c.Thresholds.TierMin == 0 {
 		c.Thresholds.TierMin = 0.4
@@ -313,3 +313,18 @@ func (c Config) PolicyConfigFor(harness, agent string) PolicyConfig {
 // PolicyConfig is PolicyConfigFor with no harness and the main agent — the
 // pre-SP7 shape, still what a plain Choose call gets.
 func (c Config) PolicyConfig() PolicyConfig { return c.PolicyConfigFor("", "main") }
+
+// TurnBudgetMs is how long a client waits for /v1/bridge/turn (SP10): the
+// classify timeout plus 500 ms for mbridge and the round trip, never under
+// the original 1500 ms nor past 8000 ms (the Claude Code mod's hooks stop
+// at 10 s).
+func (c Config) TurnBudgetMs() int {
+	b := c.ClassifyTimeoutMs + 500
+	if b < 1500 {
+		b = 1500
+	}
+	if b > 8000 {
+		b = 8000
+	}
+	return b
+}

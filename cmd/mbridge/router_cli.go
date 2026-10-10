@@ -171,7 +171,7 @@ func routerInit(args []string) error {
 		},
 		DefaultTier:       router.TierBalanced,
 		Classifier:        "local",
-		ClassifyTimeoutMs: 1500,
+		ClassifyTimeoutMs: 2500,
 		Thresholds: router.Thresholds{
 			TierMin: 0.4, DissatisfiedMin: 0.7,
 			ReviewMin: 0.7, ReviewConfidenceMin: 0.5,

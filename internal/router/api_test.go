@@ -474,3 +474,25 @@ func TestDecideWithMagpieDownFallsBackToDefault(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+// SP10: the clients read how long a turn may wait from the status.
+func TestStatusReportsTurnBudget(t *testing.T) {
+	d, _, _ := testDeps(t, &Verdict{Tier: TierFast, TierConfidence: 0.9})
+	d.Config.ClassifyTimeoutMs = 3500
+	srv := testServer(d)
+	defer srv.Close()
+	res, err := http.Get(srv.URL + "/v1/bridge/router")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var out struct {
+		TurnBudgetMs int `json:"turn_budget_ms"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.TurnBudgetMs != 4000 {
+		t.Fatalf("turn_budget_ms %d, want 4000", out.TurnBudgetMs)
+	}
+}
