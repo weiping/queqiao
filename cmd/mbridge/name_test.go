@@ -48,3 +48,22 @@ func TestNoQueqiaoLeft(t *testing.T) {
 		t.Fatalf("%d lines still say the old name:\n%s", len(left), strings.Join(left, "\n"))
 	}
 }
+
+// What the generic queqiao→mbridge replace made wrong once: the deleted
+// migrate command and a marketplace called mbridge (it is magpie-bridge).
+func TestNoRenameLeftovers(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "-C", root, "grep", "-n", "-I", "-E", `mbridge migrate|@mbridge\b`, "--",
+		".", ":!docs/superpowers", ":!cmd/mbridge/name_test.go")
+	out, err := cmd.Output()
+	if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 1 {
+		return
+	}
+	if err != nil {
+		t.Skip("not in a git checkout:", err)
+	}
+	t.Fatalf("rename leftovers:\n%s", out)
+}

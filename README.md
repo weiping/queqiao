@@ -61,7 +61,7 @@ Magpie Bridge 和官方 [magpie](https://github.com/yetone/magpie) 并排运行�
 
    # Codex（需要 mbridge 在 PATH 里，装完在 /hooks 里信任 hook）
    codex plugin marketplace add weiping/magpie-bridge
-   codex plugin add magpie-bridge-codex@mbridge
+   codex plugin add magpie-bridge-codex@magpie-bridge
    codex -p mbridge                                     # 用 mbridge 的 profile 启动，请求经 mbridge 选档
 
    # Pi

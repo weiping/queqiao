@@ -71,6 +71,4 @@ jobs:
 
           \`\`\`powershell
           irm https://raw.githubusercontent.com/weiping/magpie-bridge/main/install.ps1 | iex
-          \`\`\`
-
-          Coming from v0.1.x: \`mbridge migrate --dry-run\`, then \`mbridge migrate\`. See the README."
+          \`\`\`"
