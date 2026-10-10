@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yetone/magpie/internal/appdir"
+	"github.com/yetone/magpie/internal/fsutil"
 )
 
 // Event is one line of router.jsonl: a decision, a hint consumed, a
@@ -47,7 +47,7 @@ var (
 
 // defaultEventsPath is ~/.config/queqiao/router.jsonl.
 func defaultEventsPath() string {
-	return filepath.Join(appdir.Config(), "router.jsonl")
+	return filepath.Join(fsutil.ConfigDir(), "router.jsonl")
 }
 
 // SetEventsPath points the event log somewhere else (tests).

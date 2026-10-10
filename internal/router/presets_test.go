@@ -3,31 +3,17 @@ package router
 import (
 	"strings"
 	"testing"
-
-	"github.com/yetone/magpie/internal/provider"
 )
 
-func presetHome(t *testing.T) {
-	t.Helper()
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	for _, p := range []provider.Provider{
-		{ID: "deepseek", Name: "DeepSeek", Key: "k", Models: []string{"deepseek-v4-flash"}, Chat: "http://127.0.0.1:1/v1"},
-		{ID: "moonshot", Name: "Moonshot", Key: "k", Models: []string{"kimi-k2.5"}, Chat: "http://127.0.0.1:1/v1"},
-	} {
-		if err := provider.Save(p); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
+// served is what /v1/models lists for a magpie with DeepSeek and
+// Moonshot configured (groups included, as magpie lists them).
+var served = []string{"deepseek/deepseek-v4-flash", "moonshot/kimi-k2.5", "group/qq-fast"}
 
 // A "<p>/model" placeholder nothing configured serves is no member at all
 // ("<p>" names no provider): it is reported, never written into a group,
 // where it would sit as a member that can never answer ("no member ready").
 func TestResolveDropsPlaceholdersNothingServes(t *testing.T) {
-	presetHome(t)
-	resolved, unresolved := Presets()["cn"].Resolve()
+	resolved, unresolved := Presets()["cn"].Resolve(served)
 	for _, m := range resolved[TierPerformance] {
 		if strings.HasPrefix(m, "<p>/") {
 			t.Fatalf("performance kept the placeholder %q: %v", m, resolved[TierPerformance])
@@ -41,8 +27,7 @@ func TestResolveDropsPlaceholdersNothingServes(t *testing.T) {
 // A concrete member stays even while nothing serves it yet: adding its
 // provider later makes it answer, and the group shows it as not served.
 func TestResolveKeepsConcreteMembers(t *testing.T) {
-	presetHome(t)
-	resolved, _ := Presets()["cn"].Resolve()
+	resolved, _ := Presets()["cn"].Resolve(served)
 	if got := resolved[TierFast]; len(got) != 2 || got[0] != "deepseek/deepseek-v4-flash" || got[1] != "glm/glm-5.3-flash:high" {
 		t.Fatalf("fast: %v", got)
 	}
@@ -51,15 +36,19 @@ func TestResolveKeepsConcreteMembers(t *testing.T) {
 // A placeholder some provider serves resolves to that provider, its
 // effort kept.
 func TestResolveFillsServedPlaceholders(t *testing.T) {
-	presetHome(t)
-	if err := provider.Save(provider.Provider{ID: "relay", Name: "Relay", Key: "k", Models: []string{"gpt-6-astra"}, Chat: "http://127.0.0.1:1/v1"}); err != nil {
-		t.Fatal(err)
-	}
-	resolved, unresolved := Presets()["cn"].Resolve()
+	resolved, unresolved := Presets()["cn"].Resolve(append([]string{"relay/gpt-6-astra"}, served...))
 	if got := resolved[TierPerformance]; len(got) != 1 || got[0] != "relay/gpt-6-astra:low" {
 		t.Fatalf("performance: %v", got)
 	}
 	if len(unresolved) != 1 || unresolved[0] != "<p>/claude-opus-5-5:high" {
 		t.Fatalf("unresolved: %v", unresolved)
+	}
+}
+
+// A group magpie lists is never taken for a provider serving a model.
+func TestResolveUsesServedModels(t *testing.T) {
+	resolved, unresolved := Presets()["cn"].Resolve([]string{"group/gpt-6-astra", "relay/gpt-6-astra"})
+	if got := resolved[TierPerformance]; len(got) != 1 || got[0] != "relay/gpt-6-astra:low" {
+		t.Fatalf("performance: %v (unresolved %v)", got, unresolved)
 	}
 }

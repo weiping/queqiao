@@ -70,6 +70,10 @@ type Config struct {
 	FixedAgents       map[string]Tier  `json:"fixed_agents"`
 	Experiment        ExperimentConfig `json:"experiment"`
 	Review            ReviewConfig     `json:"review"`
+	// Listen is where queqiaod serves (SP8); MagpieURL where official
+	// magpie's gateway is.
+	Listen    string `json:"listen,omitempty"`
+	MagpieURL string `json:"magpie_url,omitempty"`
 }
 
 // defaultFixedAgents is §4.6's list, used when router.json omits it.
@@ -144,6 +148,12 @@ func (c *Config) defaults() {
 	}
 	if c.CacheTTLSeconds == 0 {
 		c.CacheTTLSeconds = 300
+	}
+	if c.Listen == "" {
+		c.Listen = "127.0.0.1:3426"
+	}
+	if c.MagpieURL == "" {
+		c.MagpieURL = "http://127.0.0.1:3425"
 	}
 	if c.FixedAgents == nil {
 		c.FixedAgents = defaultFixedAgents

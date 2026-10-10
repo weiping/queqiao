@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yetone/magpie/internal/catalog"
-	"github.com/yetone/magpie/internal/usage"
+	"github.com/yetone/magpie/internal/magpie"
 )
 
 // A fake gh: a script on PATH that prints the state its filename encodes.
@@ -65,7 +64,7 @@ func TestPRStatesViaGhAndFallbacks(t *testing.T) {
 			ev("decide", "s2", at(time.Hour), func(e *Event) { e.Arm, e.Tier = "router", "fast" }))
 		rep := Aggregate(ReportInput{
 			Events: ev2, Now: testNow, Since: 14 * 24 * time.Hour,
-			PriceOf: priceOf, PRStates: states,
+			PRStates: states,
 		})
 		// s1's PR counts merged via the fallback; s2's stays open
 		if rep.Router.MergedSessions != 1 || rep.Router.PRSessions != 2 {
@@ -81,14 +80,13 @@ func TestRenderTextAndJSON(t *testing.T) {
 			ev("shadow", "c1", at(time.Hour), func(e *Event) { e.Arm, e.Tier, e.ShadowTier = "control", "performance", "fast" }),
 			ev("feedback", "r1", at(30*time.Minute), func(e *Event) { e.Extra = "pr_created https://github.com/a/b/pull/1" }),
 		},
-		Records: []usage.Record{
+		Records: []magpie.UsageRow{
 			rec("r1", at(50*time.Minute), 1000, 1000, 0),
 			rec("c1", at(50*time.Minute), 5000, 1000, 0),
 		},
-		Now: testNow, Since: 14 * 24 * time.Hour, PriceOf: priceOf,
+		Now: testNow, Since: 14 * 24 * time.Hour,
 		PRStates: map[string]string{"https://github.com/a/b/pull/1": "MERGED"},
 	})
-	_ = catalog.Price{}
 	var text strings.Builder
 	Render(&text, rep)
 	for _, want := range []string{

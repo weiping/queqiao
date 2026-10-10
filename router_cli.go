@@ -18,6 +18,7 @@ import (
 	"github.com/yetone/magpie/internal/catalog"
 	"github.com/yetone/magpie/internal/codexcat"
 	"github.com/yetone/magpie/internal/edit"
+	"github.com/yetone/magpie/internal/magpie"
 	"github.com/yetone/magpie/internal/provider"
 	"github.com/yetone/magpie/internal/router"
 	ledgerUsage "github.com/yetone/magpie/internal/usage"
@@ -85,7 +86,13 @@ func routerInit(args []string) error {
 	if !ok {
 		return fmt.Errorf("no preset %q; presets: frontier, anthropic, cn", presetID)
 	}
-	resolved, unresolved := preset.Resolve()
+	var served []string // fork: what magpie's /v1/models would list (SP8 Task 10 asks magpie)
+	for _, p := range provider.All() {
+		for _, m := range p.Models {
+			served = append(served, p.ID+"/"+m)
+		}
+	}
+	resolved, unresolved := preset.Resolve(served)
 	for _, m := range unresolved {
 		fmt.Println(amber.Render("!"), "unresolved (no configured provider serves it yet):", m)
 	}
@@ -741,22 +748,24 @@ func routerReportTo(w io.Writer, args []string) error {
 
 	// usage.jsonl via the ledger's block reader, only rows in the window
 	now := time.Now()
-	var records []ledgerUsage.Record
+	// fork: rows priced here as magpie prices cost_usd (SP8 Task 10 reads
+	// `magpie usage --csv` instead)
+	var records []magpie.UsageRow
 	ledgerUsage.Visit(now.Add(-since), func(r ledgerUsage.Record) {
-		if r.Session != "" {
-			records = append(records, r)
+		if r.Session == "" {
+			return
 		}
+		row := magpie.UsageRow{Time: r.Time, Session: r.Session, RequestedModel: r.Requested, Provider: r.Provider,
+			Model: r.Model, Input: r.Input, Output: r.Output, CacheRead: r.CacheRead, CacheWrite: r.CacheWrite, Status: r.Status}
+		if p, ok := catalog.PriceOf(r.Provider, r.Model); ok {
+			row.CostUSD, row.Priced = p.Cost(r.Input, r.Output, r.CacheRead, r.CacheWrite), true
+		}
+		records = append(records, row)
 	})
 
 	states := router.ParallelPRStates(events, router.GhPRState, 4)
 	rep := router.Aggregate(router.ReportInput{
 		Records: records, Events: events, Now: now, Since: since,
-		PriceOf: func(provider, model string) *catalog.Price {
-			if p, ok := catalog.PriceOf(provider, model); ok {
-				return &p
-			}
-			return nil
-		},
 		PRStates: states,
 	})
 	if asJSON {

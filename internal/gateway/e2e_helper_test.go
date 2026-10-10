@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/yetone/magpie/internal/catalog"
+	"github.com/yetone/magpie/internal/forkhook"
 	"github.com/yetone/magpie/internal/gateway"
 	"github.com/yetone/magpie/internal/provider"
 	"github.com/yetone/magpie/internal/router"
@@ -154,7 +155,7 @@ func setupE2E(t *testing.T, ask askClassify) *e2eEnv {
 	for _, tc := range rcfg.Tiers {
 		managed[tc.Group] = true
 	}
-	gateway.SetRouterHook(router.NewHook(deps).GatewayHookFunc, func(g provider.Group) bool {
+	gateway.SetRouterHook(forkhook.GatewayHook(router.NewRouter(deps), rcfg.RouterGroup), func(g provider.Group) bool {
 		return managed[g.ID]
 	})
 	t.Cleanup(func() { gateway.SetRouterHook(nil, nil) })

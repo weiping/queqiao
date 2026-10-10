@@ -456,3 +456,21 @@ func TestShadowEventCarriesScores(t *testing.T) {
 		}
 	}
 }
+
+// magpie down: the classifier's call fails to connect, and the turn still
+// gets the default tier, said to come from no classifier.
+func TestDecideWithMagpieDownFallsBackToDefault(t *testing.T) {
+	cfg, err := Load(writeGlobal(t, validJSON), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	down := func(ctx context.Context, model, body string) (string, error) {
+		return "", errors.New("magpie POST /v1/systemone: can't reach magpie at 127.0.0.1:3425: connection refused")
+	}
+	d := &Deps{Config: cfg, Sessions: NewSessions(), Hints: NewHints(), Classify: NewClassifier(cfg, down),
+		Log: func(Event) error { return nil }}
+	got := d.Decide(context.Background(), DecideInput{Session: "s", Key: "s", Harness: "claude-code", Agent: "main", Prompt: "fix it"})
+	if got.Tier != cfg.DefaultTier || got.Source != "default" {
+		t.Fatalf("%+v", got)
+	}
+}
