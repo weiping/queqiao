@@ -83,6 +83,12 @@ const TIER_ALIAS: Record<Tier, string> = { fast: 'haiku', balanced: 'sonnet', pe
 const TIER_GROUP: Record<Tier, string> = { fast: 'group/mb-fast', balanced: 'group/mb-balanced', performance: 'group/mb-perf' }
 const tierGroup = (tier: Tier): string => TIER_GROUP[tier]
 
+// "group/mbridge[1m]" → { base: "group/mbridge", suffix: "[1m]" }
+const splitSuffix = (model: string): { base: string; suffix: string } => {
+  const m = /^(.*?)(\[[^\]]*\])$/.exec(model)
+  return m ? { base: m[1], suffix: m[2] } : { base: model, suffix: '' }
+}
+
 export const register: Register = (on, options) => {
   const gateway = String(options.gateway_url ?? 'http://127.0.0.1:3426').replace(/\/$/, '')
 
@@ -267,21 +273,25 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.step', async function* ($, e, next) {
-    if (e.model !== ROUTING_GROUP) return yield* next(e)
+    // magpie names the group "group/mbridge[1m]" for a 1M window: compare
+    // without the "[…]" suffix and keep it on the rewrite (the engine drops
+    // it from the request and sends the 1M beta — checked on CC 2.1.296)
+    const { base, suffix } = splitSuffix(e.model)
+    if (base !== ROUTING_GROUP) return yield* next(e)
     if (e.agentId !== undefined) {
       // an agent that inherited the main model pins to the main tier at
       // first sight and never follows the main session's later moves
       const pinned = (await read($, stAgentTier))[e.agentId]
-      if (pinned !== undefined) return yield* next({ ...e, model: tierGroup(pinned) })
+      if (pinned !== undefined) return yield* next({ ...e, model: tierGroup(pinned) + suffix })
       const main = await read($, stMainTier)
       if (main === null) return yield* next(e) // nothing to pin to yet
       const id = e.agentId
       await update($, stAgentTier, (t) => ({ ...t, [id]: main }))
-      return yield* next({ ...e, model: tierGroup(main) })
+      return yield* next({ ...e, model: tierGroup(main) + suffix })
     }
     const turn = await read($, stTurn)
     if (turn === null) return yield* next(e) // gateway fallback mode
-    return yield* next({ ...e, model: turn.group })
+    return yield* next({ ...e, model: turn.group + suffix })
   })
 }
 

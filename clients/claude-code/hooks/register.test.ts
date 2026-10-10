@@ -67,6 +67,45 @@ test('turn.start calls /turn with the right fields and turn.step rewrites the ro
   expect(seen).toEqual(['group/mb-fast'])
 })
 
+// Recorded on Claude Code 2.1.296: with `"model": "group/mbridge[1m]"` (as
+// magpie writes it) turn.step's e.model is "group/mbridge[1m]", and a model a
+// hook names with "[1m]" goes out without the suffix plus the 1M-context beta.
+test('a [1m] routing group is rewritten and keeps its suffix, main and subagent', async ($, on) => {
+  fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R6-adopt' }])
+  spawnBasics(on)
+  const seen: string[] = []
+  on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string; agentId?: string }) {
+    seen.push((e.agentId ?? 'main') + ':' + e.model)
+    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+
+  await $.turn.start({ turnId: 't1', text: 'rename a variable' })
+  for (const agentId of [undefined, 'a1', 'a1']) {
+    const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge[1m]', messageCount: 1, ...(agentId ? { agentId } : {}) })
+    let s = await stream.next()
+    while (s.done !== true) s = await stream.next()
+  }
+
+  expect(seen).toEqual(['main:group/mb-fast[1m]', 'a1:group/mb-fast[1m]', 'a1:group/mb-fast[1m]'])
+})
+
+test('a [1m] model that is not the routing group passes through', async ($, on) => {
+  fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R6-adopt' }])
+  spawnBasics(on)
+  const seen: string[] = []
+  on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string }) {
+    seen.push(e.model)
+    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+  await $.turn.start({ turnId: 't1', text: 'rename a variable' })
+  for (const model of ['kimi-code-cn/k3[1m]', 'group/mbridge-old[1m]']) {
+    const stream = $.turn.step({ turnId: 't1', index: 0, model, messageCount: 1 })
+    let s = await stream.next()
+    while (s.done !== true) s = await stream.next()
+  }
+  expect(seen).toEqual(['kimi-code-cn/k3[1m]', 'group/mbridge-old[1m]'])
+})
+
 test('turn.step leaves pinned models and effort alone', async ($, on) => {
   const calls = fakeGateway(on, [{ tier: 'fast', group: 'group/mb-fast', reason: 'R5' }])
   stubBasics(on)

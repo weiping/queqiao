@@ -8,7 +8,7 @@
       "name": "magpie-bridge",
       "source": "./clients/claude-code",
       "description": "Per-turn tier routing for Claude Code via the mbridge gateway.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "weiping"
       }
