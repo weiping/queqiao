@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yetone/magpie/internal/router"
-	"github.com/yetone/magpie/internal/wire"
+	"github.com/weiping/queqiao/internal/router"
+	"github.com/weiping/queqiao/internal/wire"
 )
 
 // MaxBody is the largest request body the proxy reads to route; a larger

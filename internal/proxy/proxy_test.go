@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yetone/magpie/internal/router"
+	"github.com/weiping/queqiao/internal/router"
 )
 
 const routerJSON = `{

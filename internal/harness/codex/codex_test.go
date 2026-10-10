@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yetone/magpie/internal/harness"
+	"github.com/weiping/queqiao/internal/harness"
 )
 
 // fakeGateway records every path+body and answers /turn with scripted

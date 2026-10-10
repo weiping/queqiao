@@ -2,9 +2,9 @@
 
 给编码 Agent 用的模型路由器：在 Agent 的 harness 里判断每一轮任务有多难，在本地网关里把请求派给合适的模型档位。简单的提问交给便宜的快模型，跨文件改动和难查的 bug 交给最强的模型。
 
-queqiao fork 自 [yetone/magpie](https://github.com/yetone/magpie)，保留 magpie 的全部功能，在它的本地网关之上加一层路由。名字取自“鹊桥”：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。
+queqiao 和官方 [magpie](https://github.com/yetone/magpie) 并排运行：magpie 是本地模型网关，queqiao 是它旁边的路由器（后台进程 queqiaod，默认 `127.0.0.1:3426`）。名字取自“鹊桥”：喜鹊（magpie）搭的桥，连起 Agent 的 harness 和模型网关。queqiao 不含、也不修改 magpie 的代码，先装官方 magpie，再装 queqiao。
 
-> **状态：已实现，生产运行中。** 全部八个子项目（SP0–SP7）完成并合并（PR #4–#11、[#19](https://github.com/weiping/queqiao/pull/19)），Claude Code、Pi、Codex 三条通路真机验收通过；自 2026-10-06 起在本机正式启用（magpie 已迁移退役），线上 A/B 实验积累中，首份真实报表待跑满两周。发布物：三平台 CLI + 三平台桌面 App + 校验和（`qq-v*` 标签自动构建，当前 `qq-v0.1.4`）；Pi 扩展 `@weiping/pi-queqiao@0.1.2` 已上 npm。总体设计与各子项目的执行结果见 [`docs/superpowers/specs/2026-10-02-queqiao-design.md`](docs/superpowers/specs/2026-10-02-queqiao-design.md)、[`docs/superpowers/specs/2026-10-07-queqiao-sp7-review-calibration-design.md`](docs/superpowers/specs/2026-10-07-queqiao-sp7-review-calibration-design.md) 与 `docs/superpowers/plans/`。
+> **状态：** 自 SP8（2026-10-10）起 queqiao 不再是 magpie 的 fork，`main` 分支的上游镜像已停止同步，只作历史参考。qq-v0.1.x 的用户用 `queqiao migrate` 把数据交还官方 magpie。设计见 [`docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md`](docs/superpowers/specs/2026-10-10-queqiao-sp8-standalone-design.md)。
 
 ## 要做什么
 

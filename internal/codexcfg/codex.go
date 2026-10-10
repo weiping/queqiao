@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/yetone/magpie/internal/fsutil"
+	"github.com/weiping/queqiao/internal/fsutil"
 )
 
 // Models are the models queqiao's Codex profile offers: the router group

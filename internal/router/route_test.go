@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/yetone/magpie/internal/wire"
+	"github.com/weiping/queqiao/internal/wire"
 )
 
 // hdr builds headers with a Claude-Code-style session id.

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yetone/magpie/internal/runcmd"
+	"github.com/weiping/queqiao/internal/runcmd"
 )
 
 // UserAgent is what queqiao's own calls through magpie carry.
@@ -125,22 +125,43 @@ func (c *Client) Chat(ctx context.Context, model string, body []byte) (string, e
 	return r.Choices[0].Message.Content, nil
 }
 
-// Models lists the model ids magpie serves (groups included).
-func (c *Client) Models(ctx context.Context) ([]string, error) {
+// Model is one model magpie lists, with the context window it says the
+// model (or group) has; 0 when it doesn't say.
+type Model struct {
+	ID      string
+	Context int
+}
+
+// ModelList lists what magpie serves (groups included): GET /v1/models.
+func (c *Client) ModelList(ctx context.Context) ([]Model, error) {
 	out, err := c.do(ctx, http.MethodGet, "/v1/models", nil)
 	if err != nil {
 		return nil, err
 	}
 	var r struct {
 		Data []struct {
-			ID string `json:"id"`
+			ID      string `json:"id"`
+			Context int    `json:"context_window"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(out, &r); err != nil {
 		return nil, &Error{Op: "GET /v1/models", Msg: "not a model list"}
 	}
-	ids := make([]string, 0, len(r.Data))
+	ms := make([]Model, 0, len(r.Data))
 	for _, m := range r.Data {
+		ms = append(ms, Model{ID: m.ID, Context: m.Context})
+	}
+	return ms, nil
+}
+
+// Models lists the model ids magpie serves (groups included).
+func (c *Client) Models(ctx context.Context) ([]string, error) {
+	ms, err := c.ModelList(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(ms))
+	for _, m := range ms {
 		ids = append(ids, m.ID)
 	}
 	return ids, nil

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yetone/magpie/internal/fsutil"
+	"github.com/weiping/queqiao/internal/fsutil"
 )
 
 // Event is one line of router.jsonl: a decision, a hint consumed, a

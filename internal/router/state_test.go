@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yetone/magpie/internal/wire"
+	"github.com/weiping/queqiao/internal/wire"
 )
 
 func TestSessionCommitGet(t *testing.T) {

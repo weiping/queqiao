@@ -1,12 +1,15 @@
 <!-- reviewed-through: 34bfb9ca (2026-10-06 03:48 +0800) -->
 # Lessons from merged work
 
+> queqiao inherited these rules from magpie when it was a fork (until SP8,
+> 2026-10-10). The evidence lines cite magpie's history; the rules apply here.
+
 magpie's code is written, reviewed, merged and released by agents. Each night
 the day's commits are reviewed for what had to be fixed again, what shouldn't
 have merged and what was verified too thinly. What we learned is kept here.
 Read this before changing code. Each lesson is a rule, then why, then the
 evidence. "Seen" counts the days a review found it. A lesson seen on 3 or
-more separate days moves into [docs/code-standards.md](docs/code-standards.md).
+more separate days becomes a standing rule in AGENTS.md.
 
 The day of 2026-10-05 had 220 commits and ~170 releases. About 40 of them
 fixed something released earlier the same day or the day before. Most
@@ -174,22 +177,6 @@ tell users it works.**
 - A platform report (WSL, Windows) is checked on that platform: ssh to the
   box. A GOOS build is not a test.
 - Seen 1× (2026-10-05).
-
-**A GUI change runs its tests in both Chromium and WebKit, at narrow widths,
-in every language.**
-- ~40 GUI commits ran WebKit only, without saying Chromium wasn't run.
-- 3ec6b4da squeezed key names to "…" (#841). 653cb8ee shrank the ZCode
-  question to 0px at 440px.
-- 43a65950 broke gui-ja/gui-de placeholders for 3.5h. Run gui-ja and gui-de
-  for every new `t()` string.
-- When you reword a string, `git grep` the old text under internal/gui/tests.
-  4a87b306 left routing-served red for 8 releases.
-- Test the empty case: 6fc0afe8's price editor couldn't price a model with
-  no list price (4c001cef).
-- 10-06: 4c170cba's Japanese string had a third `{agent}`, and gui-ja was red
-  until 34bfb9ca. 29e6d148 (#929) kept a clicked chip in view in Chromium
-  only; c6e318e1 did WebKit 40 minutes later.
-- Seen 2× (2026-10-05, 2026-10-06).
 
 ## Concurrency and tests
 
