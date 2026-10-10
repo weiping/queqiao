@@ -6,8 +6,8 @@ or multi-file work — decided per turn by the mbridge gateway.
 
 ## What it does
 
-- `UserPromptSubmit` asks the gateway (`POST /v1/bridge/turn`, 1.5 s
-  budget) which tier the prompt deserves; the gateway's prompt hint then
+- `UserPromptSubmit` asks the gateway (`POST /v1/bridge/turn`, waiting
+  mbridge's `turn_budget_ms`, 1.5–8 s) which tier the prompt deserves; the gateway's prompt hint then
   routes the request that follows. A prompt sent while you pinned a model
   with `/model` reports `manual_model_switch` instead.
 - `PreToolUse` on `spawn_agent` pins a tier's group on spawns that carry

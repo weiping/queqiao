@@ -23,6 +23,8 @@ declare module 'claude-code' {
       prompt: string | null
       /** Whether the first-message hash was already stored (once per session). */
       stored: boolean
+      /** How long /turn may take (SP10), from mbridge at session.start; null: 1500 ms. */
+      turnBudget: number | null
     }
   }
 }

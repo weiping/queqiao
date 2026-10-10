@@ -381,9 +381,11 @@ func (d *Deps) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"valid":        true,
 		"router_group": d.Config.RouterGroup,
-		"tiers":        tiers,
-		"experiment":   d.Config.Experiment,
-		"decisions":    decisions,
+		// SP10: the clients wait this long for /turn
+		"turn_budget_ms": d.Config.TurnBudgetMs(),
+		"tiers":          tiers,
+		"experiment":     d.Config.Experiment,
+		"decisions":      decisions,
 	})
 }
 

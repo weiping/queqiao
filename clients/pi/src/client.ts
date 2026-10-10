@@ -37,8 +37,16 @@ export interface ReviewBody {
   toolFailures?: number
 }
 
-/** The budget §6.8 gives the /turn call, in ms. */
+/** The budget §6.8 gives the /turn call, in ms, until mbridge says otherwise. */
 export const TURN_BUDGET_MS = 1500
+
+/** How long the /router probe may take (SP10). */
+const PROBE_MS = 500
+
+/** SP10: mbridge's turn_budget_ms, held to [1500, 8000]; null when absent. */
+export function clampBudget(ms: unknown): number | null {
+  return typeof ms === "number" && Number.isFinite(ms) ? Math.min(8000, Math.max(1500, Math.round(ms))) : null
+}
 
 export class MbridgeClient {
   constructor(base: string) {
@@ -48,6 +56,33 @@ export class MbridgeClient {
   }
 
   private readonly base: string
+  private turnBudgetMs = TURN_BUDGET_MS
+  private budgetLearned = false
+
+  /** Whether mbridge has answered a budget probe yet (SP10). */
+  get learned(): boolean {
+    return this.budgetLearned
+  }
+
+  /** GET /v1/bridge/router (SP10): how long a turn may take. Gives up after
+   *  500 ms and never throws; an mbridge that names no budget means 1500. */
+  async learnBudget(): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const expired = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("mbridge: probe timed out")), PROBE_MS)
+    })
+    try {
+      const res = await Promise.race([fetch(this.base + "/v1/bridge/router", { method: "GET" }), expired])
+      if (!res.ok) return
+      const b = clampBudget(((await res.json()) as { turn_budget_ms?: unknown }).turn_budget_ms)
+      this.turnBudgetMs = b ?? TURN_BUDGET_MS
+      this.budgetLearned = true
+    } catch {
+      // mbridge down, hung or an old one: keep the budget we have
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
   /** POST /v1/bridge/turn; null on any failure, timeout included. */
   async turn(req: TurnRequest): Promise<TurnResponse | null> {
@@ -62,7 +97,7 @@ export class MbridgeClient {
     if (req.parentSession !== undefined) body.parent_session = req.parentSession
     if (req.toolCalls !== undefined) body.tool_calls = req.toolCalls
     if (req.toolFailures !== undefined) body.tool_failures = req.toolFailures
-    const out = (await this.post("/v1/bridge/turn", body, TURN_BUDGET_MS)) as TurnResponse | null
+    const out = (await this.post("/v1/bridge/turn", body, this.turnBudgetMs)) as TurnResponse | null
     if (out === null || typeof out.tier !== "string" || typeof out.group !== "string") return null
     return out
   }

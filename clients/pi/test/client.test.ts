@@ -72,6 +72,53 @@ describe("MbridgeClient", () => {
     vi.useRealTimers()
   })
 
+  // SP10: mbridge says how long a turn may take; turn() waits that long
+  for (const c of [
+    { name: "3000 waits for a /turn that answers at 2000 ms", router: { turn_budget_ms: 3000 }, answerAt: 2000, want: "fast" },
+    { name: "past 8000 is held to 8000", router: { turn_budget_ms: 60000 }, answerAt: 8500, want: null },
+    { name: "under 1500 is held to 1500", router: { turn_budget_ms: 100 }, answerAt: 1000, want: "fast" },
+    { name: "a router without it keeps 1500", router: {}, answerAt: 2000, want: null },
+  ]) {
+    it(`learnBudget(): turn_budget_ms ${c.name}`, async () => {
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(c.router), { status: 200 }))
+      const c2 = new MbridgeClient("http://gw")
+      await c2.learnBudget()
+      expect(String(fetchMock.mock.calls[0][0])).toBe("http://gw/v1/bridge/router")
+      vi.useFakeTimers()
+      fetchMock.mockImplementationOnce(
+        () => new Promise((r) => setTimeout(() => r(new Response(JSON.stringify({ tier: "fast", group: "group/mb-fast" }), { status: 200 })), c.answerAt)),
+      )
+      const p = c2.turn({ session: "s1", prompt: "hi" })
+      await vi.advanceTimersByTimeAsync(c.answerAt + 100)
+      const out = await p
+      vi.useRealTimers()
+      expect(out === null ? null : out.tier).toBe(c.want)
+    })
+  }
+
+  it("learnBudget() on a gateway that is down keeps 1500 and never throws", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("ECONNREFUSED"))
+    const c = new MbridgeClient("http://gw")
+    await expect(c.learnBudget()).resolves.toBeUndefined()
+    vi.useFakeTimers()
+    fetchMock.mockImplementationOnce(() => new Promise(() => {}))
+    const p = c.turn({ session: "s1", prompt: "hi" })
+    const race = expect(p).resolves.toBeNull()
+    await vi.advanceTimersByTimeAsync(1600)
+    await race
+    vi.useRealTimers()
+  })
+
+  it("learnBudget() gives up on a hung mbridge within 500 ms", async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementationOnce(() => new Promise(() => {}))
+    const c = new MbridgeClient("http://gw")
+    const p = c.learnBudget()
+    await vi.advanceTimersByTimeAsync(600)
+    await expect(p).resolves.toBeUndefined()
+    vi.useRealTimers()
+  })
+
   it("turn() returns null on non-200 and on bad json", async () => {
     const c = new MbridgeClient("http://gw")
     fetchMock.mockResolvedValueOnce(new Response("nope", { status: 500 }))

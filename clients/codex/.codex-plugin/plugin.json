@@ -1,6 +1,6 @@
 {
   "name": "magpie-bridge-codex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Route every Codex turn across mbridge's fast/balanced/performance tiers via the mbridge gateway. Requires the mbridge CLI on PATH and the gateway running.",
   "hooks": "./hooks/hooks.json"
 }

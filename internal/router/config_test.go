@@ -78,7 +78,7 @@ func TestLoadDefaultsZeroFields(t *testing.T) {
 	if cfg.DefaultTier != TierBalanced {
 		t.Fatalf("default tier %q", cfg.DefaultTier)
 	}
-	if cfg.Classifier != "local" || cfg.ClassifyTimeoutMs != 1500 {
+	if cfg.Classifier != "local" || cfg.ClassifyTimeoutMs != 2500 {
 		t.Fatalf("classifier %q timeout %d", cfg.Classifier, cfg.ClassifyTimeoutMs)
 	}
 	if cfg.EscalateTurns != 2 || cfg.CacheTTLSeconds != 300 {
@@ -268,5 +268,26 @@ func TestOldConfigGetsListenAndMagpieDefaults(t *testing.T) {
 	}
 	if cfg.Listen != "127.0.0.1:3426" || cfg.MagpieURL != "http://127.0.0.1:3425" {
 		t.Fatalf("listen %q magpie %q", cfg.Listen, cfg.MagpieURL)
+	}
+}
+
+// SP10: a turn may wait as long as the classifier may take, plus 500 ms
+// for mbridge and the round trip, but never under the old 1500 ms nor
+// past 8000 ms (the Claude Code mod's hooks stop at 10 s).
+func TestTurnBudgetFollowsClassifyTimeout(t *testing.T) {
+	for _, c := range []struct{ classify, want int }{
+		{2500, 3000}, {1500, 2000}, {500, 1500}, {0, 1500}, {7500, 8000}, {20000, 8000},
+	} {
+		if got := (Config{ClassifyTimeoutMs: c.classify}).TurnBudgetMs(); got != c.want {
+			t.Errorf("classify %d → budget %d, want %d", c.classify, got, c.want)
+		}
+	}
+}
+
+func TestClassifyTimeoutDefaultsTo2500(t *testing.T) {
+	var c Config
+	c.defaults()
+	if c.ClassifyTimeoutMs != 2500 {
+		t.Fatalf("default classify_timeout_ms %d, want 2500 (SP10)", c.ClassifyTimeoutMs)
 	}
 }

@@ -5,6 +5,8 @@ function fakeGateway(on: any, turns: Array<{ tier: string; group: string; reason
   const calls: Array<{ url: string; method?: string; body?: string }> = []
   let n = 0
   on('http.fetch', (_$: unknown, e: { url: string; init?: { method?: string; body?: string } }) => {
+    // SP10's budget probe is answered, not counted: these tests count /turn and friends
+    if (e.url.endsWith('/v1/bridge/router')) return { value: { status: 200, ok: true, headers: {}, text: '{}' } }
     calls.push({ url: e.url, method: e.init?.method, body: e.init?.body })
     if (e.url.endsWith('/v1/bridge/turn')) {
       const t = turns[Math.min(n, turns.length - 1)]
@@ -170,6 +172,80 @@ test('the 1500ms timer wins the race when /turn hangs', async ($, on) => {
 
   expect(seen).toEqual(['group/mbridge'])
   expect(status.filter((s) => s.includes('mbridge:')).length).toBe(0)
+})
+
+// SP10: mbridge says at session.start how long a turn may take; a /turn
+// that answers within it is used even past the old 1500 ms. The fake /turn
+// answers when the test releases it, after moving the clock on.
+function slowGateway(on: any, routerText: string) {
+  let release = () => {}
+  on('http.fetch', async (_$: unknown, e: { url: string }) => {
+    if (e.url.endsWith('/v1/bridge/router')) return { value: { status: 200, ok: true, headers: {}, text: routerText } }
+    if (e.url.endsWith('/v1/bridge/turn')) {
+      await new Promise<void>((r) => { release = r })
+      return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ tier: 'fast', group: 'group/mb-fast', reason: 'R6-adopt' }) } }
+    }
+    return { value: { status: 200, ok: true, headers: {}, text: '{}' } }
+  })
+  return () => release()
+}
+
+for (const c of [
+  { name: 'a turn_budget_ms of 3000 waits for a /turn that takes 2000 ms', router: '{"turn_budget_ms":3000}', after: 2000, want: 'group/mb-fast' },
+  { name: 'without turn_budget_ms the 1500 ms budget still applies', router: '{}', after: 2000, want: 'group/mbridge' },
+  { name: 'a turn_budget_ms past 8000 is held to 8000', router: '{"turn_budget_ms":60000}', after: 8100, want: 'group/mbridge' },
+  { name: 'a turn_budget_ms under 1500 is held to 1500', router: '{"turn_budget_ms":100}', after: 1000, want: 'group/mb-fast' },
+]) {
+  test(c.name, async ($, on) => {
+    const release = slowGateway(on, c.router)
+    on('session.id', () => ({ value: 's-1' }))
+    on('ui.status', () => ({ value: undefined }))
+    const clock = mock.clock(on)
+    on('session.start', () => ({ cwd: '/work/repo' }))
+    on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+    const seen: string[] = []
+    on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string }) {
+      seen.push(e.model)
+      return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+    })
+
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work/repo' })
+    const started = $.turn.start({ turnId: 't1', text: 'rename a variable' })
+    await clock.advance(c.after)
+    release()
+    await clock.advance(10000)
+    await started
+    const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1 })
+    let step = await stream.next()
+    while (step.done !== true) step = await stream.next()
+    expect(seen).toEqual([c.want])
+  })
+}
+
+// SP10 review: when the session.start probe found mbridge down, or /clear
+// reset $.state, the next turn asks for the budget itself.
+test('a turn with no budget learned asks mbridge for it before /turn', async ($, on) => {
+  const release = slowGateway(on, '{"turn_budget_ms":3000}')
+  on('session.id', () => ({ value: 's-1' }))
+  on('ui.status', () => ({ value: undefined }))
+  const clock = mock.clock(on)
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  const seen: string[] = []
+  on('turn.step', async function* (_$: unknown, e: { turnId: string; index: number; model: string }) {
+    seen.push(e.model)
+    return { turnId: e.turnId, index: e.index, answer: 'ok', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+
+  // no session.start: nothing learned yet
+  const started = $.turn.start({ turnId: 't1', text: 'rename a variable' })
+  await clock.advance(2000)
+  release()
+  await clock.advance(10000)
+  await started
+  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'group/mbridge', messageCount: 1 })
+  let step = await stream.next()
+  while (step.done !== true) step = await stream.next()
+  expect(seen).toEqual(['group/mb-fast'])
 })
 
 test('empty-text turns skip /turn and keep the previous tier', async ($, on) => {

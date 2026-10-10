@@ -57,7 +57,7 @@ func TestRouterInitCnWritesGroupsAndConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Tiers[router.TierFast].Group != "mb-fast" || cfg.Classifier != "local" || cfg.ClassifyTimeoutMs != 1500 {
+	if cfg.Tiers[router.TierFast].Group != "mb-fast" || cfg.Classifier != "local" || cfg.ClassifyTimeoutMs != 2500 {
 		t.Fatalf("cfg: %+v", cfg.Tiers[router.TierFast])
 	}
 	if cfg.Tiers[router.TierFast].Criteria == "" {

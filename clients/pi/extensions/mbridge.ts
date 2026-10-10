@@ -38,6 +38,12 @@ function lastAssistantText(messages: AgentMessageLite[]): string | null {
 
 export default function (pi: ExtensionAPI): void {
   const client = new MbridgeClient(process.env.MBRIDGE_URL ?? "http://127.0.0.1:3426")
+  // SP10: learn how long a turn may wait before the first one, when the
+  // session_start probe found mbridge not up yet
+  const learnedThenTurn = async (req: Parameters<typeof client.turn>[0]) => {
+    if (!client.learned) await client.learnBudget()
+    return client.turn(req)
+  }
 
   // per-session memory; rebuilt at every session_start
   let session = ""
@@ -65,6 +71,7 @@ export default function (pi: ExtensionAPI): void {
       void client.lineage({ session, source: "pi-fork" })
     }
     parentSent = false
+    void client.learnBudget() // SP10: how long a turn may wait
     lastTier = null
     lastPrompt = ""
     lastAutoModel = ""
@@ -81,7 +88,7 @@ export default function (pi: ExtensionAPI): void {
     const prompt = event.prompt ?? ""
     if (prompt === "" || session === "" || manualPinned) return
     lastPrompt = prompt
-    const out = await client.turn({
+    const out = await learnedThenTurn({
       session,
       prompt,
       cwd: process.cwd(), // §4.1 project-level criteria
@@ -157,7 +164,7 @@ export default function (pi: ExtensionAPI): void {
       (v): v is string => typeof v === "string" && v !== "",
     )
     if (task === undefined) return
-    const out = await client.turn({ session, prompt: task, agent: "subagent", cwd: process.cwd() })
+    const out = await learnedThenTurn({ session, prompt: task, agent: "subagent", cwd: process.cwd() })
     if (out === null) return
     // out.group is the tier's real group id (mb-perf, not mb-performance)
     e.input.model = `${PROVIDER}/${out.group}`

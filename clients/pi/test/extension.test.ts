@@ -166,6 +166,39 @@ describe("mbridge extension", () => {
     expect(ev.headers["X-Magpie-Session"]).toBe("s-pi-1")
   })
 
+  it("session_start asks mbridge how long a turn may take (SP10)", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }))
+    const f = fakePi()
+    ;(await import("../extensions/mbridge.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await vi.waitFor(() =>
+      expect(fetchMock.mock.calls.some((c) => String(c[0]) === "http://gw/v1/bridge/router")).toBe(true),
+    )
+  })
+
+  it("a turn with no budget learned asks mbridge before /turn (SP10 review)", async () => {
+    let routerCalls = 0
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).endsWith("/v1/bridge/router")) {
+        routerCalls++
+        return routerCalls === 1 ? Promise.reject(new Error("ECONNREFUSED")) : new Response(JSON.stringify({ turn_budget_ms: 3000 }), { status: 200 })
+      }
+      await new Promise((r) => setTimeout(r, 2000)) // a cold Jev
+      return new Response(JSON.stringify({ tier: "fast", group: "group/mb-fast" }), { status: 200 })
+    })
+    const f = fakePi()
+    ;(await import("../extensions/mbridge.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" }) // mbridge not up yet
+    await vi.waitFor(() => expect(routerCalls).toBe(1))
+    vi.useFakeTimers()
+    const turn = f.fire("before_agent_start", { type: "before_agent_start", prompt: "rename a variable" })
+    await vi.advanceTimersByTimeAsync(2200)
+    await turn
+    vi.useRealTimers()
+    expect(routerCalls).toBe(2)
+    expect(f.state.setModelCalls).toEqual(["magpie/group/mb-fast"])
+  })
+
   it("session_start falls back to a generated id and /lineage without a parent", async () => {
     const f = fakePi()
     f.state.sessionId = undefined
@@ -390,7 +423,9 @@ describe("mbridge extension (SP8)", () => {
     ;(await import("../extensions/mbridge.js")).default(f.pi as never)
     f.fire("session_start", { type: "session_start", reason: "startup" })
     await f.fire("before_agent_start", { type: "before_agent_start", prompt: "one" })
-    expect(String(fetchMock.mock.calls[0][0])).toBe("http://127.0.0.1:3426/v1/bridge/turn")
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]))
+    expect(urls).toContain("http://127.0.0.1:3426/v1/bridge/router") // SP10's probe at session_start
+    expect(urls).toContain("http://127.0.0.1:3426/v1/bridge/turn")
   })
 
   it("an unreachable mbridge keeps the model and says so in the status", async () => {

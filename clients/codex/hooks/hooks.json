@@ -6,7 +6,7 @@
           {
             "type": "command",
             "command": "mbridge hook user-prompt --harness codex",
-            "timeout": 2,
+            "timeout": 10,
             "statusMessage": "mbridge: 选档"
           }
         ]
@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "mbridge hook pre-agent --harness codex",
-            "timeout": 2
+            "timeout": 10
           }
         ]
       }
