@@ -407,3 +407,56 @@ func TestStructuredVerdictFromAnswerText(t *testing.T) {
 		t.Fatalf("verdict: %+v", v)
 	}
 }
+
+// SP10 review: classify_timeout_ms bounds the whole classification, not
+// each request, so the turn budget (classify + 500 ms) holds when the plain
+// classifier asks twice.
+func TestClassifyBoundsTheWholeCall(t *testing.T) {
+	cfg := testConfig("m/x")
+	cfg.ClassifyTimeoutMs = 400
+	slow := askFunc(func(ctx context.Context, _, body string) (string, error) {
+		if strings.Contains(body, `"response_format"`) {
+			return "", errClassify // no schema: the two-question plain path
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(300 * time.Millisecond): // each fits, two do not
+			return "1", nil
+		}
+	})
+	start := time.Now()
+	_, err := NewClassifier(cfg, slow.ask).Classify(context.Background(), Question{
+		Message: "no, that's wrong", PreviousTier: TierFast, Criteria: testCriteria})
+	if took := time.Since(start); took > 550*time.Millisecond { // two asks take 600 ms
+		t.Fatalf("classification took %v with a 400 ms classify_timeout_ms (err %v)", took, err)
+	}
+	if err == nil {
+		t.Fatal("two 300 ms questions finished inside 400 ms")
+	}
+}
+
+// A schema request that runs out of time says nothing about the schema:
+// the next turn still asks with it.
+func TestTimeoutDoesNotForbidTheSchema(t *testing.T) {
+	block := true
+	s := askFunc(func(ctx context.Context, _, body string) (string, error) {
+		if strings.Contains(body, `"response_format"`) && block {
+			<-ctx.Done()
+			return "", fmt.Errorf("magpie: %w", ctx.Err())
+		}
+		if strings.Contains(body, `"response_format"`) {
+			return schemaBody("balanced", 0.8, 0.1), nil
+		}
+		return "1", nil
+	})
+	c := NewClassifier(testConfig("m/x"), s.ask)
+	if _, err := c.Classify(context.Background(), Question{Message: "hi", PreviousTier: TierFast, Criteria: testCriteria}); err == nil {
+		t.Fatal("a timed-out schema request still produced a verdict")
+	}
+	block = false
+	v, err := c.Classify(context.Background(), Question{Message: "hi", PreviousTier: TierFast, Criteria: testCriteria})
+	if err != nil || v.Source != "m/x" || v.TierConfidence != 0.8 {
+		t.Fatalf("after a timeout the schema was dropped: v=%+v err=%v", v, err)
+	}
+}

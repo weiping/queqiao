@@ -64,6 +64,13 @@ func (c *classifier) Classify(ctx context.Context, q Question) (*Verdict, error)
 	if c.cfg.Classifier == "" {
 		return nil, errors.New("router: no classifier configured")
 	}
+	// SP10: classify_timeout_ms bounds the whole classification (the plain
+	// path asks up to three times), so turn_budget_ms = classify + 500 holds
+	if c.cfg.ClassifyTimeoutMs > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(c.cfg.ClassifyTimeoutMs)*time.Millisecond)
+		defer cancel()
+	}
 	if c.jev {
 		return c.classifyJev(ctx, q)
 	}
@@ -320,6 +327,11 @@ func (c *classifier) classifyPlain(ctx context.Context, q Question) (*Verdict, e
 		if err == nil {
 			c.clearSchemaBlame()
 			return v, nil
+		}
+		// out of time says nothing about the schema, and leaves no time to
+		// fall back either
+		if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return nil, err
 		}
 		if strings.Contains(err.Error(), "structured tier") || strings.Contains(err.Error(), "structured content") {
 			c.blameSchema() // the model answered but not the schema
