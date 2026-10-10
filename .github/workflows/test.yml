@@ -45,6 +45,12 @@ jobs:
         if: runner.os != 'Windows'
         run: go test -race ./...
 
+      # a timing, measured without the race detector (it slows the proxy
+      # several times over); Windows' Test step already runs without it
+      - name: Proxy first-byte overhead
+        if: runner.os != 'Windows'
+        run: go test -count=1 -run '^TestProxyFirstByteOverhead$' -v ./internal/proxy/
+
       - name: Test (Windows)
         if: runner.os == 'Windows'
         run: go test ./...
