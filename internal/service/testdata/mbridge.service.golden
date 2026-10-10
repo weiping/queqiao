@@ -1,5 +1,5 @@
 [Unit]
-Description=mbridge, the mbridge model router beside magpie
+Description=Magpie Bridge, the model router beside magpie
 After=network.target
 
 [Service]

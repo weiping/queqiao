@@ -94,7 +94,7 @@ const plist = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 const systemdUnit = `[Unit]
-Description=mbridge, the mbridge model router beside magpie
+Description=Magpie Bridge, the model router beside magpie
 After=network.target
 
 [Service]
@@ -109,7 +109,7 @@ WantedBy=default.target
 const taskXML = `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>mbridge, the mbridge model router beside magpie</Description>
+    <Description>Magpie Bridge, the model router beside magpie</Description>
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>

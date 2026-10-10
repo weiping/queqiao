@@ -20,7 +20,7 @@ Magpie Bridge 和官方 [magpie](https://github.com/yetone/magpie) 并排运行�
 
 | 组件 | 用于 | 状态 |
 | --- | --- | --- |
-| mbridge（`mbridge serve`）：`/v1/bridge/*` 与 Codex、网关模式的代理（`internal/router/`、`internal/proxy/`） | 所有 Agent | SP8 起独立于 magpie |
+| 守护进程（`mbridge serve`）：`/v1/bridge/*` 与 Codex、网关模式的代理（`internal/router/`、`internal/proxy/`） | 所有 Agent | SP8 起独立于 magpie |
 | Claude Code 插件 `magpie-bridge`（`clients/claude-code/`） | Claude Code | 0.2.0，默认连 3426 |
 | Pi 包 `@weiping/pi-magpie-bridge`（`clients/pi/`） | Pi | 0.2.0，自报工具统计 |
 | Codex 插件 `magpie-bridge-codex`（`clients/codex/`） | Codex | 0.2.0，配合 `codex -p mbridge` |

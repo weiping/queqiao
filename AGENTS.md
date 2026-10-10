@@ -13,7 +13,7 @@ change: update the SP8 spec first
 
 | Path | What |
 | --- | --- |
-| `cmd/mbridge` | the one binary: CLI and `mbridge serve` (mbridge) |
+| `cmd/mbridge` | the one binary: CLI and `mbridge serve` (the daemon) |
 | `internal/router` | tier policy, classifier, review, calibration, reports |
 | `internal/wire` | the three-protocol request parser the router and proxy read |
 | `internal/proxy` | mbridge's reverse proxy for Codex and gateway mode |
