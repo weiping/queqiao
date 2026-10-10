@@ -40,6 +40,7 @@ func withFakeMagpie(t *testing.T, served ...string) *fakeMag {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("QUEQIAO_CONFIG_DIR", filepath.Join(home, ".config", "queqiao"))
 	f := &fakeMag{groups: map[string][]string{}, served: served, contexts: map[string]int{}, agents: map[string]string{}, version: "magpie v0.1.1100"}

@@ -168,7 +168,8 @@ func TestUpdateVerifiesChecksum(t *testing.T) {
 	}
 	b, _ := os.ReadFile(exe)
 	st, _ := os.Stat(exe)
-	if string(b) != "new binary" || st.Mode().Perm()&0o100 == 0 {
+	// Windows runs any .exe: there is no execute bit to set
+	if string(b) != "new binary" || runtime.GOOS != "windows" && st.Mode().Perm()&0o100 == 0 {
 		t.Fatalf("%q %v", b, st.Mode())
 	}
 }

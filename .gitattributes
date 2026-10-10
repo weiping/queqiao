@@ -1,0 +1,2 @@
+# test fixtures are compared byte for byte: no CRLF on Windows checkouts
+**/testdata/** -text

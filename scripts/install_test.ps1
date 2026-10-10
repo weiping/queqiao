@@ -21,6 +21,7 @@ function Setup {
 
 function Run($s, $path) {
   $env:USERPROFILE = Join-Path $s.T "home"
+  $env:XDG_CONFIG_HOME = $null
   $env:QUEQIAO_VERSION = "qq-v0.2.0"
   $env:QUEQIAO_DOWNLOAD_BASE = "file:///" + ((Join-Path $s.T "rel") -replace '\\', '/')
   $env:QUEQIAO_BIN_DIR = Join-Path $s.T "home\.local\bin"

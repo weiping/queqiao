@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -19,6 +20,8 @@ func runHook(t *testing.T, args ...string) (int, string) {
 	code := 0
 	if ee, ok := err.(*exec.ExitError); ok {
 		code = ee.ExitCode()
+	} else if err != nil {
+		t.Fatalf("could not run %s: %v", bin, err) // not an exit code: no answer at all
 	}
 	return code, string(out)
 }
@@ -61,7 +64,10 @@ var buildQueqiao = func(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bin := dir + "/queqiao-test"
+	bin := filepath.Join(dir, "queqiao-test")
+	if runtime.GOOS == "windows" {
+		bin += ".exe" // Windows starts nothing without its extension
+	}
 	cmd := exec.Command("go", "build", "-tags", "nogui", "-o", bin, ".")
 	// TestMain's sandbox swaps HOME, which would give this build a cold
 	// module and build cache every run: every module re-downloaded, the

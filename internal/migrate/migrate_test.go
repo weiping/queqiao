@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -117,7 +118,7 @@ func TestMigrateMovesMagpieFilesKeepsQueqiaos(t *testing.T) {
 	}
 	// the providers file keeps its 0600
 	st, err := os.Stat(filepath.Join(m, "providers.json"))
-	if err != nil || st.Mode().Perm() != 0o600 {
+	if err != nil || runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("providers.json mode %v, %v", st.Mode().Perm(), err)
 	}
 	// and a full copy of the old config sits in the backup

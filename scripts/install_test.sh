@@ -20,7 +20,7 @@ setup() {
   chmod +x "$t/fakebin/magpie"
 }
 run() { # run install.sh with PATH=$1
-  HOME="$t/home" PATH="$1" QUEQIAO_VERSION=qq-v0.2.0 QUEQIAO_DOWNLOAD_BASE="file://$t/rel" \
+  HOME="$t/home" XDG_CONFIG_HOME= PATH="$1" QUEQIAO_VERSION=qq-v0.2.0 QUEQIAO_DOWNLOAD_BASE="file://$t/rel" \
     QUEQIAO_BIN_DIR="$t/home/.local/bin" sh "$root/install.sh" > "$t/out" 2>&1
 }
 sys=/usr/bin:/bin
