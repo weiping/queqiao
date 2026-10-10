@@ -7,8 +7,10 @@ mbridge gateway's classifier.
 
 ## What it does
 
-- `turn.start`: sends the prompt to the gateway (`POST /v1/bridge/turn`,
-  1500 ms budget) and records the tier it picks.
+- `turn.start`: sends the prompt to the gateway (`POST /v1/bridge/turn`)
+  and records the tier it picks. It waits as long as mbridge's
+  `turn_budget_ms` (`classify_timeout_ms` + 500, 1500–8000 ms; 1500 ms when
+  mbridge doesn't say), learned from `GET /v1/bridge/router`.
 - `turn.step`: rewrites requests still on the routing group `group/mbridge`
   to this turn's tier group (`group/mb-fast` / `mb-balanced` / `mb-perf`).
   Anything else — a model you pinned with `/model`, a tier group a

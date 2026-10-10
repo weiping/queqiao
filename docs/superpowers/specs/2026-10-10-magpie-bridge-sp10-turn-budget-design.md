@@ -47,9 +47,33 @@ follows it.
   the key is missing and by `router init`. An existing `router.json` that sets
   `classify_timeout_ms` keeps its value; the user raises it themselves.
 
-Cost: the first turn after a pause starts up to `turn_budget_ms` later than
-it would have (at the default, 1.5 s more). Warm turns are unchanged, because
-the wait ends as soon as `/turn` answers.
+- `classify_timeout_ms` bounds the whole classification, not each request.
+  The plain classifier asks up to three times, so otherwise mbridge could
+  take longer than the budget it reports. A request that runs out of time
+  doesn't mark the model as refusing structured output.
+- Each client also learns the budget when a turn needs it:
+  - **Claude Code:** when the `session.start` probe failed, or `/clear`
+    reset `$.state`.
+  - **Pi:** when the `session_start` probe found mbridge not up yet.
+
+  The probe gives up after 500 ms.
+- **Codex hook:** asks the running mbridge first and gives up after 300 ms.
+  The daemon's configuration can differ from the file on disk (an edit since
+  it started, another config dir, `MBRIDGE_URL` elsewhere); then the hook
+  falls back to `router.json`, then to 1500 ms.
+- **Codex hook timeouts:** `hooks.json` gives `user-prompt` and `pre-agent`
+  10 s, more than the 8 s maximum budget, and the hook's own cap is the
+  budget plus 1 s. Before this, Codex killed them at 2 s.
+
+Cost:
+- The first turn after a pause starts up to `turn_budget_ms` later than it
+  would have (at the default, 1.5 s more). Warm turns are unchanged, because
+  the wait ends as soon as `/turn` answers.
+- When Claude Code still gives up (classification longer than the budget),
+  the turn goes out as `group/mbridge`, and gateway mode classifies again,
+  once more up to `classify_timeout_ms`. The worst case is about
+  budget + classify, 5.5 s at the default, against about 3 s before.
+- In plain gateway mode, a cold turn can wait up to 1 s longer than before.
 
 Rejected: keeping Jev warm with a small request every 10 minutes. It doesn't
 add latency, but it spends about 340 tokens per ping while the user is away.
@@ -61,8 +85,14 @@ add latency, but it spends about 340 tokens per ping while the user is away.
   - The status endpoint reports `turn_budget_ms`.
   - A missing `classify_timeout_ms` becomes 2500, and `router init` writes
     2500.
-  - The Codex hook waits for a `/turn` that answers in 1.8 s when
-    `router.json` allows it, and gives up at 1.5 s when the file is missing.
+  - The Codex hook waits for a `/turn` that answers in 1.8 s when its
+    budget allows it.
+  - The Codex hook takes the running mbridge's budget before the file's,
+    gives up on a hung mbridge within the probe time, and falls back to the
+    file, then to 1500 ms.
+  - The `user-prompt` and `pre-agent` timeouts in `hooks.json` are above
+    8 s.
+  - One deadline covers a plain classification that asks twice.
 - **Claude Code mod:**
   - After a `session.start` whose probe reports 3000, a `/turn` answering at
     2000 ms is used.
