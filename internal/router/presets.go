@@ -3,7 +3,7 @@ package router
 import (
 	"strings"
 
-	"github.com/yetone/magpie/internal/magpie"
+	"github.com/weiping/queqiao/internal/magpie"
 )
 
 // Preset is one §4.3 starter config: each tier's primary and failover

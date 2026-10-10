@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yetone/magpie/internal/router"
-	"github.com/yetone/magpie/internal/wire"
+	"github.com/weiping/queqiao/internal/router"
+	"github.com/weiping/queqiao/internal/wire"
 )
 
 // MaxBody is the largest request body the proxy reads to route; a larger
@@ -118,9 +118,26 @@ func harnessOf(h http.Header) string {
 	return "gateway"
 }
 
+// loopback: listen's host is this computer's own (127.0.0.0/8, ::1,
+// localhost); an empty host means every interface.
+func loopback(listen string) bool {
+	host, _, err := net.SplitHostPort(listen)
+	if err != nil || host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // Serve serves h on listen until ctx ends. A port already in use is an
 // error that names it and the router.json field that sets it.
 func Serve(ctx context.Context, listen string, h http.Handler) error {
+	if !loopback(listen) {
+		return fmt.Errorf("queqiaod listens on this computer only (a loopback address such as 127.0.0.1:3426), not %s: magpie asks no key of what comes from loopback, so this would open its subscriptions to the network (router.json \"listen\")", listen)
+	}
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {
 		return fmt.Errorf("queqiaod can't listen on %s (router.json \"listen\" sets the address): %w", listen, err)

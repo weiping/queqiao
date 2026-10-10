@@ -5,29 +5,40 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/yetone/magpie/internal/magpie"
+	"github.com/weiping/queqiao/internal/magpie"
 )
 
-// A fake gh: a script on PATH that prints the state its filename encodes.
+// A fake gh on PATH that prints the state its table gives a PR URL: a
+// shell script, or on Windows a batch file (gh.cmd, found through PATHEXT).
 func fakeGh(t *testing.T, states map[string]string) (dir string, restore func()) {
 	t.Helper()
 	dir = t.TempDir()
-	script := filepath.Join(dir, "gh")
 	var b strings.Builder
-	b.WriteString("#!/bin/sh\n")
-	b.WriteString(`case "$3" in` + "\n")
-	for url, state := range states {
-		b.WriteString("  " + url + ") echo '{\"state\":\"" + state + "\"}' ;;\n")
+	name := "gh"
+	if runtime.GOOS == "windows" {
+		name = "gh.cmd"
+		b.WriteString("@echo off\r\n")
+		for url, state := range states {
+			b.WriteString(`if "%3"=="` + url + `" (echo {"state":"` + state + `"}& exit /b 0)` + "\r\n")
+		}
+		b.WriteString("exit /b 1\r\n")
+	} else {
+		b.WriteString("#!/bin/sh\n")
+		b.WriteString(`case "$3" in` + "\n")
+		for url, state := range states {
+			b.WriteString("  " + url + ") echo '{\"state\":\"" + state + "\"}' ;;\n")
+		}
+		b.WriteString("  *) exit 1 ;;\nesac\n")
 	}
-	b.WriteString("  *) exit 1 ;;\nesac\n")
-	if err := os.WriteFile(script, []byte(b.String()), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(b.String()), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return dir, func() {}
 }
 

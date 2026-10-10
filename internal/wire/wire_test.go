@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yetone/magpie/internal/wire"
+	"github.com/weiping/queqiao/internal/wire"
 )
 
 // fixture is one request as an agent sent it: the path, the headers that

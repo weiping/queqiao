@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yetone/magpie/internal/magpie"
+	"github.com/weiping/queqiao/internal/magpie"
 )
 
 /**
@@ -291,5 +291,20 @@ func TestReportEscalationRatesAndKeptUnderRate(t *testing.T) {
 	}
 	if len(rep.Router.ScoreBands["tier"]) != 5 {
 		t.Fatalf("score bands: %+v", rep.Router.ScoreBands)
+	}
+}
+
+// magpie also lists the local Codex and Claude Code sessions it read from
+// their own files (status 0, provider session-unknown): no call went
+// through magpie for them, and the session's calls through magpie are
+// counted already. They add no cost.
+func TestAggregateSkipsImportedSessionRows(t *testing.T) {
+	events := []Event{ev("decide", "s-a", at(1*time.Hour), func(e *Event) { e.Arm, e.Tier = "router", "fast" })}
+	served := rec("s-a", at(59*time.Minute), 1000, 1000, 0)
+	imported := served
+	imported.Status, imported.Provider = 0, "session-unknown"
+	rep := Aggregate(ReportInput{Records: []magpie.UsageRow{served, imported}, Events: events, Now: testNow, Since: 24 * time.Hour})
+	if rep.Router.TotalCost != served.CostUSD {
+		t.Fatalf("total %v, want %v (the imported row counted)", rep.Router.TotalCost, served.CostUSD)
 	}
 }

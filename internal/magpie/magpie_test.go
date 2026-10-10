@@ -222,3 +222,11 @@ func TestCLIErrorCarriesOutput(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestModelListReadsContextWindow(t *testing.T) {
+	f := newFake(t, 200, `{"data":[{"id":"group/qq-fast","context_window":200000},{"id":"x/y"}]}`)
+	ms, err := New(f.URL).ModelList(context.Background())
+	if err != nil || len(ms) != 2 || ms[0] != (Model{ID: "group/qq-fast", Context: 200000}) || ms[1].Context != 0 {
+		t.Fatalf("%+v %v", ms, err)
+	}
+}

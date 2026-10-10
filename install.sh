@@ -1,20 +1,22 @@
 #!/bin/sh
 # queqiao installer: curl -fsSL https://raw.githubusercontent.com/weiping/queqiao/queqiao/install.sh | sh
 #
-# Puts the terminal build of queqiao in ~/.local/bin ($PREFIX/bin on
-# Termux), checked against the release's SHA-256. queqiao's gateway and
-# magpie's both listen on 127.0.0.1:3425: quit magpie before
-# `queqiao serve`; the two never run at once.
+# queqiao runs beside official magpie (https://github.com/yetone/magpie):
+# install magpie first. This puts queqiao in ~/.local/bin, checked against
+# the release's SHA-256, and runs queqiaod at login (queqiao service
+# install). queqiaod listens on 127.0.0.1:3426; magpie keeps 3425.
 #
-# Options (… | sh -s -- --version qq-v0.1.0):
+# Options (… | sh -s -- --version qq-v0.2.0):
 #   --version <tag>    install this release instead of the latest
 #                      (QUEQIAO_VERSION= does the same)
 #   --bin-dir <dir>    install somewhere else (QUEQIAO_BIN_DIR= does the same)
+#   --no-service       don't run queqiaod at login
 set -eu
 
 repo=weiping/queqiao
 tag="${QUEQIAO_VERSION:-}"
 bin="${QUEQIAO_BIN_DIR:-}"
+service=1
 
 say() { printf '  %s\n' "$*"; }
 die() { printf 'queqiao: %s\n' "$*" >&2; exit 1; }
@@ -25,44 +27,37 @@ while [ $# -gt 0 ]; do
     --version=*) tag=${1#--version=}; shift ;;
     --bin-dir) [ $# -ge 2 ] || die "--bin-dir needs a value"; bin=$2; shift 2 ;;
     --bin-dir=*) bin=${1#--bin-dir=}; shift ;;
+    --no-service) service=0; shift ;;
     -h|--help)
-      printf '%s\n' "usage: curl -fsSL https://raw.githubusercontent.com/$repo/queqiao/install.sh | sh -s -- [--version <tag>] [--bin-dir <dir>]"
+      printf '%s\n' "usage: curl -fsSL https://raw.githubusercontent.com/$repo/queqiao/install.sh | sh -s -- [--version <tag>] [--bin-dir <dir>] [--no-service]"
       exit 0 ;;
     *) die "unknown option $1" ;;
   esac
 done
 
-# Platform: darwin/linux (amd64/arm64), or Termux's android/arm64.
-if [ -n "${PREFIX:-}" ] && [ -x "$PREFIX/bin/pkg" ] && uname -o 2>/dev/null | grep -qi android; then
-  os=android; arch=arm64
-  bin="${bin:-$PREFIX/bin}"
-else
-  case "$(uname -s)" in
-    Darwin) os=darwin ;;
-    Linux) os=linux ;;
-    *) die "no prebuilt queqiao for $(uname -s); build from source: make cli" ;;
-  esac
-  case "$(uname -m)" in
-    x86_64|amd64) arch=amd64 ;;
-    arm64|aarch64) arch=arm64 ;;
-    *) die "no prebuilt queqiao for $(uname -m); build from source: make cli" ;;
-  esac
-  bin="${bin:-$HOME/.local/bin}"
-fi
-[ "$os" = android ] && [ "$arch" != arm64 ] && die "the Android build is arm64 only"
+command -v magpie >/dev/null 2>&1 || die "queqiao needs official magpie: install it first from https://github.com/yetone/magpie, then run this again"
 
+case "$(uname -s)" in
+  Darwin) os=darwin ;;
+  Linux) os=linux ;;
+  *) die "no prebuilt queqiao for $(uname -s); build from source: make build" ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) arch=amd64 ;;
+  arm64|aarch64) arch=arm64 ;;
+  *) die "no prebuilt queqiao for $(uname -m); build from source: make build" ;;
+esac
+bin="${bin:-$HOME/.local/bin}"
 command -v curl >/dev/null || die "curl is needed"
 
-# The release to install: latest, or the one --version named.
 if [ -z "$tag" ]; then
   tag=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
   [ -n "$tag" ] || die "could not learn the latest release of $repo (rate limited? pass --version qq-v<x.y.z>)"
 fi
 say "queqiao $tag ($os/$arch)"
 
-ext=""; [ "$os" = windows ] && ext=.exe
-asset="queqiao-cli-$os-$arch$ext"
-base="https://github.com/$repo/releases/download/$tag"
+asset="queqiao-$os-$arch"
+base="${QUEQIAO_DOWNLOAD_BASE:-https://github.com/$repo/releases/download/$tag}"
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 curl -fsSL -o "$tmp/$asset" "$base/$asset" || die "no $asset in release $tag"
@@ -90,14 +85,25 @@ case ":$PATH:" in
   *) say "note: $bin is not on PATH — add it, e.g. export PATH=\"$bin:\$PATH\"" ;;
 esac
 
+if [ "$service" = 1 ]; then
+  "$bin/queqiao" service install || say "queqiao service install failed; run queqiaod yourself: queqiao serve"
+fi
+
+# qq-v0.1.x kept magpie's data in queqiao's folder
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
+if [ -f "$cfg/queqiao/providers.json" ]; then
+  cat <<EOF
+
+  qq-v0.1.x data found in $cfg/queqiao: hand it to official magpie with
+    queqiao migrate --dry-run     # see what moves
+    queqiao migrate               # do it (queqiao migrate restore undoes it)
+EOF
+fi
+
 cat <<EOF
 
   next:
-    queqiao router init --preset cn    # routing groups + router.json (frontier/anthropic also exist)
-    queqiao serve                      # the gateway on 127.0.0.1:3425
-    queqiao router status              # config, mapping, recent decisions
-
-  queqiao's gateway and magpie's both use 127.0.0.1:3425: quit magpie
-  first — they never run at once. Plugins for Claude Code / Codex / Pi:
-  https://github.com/$repo#快速开始
+    queqiao router init --preset cn    # tier groups in magpie + router.json (frontier/anthropic also exist)
+    queqiao status                     # magpie, queqiaod, groups, recent decisions
+    codex -p queqiao                   # Codex through queqiaod; Claude Code and Pi: their plugins
 EOF

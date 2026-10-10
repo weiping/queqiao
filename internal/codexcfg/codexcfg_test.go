@@ -48,7 +48,7 @@ func TestCodexInitKeepsUserTablesAndIsIdempotent(t *testing.T) {
 	for _, want := range []string{
 		`model_provider = "queqiao"`,
 		`model = "group/queqiao"`,
-		`model_catalog_json = "` + filepath.Join(dir, "queqiao-models.json") + `"`,
+		`model_catalog_json = ` + quote(filepath.Join(dir, "queqiao-models.json")),
 		"[model_providers.queqiao]",
 		`base_url = "http://127.0.0.1:3426/v1"`,
 		`wire_api = "responses"`,

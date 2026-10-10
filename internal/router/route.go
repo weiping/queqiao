@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yetone/magpie/internal/magpie"
-	"github.com/yetone/magpie/internal/wire"
+	"github.com/weiping/queqiao/internal/magpie"
+	"github.com/weiping/queqiao/internal/wire"
 )
 
 // stickyTurn is the router's own in-turn record: within a turn every

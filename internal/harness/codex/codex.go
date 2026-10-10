@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/yetone/magpie/internal/harness"
+	"github.com/weiping/queqiao/internal/harness"
 )
 
 /**

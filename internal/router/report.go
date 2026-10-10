@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yetone/magpie/internal/magpie"
+	"github.com/weiping/queqiao/internal/magpie"
 )
 
 /**
@@ -160,7 +160,9 @@ func Aggregate(in ReportInput) Report {
 	}
 
 	for _, r := range in.Records {
-		if r.Session == "" || r.Time.Before(since) || r.Status >= 300 {
+		// a call magpie made and answered: not one that failed, nor a session
+		// it imported from an agent's own files (status 0), counted already
+		if r.Session == "" || r.Time.Before(since) || r.Status < 200 || r.Status >= 300 {
 			continue
 		}
 		arm, ok := armOf[r.Session]

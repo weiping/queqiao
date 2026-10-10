@@ -41,6 +41,16 @@
 
 worktree `.worktrees/qq-sp8`，分支 `qq/sp8-standalone`，基于 `queqiao`。S8.1–S8.3（Task 0–8）完成后先开一个 PR 合并，那时仍是 fork 形态，CI 不变；S8.4–S8.6（Task 9–15）再开第二个 PR。
 
+
+## 执行结果（2026-10-10）
+
+Task 0–14 已在沙箱内联执行完毕（逐任务 TDD），Task 15 的沙箱部分完成，本机验收与发版待用户执行。
+
+- **PR**：[#21](https://github.com/weiping/queqiao/pull/21)（Task 0–8，fork 形态）已合并；[#22](https://github.com/weiping/queqiao/pull/22)（Task 9–15 与终审修复）。
+- **终审**：独立审查（opus）给出 1 条严重、6 条重要、13 条次要。严重和重要的全部修复，每条先写失败测试；次要的延后，记在执行台账。
+- **CI 暴露的问题**：fork 的 proc 守卫测试（新增 `internal/runcmd`）、Windows 上 fetch-magpie 的哈希前缀、fixture 权限、首次完整 Windows 测试运行中 migrate 的 `C:` 路径 bug 和若干测试可移植性问题，均已修复。
+- 结果与设计差异见 spec 末尾的“执行结果”。
+
 ## Task 0：先行验证 V1–V4（不写产品代码）
 
 **Files:**

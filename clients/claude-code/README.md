@@ -26,11 +26,13 @@ routes them (or they fail like any other request would).
 ## Requirements
 
 - Claude Code **v2.1.287 or newer** (mod hooks).
-- The queqiao gateway running (`queqiao serve`) on this machine.
+- Official magpie running (its gateway on `127.0.0.1:3425`), and queqiaod
+  running (`queqiao service install`, or `queqiao serve`) on this machine.
 - Routing groups and `router.json` set up (`queqiao router init`).
 
-Not required: Node, Python, or `queqiao` on `PATH` — the mod talks to the
-gateway over HTTP only.
+Not required: Node, Python, or `queqiao` on `PATH` — the mod talks to
+queqiaod over HTTP only. Claude Code's own requests go straight to magpie,
+the mod switching the model to `group/qq-<tier>` each turn.
 
 ## Install
 
@@ -40,7 +42,7 @@ claude plugin install queqiao-router@queqiao
 ```
 
 The gateway URL defaults to `http://127.0.0.1:3426` (queqiaod); change it in the
-plugin's `gateway_url` setting if your gateway serves elsewhere.
+plugin's `gateway_url` setting if queqiaod listens elsewhere.
 
 ## Known limitations
 

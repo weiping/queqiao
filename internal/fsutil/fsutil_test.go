@@ -3,6 +3,7 @@ package fsutil
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -85,8 +86,8 @@ func TestWriteAtomicKeepsMode(t *testing.T) {
 	if err := WriteAtomic(p, []byte("new")); err != nil {
 		t.Fatal(err)
 	}
-	st, _ := os.Stat(p)
-	if st.Mode().Perm() != 0o600 {
+	// Windows has no permission bits to keep (only read-only)
+	if st, _ := os.Stat(p); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Fatalf("mode %v", st.Mode().Perm())
 	}
 	if b, _ := os.ReadFile(p); string(b) != "new" {
@@ -97,13 +98,15 @@ func TestWriteAtomicKeepsMode(t *testing.T) {
 func TestConfigDirHonoursXDGAndOverride(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("QUEQIAO_CONFIG_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 	if got, want := ConfigDir(), filepath.Join(home, ".config", "queqiao"); got != want {
 		t.Fatalf("default %q want %q", got, want)
 	}
-	t.Setenv("XDG_CONFIG_HOME", "/x")
-	if got := ConfigDir(); got != "/x/queqiao" {
+	x := filepath.Join(home, "x")
+	t.Setenv("XDG_CONFIG_HOME", x)
+	if got := ConfigDir(); got != filepath.Join(x, "queqiao") {
 		t.Fatalf("xdg %q", got)
 	}
 	t.Setenv("QUEQIAO_CONFIG_DIR", "/o")

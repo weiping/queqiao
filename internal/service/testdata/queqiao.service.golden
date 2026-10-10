@@ -1,0 +1,11 @@
+[Unit]
+Description=queqiaod, the queqiao model router beside magpie
+After=network.target
+
+[Service]
+ExecStart=/opt/q/queqiao serve
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
