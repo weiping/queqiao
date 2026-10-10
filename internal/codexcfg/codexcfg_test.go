@@ -82,35 +82,6 @@ func TestCodexInitCopiesBearerOnlyWhenPresent(t *testing.T) {
 	}
 }
 
-func TestCleanLegacyRemovesOnlyQueqiaoTables(t *testing.T) {
-	dir := home(t, "qq-v0.1.4-config.toml")
-	orig := read(t, filepath.Join(dir, "config.toml"))
-	changed, err := CleanLegacy(dir)
-	if err != nil || !changed {
-		t.Fatalf("changed %v err %v", changed, err)
-	}
-	got := read(t, filepath.Join(dir, "config.toml"))
-	want := "model_provider = \"magpie\"\napproval_policy = \"on-request\"\n\n[model_providers.magpie]\nname = \"magpie\"\nbase_url = \"http://127.0.0.1:3425/v1\"\n"
-	if got != want {
-		t.Fatalf("got\n%s\nwant\n%s", got, want)
-	}
-	if bak := read(t, filepath.Join(dir, "config.toml.queqiao-bak")); bak != orig {
-		t.Fatal("backup is not the original")
-	}
-	// a config with nothing of queqiao's is left alone
-	dir = home(t, "user-config.toml")
-	before := read(t, filepath.Join(dir, "config.toml"))
-	if changed, err := CleanLegacy(dir); err != nil || changed {
-		t.Fatalf("changed %v err %v", changed, err)
-	}
-	if read(t, filepath.Join(dir, "config.toml")) != before {
-		t.Fatal("user config touched")
-	}
-	if _, err := os.Stat(filepath.Join(dir, "config.toml.queqiao-bak")); !os.IsNotExist(err) {
-		t.Fatal("backup made with nothing to clean")
-	}
-}
-
 func TestCatalogShapeMatchesMagpies(t *testing.T) {
 	var magpie struct {
 		Models []map[string]json.RawMessage `json:"models"`

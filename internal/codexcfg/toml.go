@@ -39,18 +39,6 @@ func ReadTables(b []byte) (top []string, tables []Table) {
 	return top, tables
 }
 
-// join puts a file back together from ReadTables's parts.
-func join(top []string, tables []Table) []byte {
-	lines := append([]string(nil), top...)
-	for _, t := range tables {
-		lines = append(lines, t.Lines...)
-	}
-	if len(lines) == 0 {
-		return nil
-	}
-	return []byte(strings.Join(lines, "\n") + "\n")
-}
-
 // value is the raw value of key in lines ("" when absent), a basic string
 // unquoted.
 func value(lines []string, key string) string {

@@ -47,7 +47,7 @@ $s = Setup
 New-Item -ItemType Directory -Force -Path (Join-Path $s.T "home\.config\queqiao") | Out-Null
 Set-Content -Path (Join-Path $s.T "home\.config\queqiao\providers.json") -Value "{}"
 $r = Run $s "$(Join-Path $s.T 'fakebin');$sys"
-if ($r.Out -match "queqiao migrate --dry-run") { Ok "qq-v0.1.x data: migrate hint" } else { Bad "qq-v0.1.x data: no hint: $($r.Out)" }
+if ($r.Out -match "migrate") { Bad "old data: install still talks of migrating: $($r.Out)" } else { Ok "old data: no migrate hint" }
 
 $s = Setup
 Set-Content -NoNewline -Path (Join-Path $s.T "rel\checksums.txt") -Value ("0" * 64 + "  $($s.Asset)`n")

@@ -89,17 +89,6 @@ if [ "$service" = 1 ]; then
   "$bin/queqiao" service install || say "queqiao service install failed; run queqiaod yourself: queqiao serve"
 fi
 
-# qq-v0.1.x kept magpie's data in queqiao's folder
-cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
-if [ -f "$cfg/queqiao/providers.json" ]; then
-  cat <<EOF
-
-  qq-v0.1.x data found in $cfg/queqiao: hand it to official magpie with
-    queqiao migrate --dry-run     # see what moves
-    queqiao migrate               # do it (queqiao migrate restore undoes it)
-EOF
-fi
-
 cat <<EOF
 
   next:

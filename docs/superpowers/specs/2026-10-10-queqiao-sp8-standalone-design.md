@@ -382,3 +382,5 @@ qq-v0.1.x 把 magpie 的数据放在 `~/.config/queqiao`（`appdir.SetName("queq
 - 本机验收（真实 Jev、三个 Agent 的真实会话、迁移真实数据、Windows 普通账户上的计划任务）和 `qq-v0.2.0` 发版、`@weiping/pi-queqiao@0.2.0` 发布，需要在用户本机完成。
 - §12 风险表里“`queqiao status` 检查最近的 Codex 会话是否经过代理”没有实现；目前只能从 magpie usage 的 `requested_model` 看出（经过代理的是 `group/qq-<档>`，绕过的是 `group/queqiao`）。
 - 终审列出的 13 条次要问题延后处理，见计划执行台账的 `minor (deferred)` 行。
+
+> 2026-10-10 补记：SP9 删除了迁移功能（queqiao 的包从未公开发布，没有需要迁移的用户），本文 §3.2 第 6 条与 §7.1 作废。见 [SP9 规格](2026-10-10-magpie-bridge-sp9-rename-design.md)。

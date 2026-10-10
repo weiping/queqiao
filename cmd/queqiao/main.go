@@ -17,8 +17,6 @@ const usageText = `queqiao — per-turn model routing for coding agents, on offi
   queqiao serve                         run queqiaod in the foreground (the service runs it)
   queqiao service install|uninstall|status  run queqiaod at login
   queqiao status                        magpie, queqiaod, the tier groups and the latest decisions
-  queqiao migrate [--dry-run] [--yes]   hand a qq-v0.1.x install's data back to official magpie
-  queqiao migrate restore               undo the last migrate
   queqiao router init --preset <frontier|anthropic|cn> [--groups-only] [--force]
                                         tier groups in magpie, router.json, and the agents' wiring
   queqiao router check [--yes]          the tier groups exist and are big enough (--yes: live, billed)
@@ -47,8 +45,6 @@ func run(args []string) int {
 		err = serviceCmd(args[1:])
 	case "status":
 		err = statusCmd(args[1:])
-	case "migrate":
-		err = migrateCmd(args[1:])
 	case "router":
 		err = routerCmd(args[1:])
 	case "hook":

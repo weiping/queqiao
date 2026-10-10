@@ -75,14 +75,6 @@ try {
     if ($LASTEXITCODE -ne 0) { Write-Host "  queqiao service install failed; run queqiaod yourself: queqiao serve" }
   }
 
-  $cfg = if ($env:XDG_CONFIG_HOME) { $env:XDG_CONFIG_HOME } else { Join-Path $env:USERPROFILE ".config" }
-  if (Test-Path (Join-Path $cfg "queqiao\providers.json")) {
-    Write-Host ""
-    Write-Host "  qq-v0.1.x data found in $cfg\queqiao: hand it to official magpie with"
-    Write-Host "    queqiao migrate --dry-run     # see what moves"
-    Write-Host "    queqiao migrate               # do it (queqiao migrate restore undoes it)"
-  }
-
   Write-Host ""
   Write-Host "  next:"
   Write-Host "    queqiao router init --preset cn    # tier groups in magpie + router.json"

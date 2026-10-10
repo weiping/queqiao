@@ -43,7 +43,7 @@ rm -rf "$t"
 setup
 mkdir -p "$t/home/.config/queqiao"; echo '{}' > "$t/home/.config/queqiao/providers.json"
 if run "$t/fakebin:$sys"; then
-  grep -q 'queqiao migrate --dry-run' "$t/out" && ok "qq-v0.1.x data: migrate hint" || bad "qq-v0.1.x data: no migrate hint"
+  grep -q 'migrate' "$t/out" && bad "old data: install still talks of migrating" || ok "old data: no migrate hint"
 else bad "qq-v0.1.x data: failed: $(cat "$t/out")"; fi
 rm -rf "$t"
 

@@ -6,10 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/weiping/queqiao/internal/migrate"
 	"github.com/weiping/queqiao/internal/service"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,7 +16,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/weiping/queqiao/internal/fsutil"
 )
@@ -34,13 +31,13 @@ func TestNoMagpieDependency(t *testing.T) {
 }
 
 func TestCLIListsOnlyQueqiaoCommands(t *testing.T) {
-	for _, want := range []string{"queqiao serve", "queqiao service", "queqiao status", "queqiao migrate",
+	for _, want := range []string{"queqiao serve", "queqiao service", "queqiao status",
 		"queqiao router init", "queqiao router report", "queqiao router calibrate", "queqiao hook", "queqiao update", "queqiao version"} {
 		if !strings.Contains(usageText, want) {
 			t.Errorf("help lacks %q", want)
 		}
 	}
-	for _, gone := range []string{"queqiao provider", "queqiao group ", "queqiao tui", "queqiao web", "queqiao accounts"} {
+	for _, gone := range []string{"migrate", "queqiao provider", "queqiao group ", "queqiao tui", "queqiao web", "queqiao accounts"} {
 		if strings.Contains(usageText, gone) {
 			t.Errorf("help still has magpie's %q", gone)
 		}
@@ -211,45 +208,5 @@ func TestServiceStatusNotInstalled(t *testing.T) {
 	}
 	if !strings.Contains(out, "not installed") {
 		t.Fatalf("status said %q", out)
-	}
-}
-
-// --dry-run prints the plan and changes nothing; restore without a backup
-// says there is none.
-func TestMigrateDryRunAndRestoreCLI(t *testing.T) {
-	h := t.TempDir()
-	os.MkdirAll(filepath.Join(h, ".config", "queqiao"), 0o755)
-	os.WriteFile(filepath.Join(h, ".config", "queqiao", "providers.json"), []byte("{}"), 0o600)
-	old := migrateEnv
-	migrateEnv = func() migrate.Env {
-		return migrate.Env{Home: h, GOOS: "linux", ConfigHome: filepath.Join(h, ".config"), CacheHome: filepath.Join(h, ".cache"),
-			SystemCache: filepath.Join(h, ".cache"), Now: time.Unix(0, 0),
-			GatewayRunning: func(context.Context) bool { return false },
-			MagpieVersion:  func(context.Context) (string, error) { return "v", nil }}
-	}
-	t.Cleanup(func() { migrateEnv = old })
-	out, err := captureStdout(t, func() error { return migrateCmd([]string{"--dry-run"}) })
-	if err != nil || !strings.Contains(out, "providers.json") || !strings.Contains(out, "dry run") {
-		t.Fatalf("dry run: %v\n%s", err, out)
-	}
-	if _, err := os.Stat(filepath.Join(h, ".config", "magpie")); err == nil {
-		t.Fatal("dry run made magpie's folder")
-	}
-	if _, err := captureStdout(t, func() error { return migrateCmd([]string{"restore"}) }); err == nil {
-		t.Fatal("restore with no backup succeeded")
-	}
-}
-
-// Official magpie answering on 3425 counts as a running gateway too: a 404
-// on every path is still an answer.
-func TestGatewayRunningSeesAnyAnswer(t *testing.T) {
-	l, err := net.Listen("tcp", "127.0.0.1:3425")
-	if err != nil {
-		t.Skip("3425 is taken here:", err) // can't stand in for magpie's port
-	}
-	go http.Serve(l, http.NotFoundHandler())
-	t.Cleanup(func() { l.Close() })
-	if !gatewayRunning(context.Background()) {
-		t.Fatal("a 404-answering gateway on 3425 was not seen")
 	}
 }
