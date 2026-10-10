@@ -137,7 +137,7 @@ func Prepare(ctx context.Context, env Env) (Plan, error) {
 	}
 	// 4) the old app and its login item
 	for _, s := range oldApp(env) {
-		add(Step{Op: "move", From: s, To: filepath.Join(b, "removed", strings.TrimPrefix(filepath.ToSlash(s), "/"))})
+		add(Step{Op: "move", From: s, To: filepath.Join(b, "removed", underBackup(s))})
 	}
 	if env.GOOS == "windows" {
 		add(Step{Op: "note", Note: `the old app's login item is the "magpie" value under HKCU\Software\Microsoft\Windows\CurrentVersion\Run; run "magpie autostart on" to point it at official magpie`})
@@ -276,7 +276,7 @@ func Restore(ctx context.Context, env Env) error {
 			}
 			if exists(s.From) {
 				// made since the migration (magpie wrote its folder again)
-				if err := move(s.From, filepath.Join(aside, strings.TrimPrefix(filepath.ToSlash(s.From), "/"))); err != nil {
+				if err := move(s.From, filepath.Join(aside, underBackup(s.From))); err != nil {
 					return err
 				}
 			}
@@ -285,7 +285,7 @@ func Restore(ctx context.Context, env Env) error {
 			}
 		case "mkdir":
 			if exists(s.To) {
-				if err := move(s.To, filepath.Join(aside, strings.TrimPrefix(filepath.ToSlash(s.To), "/"))); err != nil {
+				if err := move(s.To, filepath.Join(aside, underBackup(s.To))); err != nil {
 					return err
 				}
 			}
@@ -304,6 +304,15 @@ func Restore(ctx context.Context, env Env) error {
 		}
 	}
 	return nil
+}
+
+// underBackup is where an absolute path sits inside a backup folder: the
+// path without its root, and on Windows its volume as a plain folder
+// (C:\\Users\\x → C\\Users\\x; a colon is no part of a folder name there).
+func underBackup(p string) string {
+	v := filepath.VolumeName(p)
+	rest := strings.TrimLeft(p[len(v):], `/\\`)
+	return filepath.Join(strings.Trim(strings.ReplaceAll(v, ":", ""), `/\\`), rest)
 }
 
 // latest is the newest sp8-* backup.
