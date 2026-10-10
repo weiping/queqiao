@@ -1,6 +1,6 @@
 {
   "name": "magpie-bridge",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": { "name": "weiping" },
   "description": "Route Claude Code requests across mbridge's fast/balanced/performance tiers: classifies each turn, rewrites the model, and reports tool stats back to the gateway.",
   "types": "./types/index.d.ts",
