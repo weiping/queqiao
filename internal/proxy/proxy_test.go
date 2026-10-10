@@ -421,3 +421,22 @@ func TestProxyFirstByteOverhead(t *testing.T) {
 		t.Fatalf("proxy adds %v at p95", p-d)
 	}
 }
+
+// queqiaod forwards from loopback, where magpie asks no key: listening
+// beyond this computer would hand its subscriptions to the network
+// (spec §5.5). Serve refuses before it opens the port.
+func TestServeRefusesNonLoopbackListen(t *testing.T) {
+	for _, addr := range []string{"0.0.0.0:0", ":0", "192.168.1.5:3426", "[::]:0"} {
+		err := Serve(context.Background(), addr, http.NotFoundHandler())
+		if err == nil || !strings.Contains(err.Error(), "loopback") {
+			t.Errorf("%s: %v", addr, err)
+		}
+	}
+	for _, addr := range []string{"127.0.0.1:0", "localhost:0", "[::1]:0"} {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // returns as soon as it serves
+		if err := Serve(ctx, addr, http.NotFoundHandler()); err != nil && strings.Contains(err.Error(), "loopback") {
+			t.Errorf("%s refused: %v", addr, err)
+		}
+	}
+}
