@@ -11,7 +11,7 @@
 /.worktrees/
 memory/
 .DS_Store
-.pi/url-cache/
+**/.pi/url-cache/
 
 node_modules/
 mbridge.app/
