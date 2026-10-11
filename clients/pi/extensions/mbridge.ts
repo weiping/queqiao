@@ -14,7 +14,7 @@ const PROVIDER = "magpie"
 const PR_LINK = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/
 const SUBAGENT_TOOLS = new Set(["subagent", "dispatch_agent"]) // S12
 
-type AgentMessageLite = { role?: string; content?: unknown }
+type AgentMessageLite = { role?: string; content?: unknown; stopReason?: string }
 
 // lastAssistantText is S14's reading of the turn's final assistant text:
 // a plain string, or the text parts of a content array joined.
@@ -32,6 +32,20 @@ function lastAssistantText(messages: AgentMessageLite[]): string | null {
       return text === "" ? null : text
     }
     return null
+  }
+  return null
+}
+
+// finalAnswer is SP11's previous answer: the turn's final assistant text, or
+// null when the turn ended without one (interrupted, an error, a last
+// message with no text). The answer before it is not what the user now
+// points at.
+function finalAnswer(messages: AgentMessageLite[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m?.role !== "assistant") continue
+    if (m.stopReason === "aborted" || m.stopReason === "error") return null
+    return lastAssistantText([m])
   }
   return null
 }
@@ -123,7 +137,8 @@ export default function (pi: ExtensionAPI): void {
   // Fire and forget: nothing here waits on the gateway.
   pi.on("agent_end", (event) => {
     const answer = lastAssistantText((event as { messages?: AgentMessageLite[] }).messages ?? [])
-    if (answer !== null) lastAnswer = answer // SP11: for the next /turn, whatever this turn was
+    // SP11: for the next /turn, whatever tier this turn was; none if it ended without one
+    lastAnswer = finalAnswer((event as { messages?: AgentMessageLite[] }).messages ?? [])
     if (manualPinned || session === "" || lastTier === null || lastTier === "performance") return
     if (answer === null) return
     client.review({ session, prompt: lastPrompt, answer })

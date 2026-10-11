@@ -232,9 +232,14 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    // SP11: keep the main session's final answer for the next /turn
-    if (e.agentId === undefined && !e.isAborted && typeof e.answer === 'string' && e.answer !== '') {
-      const answer = clientCut(e.answer)
+    // SP11: keep the main session's final answer for the next /turn. A main
+    // turn that ends without one (interrupted, refused, an API error) clears
+    // it: the answer before is not what the user now points at.
+    if (e.agentId === undefined) {
+      const answer =
+        e.reason === 'answer' && !e.isAborted && typeof e.answer === 'string' && e.answer !== ''
+          ? clientCut(e.answer)
+          : null
       await update($, stLastAnswer, () => answer)
     }
     // SP7 §3.5: the review goes out after a routed main turn that did not

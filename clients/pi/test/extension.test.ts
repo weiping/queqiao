@@ -104,6 +104,32 @@ describe("mbridge extension (SP7 end-of-turn review)", () => {
     expect(turns[1].previous_answer).toBe("提议：改三个工作流")
   })
 
+  it("an interrupted or failed turn leaves no previous answer (SP11)", async () => {
+    const f = fakePi()
+    gw(fetchMock, [
+      { tier: "fast", group: "group/mb-fast" },
+      { tier: "fast", group: "group/mb-fast" },
+      { tier: "fast", group: "group/mb-fast" },
+      { tier: "fast", group: "group/mb-fast" },
+    ])
+    ;(await import("../extensions/mbridge.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    const end = (text: string, stopReason: string) =>
+      f.fire("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason, content: [{ type: "text", text }] }] })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "重构方案？" })
+    await end("方案 A：大重构", "stop")
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "先看下 B" })
+    await end("B 的半截", "aborted")
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "按这个思路做" })
+    await f.fire("agent_end", { type: "agent_end", messages: [{ role: "assistant", content: [{ type: "toolCall", id: "c1" }] }] })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "继续" })
+    const turns = bodies(fetchMock, "/v1/bridge/turn")
+    expect(turns.length).toBe(4)
+    expect(turns[1].previous_answer).toBe("方案 A：大重构")
+    expect(turns[2].previous_answer).toBeUndefined()
+    expect(turns[3].previous_answer).toBeUndefined()
+  })
+
   it("a manually pinned session posts no review", async () => {
     const f = fakePi()
     gw(fetchMock, [{ tier: "fast", group: "group/mb-fast" }])

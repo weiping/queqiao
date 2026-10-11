@@ -50,6 +50,9 @@ func UserPrompt(ctx context.Context, stdin []byte, c *harness.Client) ([]byte, e
 	if in.SessionID == "" || in.Prompt == "" {
 		return nil, nil
 	}
+	// SP11: the answer Stop kept is good for this one prompt. Taking it
+	// now means a turn that never reaches Stop (interrupted) leaves none.
+	prevAnswer, hasPrev := takeAnswerState(in.SessionID)
 	if in.Model != "" && in.Model != routingGroup {
 		// the user pinned a model (or Codex switched): report, don't route.
 		// dedup happens in the report, not here (§6.9 note).
@@ -78,8 +81,8 @@ func UserPrompt(ctx context.Context, stdin []byte, c *harness.Client) ([]byte, e
 		body["parent_session"] = string(m[1])
 	}
 	// SP11: the reply before this prompt, which Stop kept
-	if prev, ok := readAnswerState(in.SessionID); ok {
-		body["previous_answer"] = prev
+	if hasPrev {
+		body["previous_answer"] = prevAnswer
 	}
 	// SP7 §3.5: Stop gets no prompt of its own, so leave this turn's words
 	// where Stop looks for them.
@@ -147,7 +150,12 @@ func Stop(ctx context.Context, stdin []byte, c *harness.Client) ([]byte, error) 
 	if err := json.Unmarshal(stdin, &in); err != nil {
 		return nil, nil
 	}
-	if in.SessionID == "" || in.LastAssistantMessage == "" {
+	if in.SessionID == "" {
+		return nil, nil
+	}
+	if in.LastAssistantMessage == "" {
+		// SP11: a turn that ended with no answer leaves none for the next
+		_ = os.Remove(answerStatePath(in.SessionID))
 		return nil, nil
 	}
 	// SP11: keep the answer for the next prompt's /turn, routed or not
@@ -262,6 +270,13 @@ func writeAnswerState(session, answer string) {
 
 // readAnswerState is the session's last answer; a missing or unreadable
 // file, or another session's, is a miss.
+// takeAnswerState reads the session's kept answer and removes the file.
+func takeAnswerState(session string) (string, bool) {
+	answer, ok := readAnswerState(session)
+	_ = os.Remove(answerStatePath(session))
+	return answer, ok
+}
+
 func readAnswerState(session string) (string, bool) {
 	b, err := os.ReadFile(answerStatePath(session))
 	if err != nil {

@@ -425,3 +425,55 @@ func TestPreviousAnswerSentIsBounded(t *testing.T) {
 		t.Fatalf("sent %d runes", len(got))
 	}
 }
+
+// An answer is good for one prompt. A turn that ends without a Stop
+// (interrupted) or with an empty answer leaves none for the turn after it:
+// the answer before is not what the user now points at.
+func TestPreviousAnswerIsOnlyForTheNextPrompt(t *testing.T) {
+	isolateTemp(t)
+	fast := map[string]any{"tier": "fast", "group": "group/mb-fast"}
+	f, c := newFakeGateway(t, fast, fast, fast, fast)
+	turn := func(id, prompt string) {
+		in := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"` + id + `","prompt":"` + prompt + `","model":"group/mbridge"}`)
+		if _, err := UserPrompt(context.Background(), in, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := func(id, answer string) {
+		in := []byte(`{"hook_event_name":"Stop","session_id":"s1","turn_id":"` + id + `","last_assistant_message":"` + answer + `"}`)
+		if _, err := Stop(context.Background(), in, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	turn("t1", "重构方案？")
+	stop("t1", "方案 A：大重构")
+	turn("t2", "先看下 B") // interrupted: no Stop
+	turn("t3", "按这个思路做")
+	stop("t3", "") // ended with no answer
+	turn("t4", "继续")
+
+	turns := f.at("/v1/bridge/turn")
+	if len(turns) != 4 {
+		t.Fatalf("turns: %d", len(turns))
+	}
+	if turns[1]["previous_answer"] != "方案 A：大重构" {
+		t.Fatalf("t2: %v", turns[1])
+	}
+	for _, i := range []int{2, 3} {
+		if v, ok := turns[i]["previous_answer"]; ok {
+			t.Fatalf("t%d got a stale answer %v", i+1, v)
+		}
+	}
+}
+
+// A file that names another session is never sent, even at this session's
+// path.
+func TestAnswerStateOfAnotherSessionIsIgnored(t *testing.T) {
+	isolateTemp(t)
+	if err := os.WriteFile(answerStatePath("s1"), []byte(`{"session":"s9","answer":"别人的"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := readAnswerState("s1"); ok {
+		t.Fatalf("read %q", got)
+	}
+}
