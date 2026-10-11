@@ -143,6 +143,9 @@ func routerInit(args []string) error {
 	for _, g := range groups {
 		if have[g.id] {
 			fmt.Println(muted.Render("  kept"), "group", g.id, muted.Render("(already in magpie; --force puts the preset's members back)"))
+			if kept, err := mc.Group(ctx, g.id); err == nil && !kept.Served() {
+				explainUnlisted(ctx, mc, "", g.id)
+			}
 			continue
 		}
 		if err := mc.GroupAdd(ctx, g.id, g.members); err != nil {
@@ -374,7 +377,7 @@ func routerCheck(args []string) error {
 		id := magpie.GroupPrefix + cfg.Tiers[tier].Group
 		m, ok := byID[id]
 		if !ok {
-			fmt.Println(amber.Render("✗"), tier, "group missing in magpie:", id)
+			explainUnlisted(context.Background(), magpieFor(), string(tier)+" group", cfg.Tiers[tier].Group)
 			failed = true
 			continue
 		}

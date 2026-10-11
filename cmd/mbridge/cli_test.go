@@ -210,3 +210,60 @@ func TestServiceStatusNotInstalled(t *testing.T) {
 		t.Fatalf("status said %q", out)
 	}
 }
+
+// 10-11: mb-perf's two Copilot members were skipped (Copilot off), magpie
+// dropped the group from /v1/models, and router check said only "group
+// missing in magpie". It says why, and how to fix it.
+func TestRouterCheckSaysWhyAGroupIsntServed(t *testing.T) {
+	copilotOff := func(t *testing.T) *fakeMag {
+		f := withFakeMagpie(t)
+		f.groups["mb-fast"], f.groups["mb-balanced"] = []string{"a/x"}, []string{"a/y"}
+		f.groups["mb-perf"] = []string{"copilot/gpt-6-astra:low", "copilot/claude-opus-5.5"}
+		f.unserved["copilot/gpt-6-astra:low"] = "Copilot is off now, skipped"
+		f.unserved["copilot/claude-opus-5.5"] = "Copilot is off now, skipped"
+		f.order = []string{"mb-fast", "mb-balanced", "mb-perf"}
+		return f
+	}
+	t.Run("router check", func(t *testing.T) {
+		copilotOff(t)
+		writeRouterJSON(t, "127.0.0.1:1")
+		out, err := captureStdout(t, func() error { return routerCheck(nil) })
+		if err == nil {
+			t.Fatalf("check passed:\n%s", out)
+		}
+		for _, want := range []string{
+			"performance group group/mb-perf: magpie serves none of its models",
+			"copilot/gpt-6-astra:low: Copilot is off now, skipped",
+			"copilot/claude-opus-5.5: Copilot is off now, skipped",
+			"magpie group set mb-perf models=",
+		} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("check lacks %q:\n%s", want, out)
+			}
+		}
+		if strings.Contains(out, "missing") {
+			t.Fatalf("an unserved group called missing:\n%s", out)
+		}
+	})
+	t.Run("status", func(t *testing.T) {
+		copilotOff(t)
+		writeRouterJSON(t, fakeDaemon(t))
+		out, _ := captureStdout(t, func() error { return statusCmd(nil) })
+		for _, want := range []string{"group/mb-perf: magpie serves none of its models", "Copilot is off now, skipped"} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("status lacks %q:\n%s", want, out)
+			}
+		}
+	})
+	t.Run("a group magpie really lacks is still missing", func(t *testing.T) {
+		f := withFakeMagpie(t)
+		f.groups["mb-fast"], f.groups["mb-balanced"] = []string{"a/x"}, []string{"a/y"}
+		f.order = []string{"mb-fast", "mb-balanced"}
+		writeRouterJSON(t, "127.0.0.1:1")
+		out, _ := captureStdout(t, func() error { return routerCheck(nil) })
+		if !strings.Contains(out, "performance group missing in magpie: group/mb-perf") ||
+			!strings.Contains(out, "mbridge router init --groups-only --force") {
+			t.Fatalf("check:\n%s", out)
+		}
+	})
+}

@@ -108,6 +108,44 @@ func TestContractModelsListsGroups(t *testing.T) {
 	}
 }
 
+// `magpie group <id>` lists the members and says which magpie skips and
+// why; a group with none served is gone from /v1/models (10-11: Copilot
+// off left mb-perf empty, and router check only said "missing").
+func TestContractGroupShowsUnservedMembers(t *testing.T) {
+	m, c := start(t)
+	ctx := context.Background()
+	if err := c.GroupAdd(ctx, "mb-perf", []string{"fake/m2"}); err != nil {
+		t.Fatal(err)
+	}
+	g, err := c.Group(ctx, "mb-perf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Members) != 1 || g.Members[0].Model != "fake/m2" || !g.Served() {
+		t.Fatalf("served group read as %+v", g)
+	}
+	if out, err := m.Run("provider", "off", "fake"); err != nil {
+		t.Fatalf("provider off: %v\n%s", err, out)
+	}
+	g, err = c.Group(ctx, "mb-perf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Served() || len(g.Members) != 1 || g.Members[0].NotServed == "" {
+		t.Fatalf("unserved group read as %+v", g)
+	}
+	ids, err := c.Models(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(ids, magpie.GroupPrefix+"mb-perf") {
+		t.Fatalf("/v1/models still lists the unserved group: %v", ids)
+	}
+	if _, err := c.Group(ctx, "mb-none"); !errors.Is(err, magpie.ErrNoGroup) {
+		t.Fatalf("missing group: %v", err)
+	}
+}
+
 // /v1/systemone exists on loopback without a key, and a decider magpie
 // lacks is a clear 4xx with magpie's own words, not a silent hang.
 func TestContractSystemOneUnknownDeciderIsClearError(t *testing.T) {
