@@ -102,6 +102,7 @@ func (r *Router) Route(ctx context.Context, h http.Header, body []byte, req *wir
 	res := r.deps.Decide(ctx, DecideInput{
 		Session: session, Key: key, Harness: harness, Agent: "gateway",
 		Prompt: wire.UserText(req), TurnID: turnID, FirstWords: words,
+		PreviousAnswer: wire.PreviousAnswer(req), // SP11
 	})
 	r.hold(key, turn, string(res.Tier))
 	return routeFor(cfg, Route{Tier: res.Tier, Reason: res.Reason, Source: res.Source, Arm: res.Arm})

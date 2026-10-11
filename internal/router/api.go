@@ -44,6 +44,8 @@ type DecideInput struct {
 	ToolCalls     int
 	ToolFailures  int
 	Criteria      map[Tier]string // the request cwd's project criteria, over the config's
+	// PreviousAnswer is the assistant's reply before Prompt (SP11)
+	PreviousAnswer string
 }
 
 // Decided is Decide's result, with what the response and event carry.
@@ -126,10 +128,11 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 	source := "default"
 	if !fixed && !in.PlanMode && d.Classify != nil && in.Prompt != "" {
 		q := Question{
-			Message:      in.Prompt,
-			PreviousTier: "",
-			Agent:        in.Agent,
-			Criteria:     in.Criteria,
+			Message:        in.Prompt,
+			PreviousTier:   "",
+			Agent:          in.Agent,
+			Criteria:       in.Criteria,
+			PreviousAnswer: in.PreviousAnswer,
 		}
 		if q.Criteria == nil {
 			q.Criteria = criteriaOf(cfg)
@@ -260,6 +263,8 @@ func (d *Deps) turn(w http.ResponseWriter, r *http.Request) {
 		ToolCalls     *int   `json:"tool_calls"`
 		ToolFailures  *int   `json:"tool_failures"`
 		StoreHint     bool   `json:"store_hint"`
+		// SP11: the assistant's reply before this prompt
+		PreviousAnswer string `json:"previous_answer"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "not a /turn request", http.StatusBadRequest)
@@ -277,7 +282,8 @@ func (d *Deps) turn(w http.ResponseWriter, r *http.Request) {
 		Session: req.Session, Key: req.Session, Harness: req.Harness,
 		Agent: req.Agent, Prompt: req.Prompt, TurnID: req.TurnID,
 		PlanMode: req.PlanMode, ParentSession: req.ParentSession,
-		Criteria: ProjectCriteria(req.Cwd), // §4.6: the project file retunes criteria
+		Criteria:       ProjectCriteria(req.Cwd), // §4.6: the project file retunes criteria
+		PreviousAnswer: req.PreviousAnswer,
 	}
 	if req.ToolCalls != nil && req.ToolFailures != nil {
 		in.HasToolStats, in.ToolCalls, in.ToolFailures = true, *req.ToolCalls, *req.ToolFailures

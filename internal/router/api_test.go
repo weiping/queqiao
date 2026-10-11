@@ -496,3 +496,20 @@ func TestStatusReportsTurnBudget(t *testing.T) {
 		t.Fatalf("turn_budget_ms %d, want 4000", out.TurnBudgetMs)
 	}
 }
+
+// SP11: the reply before this turn reaches the classifier.
+func TestTurnPassesThePreviousAnswer(t *testing.T) {
+	d, fc, _ := testDeps(t, &Verdict{Tier: TierPerformance, TierConfidence: 0.9})
+	srv := testServer(d)
+	defer srv.Close()
+	res := postJSON(t, srv.URL+"/v1/bridge/turn", map[string]any{
+		"session": "s1", "prompt": "按这个思路修改", "harness": "claude-code",
+		"previous_answer": "提议：改三个工作流",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	if len(fc.questions) != 1 || fc.questions[0].PreviousAnswer != "提议：改三个工作流" {
+		t.Fatalf("questions: %+v", fc.questions)
+	}
+}

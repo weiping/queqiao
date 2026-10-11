@@ -24,6 +24,21 @@ type Question struct {
 	PreviousTier Tier
 	Agent        string
 	Criteria     map[Tier]string // tier → criteria text (from Config.Tiers)
+	// PreviousAnswer is the assistant's reply before Message (SP11): "do as
+	// you proposed" carries the work that reply proposed. Empty on a
+	// session's first turn.
+	PreviousAnswer string
+}
+
+// cutPreviousAnswer keeps a long reply's first 400 and last 800 runes
+// (SP11): a proposal's gist and its closing question sit at the end.
+func cutPreviousAnswer(s string) string {
+	const head, tail = 400, 800
+	s = strings.TrimSpace(s)
+	if rs := []rune(s); len(rs) > head+tail {
+		return string(rs[:head]) + "\n…\n" + string(rs[len(rs)-tail:])
+	}
+	return s
 }
 
 // Classifier picks a tier for a question, or fails (timeout included).
@@ -123,6 +138,12 @@ func (c *classifier) classifyJev(ctx context.Context, q Question) (*Verdict, err
 	if q.PreviousTier != "" {
 		state["previous_tier"] = string(q.PreviousTier)
 		instructions += carryOn
+	}
+	if prev := cutPreviousAnswer(q.PreviousAnswer); prev != "" {
+		state["previous_answer"] = prev
+		instructions += " `previous_answer` is the assistant's reply just before the `message`. " +
+			"When the `message` only agrees to it or points at it (do as proposed, go ahead, " +
+			"use option 2), judge the work that reply proposes."
 	}
 	criteria := make(map[string]string, len(q.Criteria))
 	for tier, text := range q.Criteria {
@@ -294,7 +315,7 @@ func (c *classifier) askPlainSchema(ctx context.Context, q Question) (*Verdict, 
 	for i, tier := range tierOrder {
 		fmt.Fprintf(&criteria, "%d. %s\n", i+1, q.Criteria[tier])
 	}
-	prompt := "You route a user's message to a coding assistant. Choose the tier that fits best.\n" + criteria.String() + "\nMessage:\n" + q.Message
+	prompt := "You route a user's message to a coding assistant. Choose the tier that fits best.\n" + criteria.String() + previousAnswerPart(q) + "\nMessage:\n" + q.Message
 	body := fmt.Sprintf(`{"model":%q,"max_tokens":400,%s,"messages":[{"role":"user","content":%s}]}`,
 		c.cfg.Classifier, tierVerdictSchema, jsonString(prompt))
 	v, err := c.parseFrom(ctx, body)
@@ -349,6 +370,7 @@ func (c *classifier) classifyPlainOld(ctx context.Context, q Question) (*Verdict
 	for i, tier := range tierOrder {
 		fmt.Fprintf(&prompt, "%d. %s\n", i+1, q.Criteria[tier])
 	}
+	prompt.WriteString(previousAnswerPart(q))
 	prompt.WriteString("\nMessage:\n" + q.Message)
 
 	reply, err := c.askPlain(ctx, prompt.String())
@@ -372,4 +394,13 @@ func (c *classifier) classifyPlainOld(ctx context.Context, q Question) (*Verdict
 		v.Dissatisfied = 1
 	}
 	return v, nil
+}
+
+// previousAnswerPart is the plain prompts' line for SP11's previous answer.
+func previousAnswerPart(q Question) string {
+	prev := cutPreviousAnswer(q.PreviousAnswer)
+	if prev == "" {
+		return ""
+	}
+	return "\nThe assistant's reply just before the message (when the message only agrees to it or points at it, judge the work it proposes):\n" + prev + "\n"
 }
