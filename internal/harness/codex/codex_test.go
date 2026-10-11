@@ -347,3 +347,56 @@ func TestCodexTurnHooksOutliveTheTurnBudget(t *testing.T) {
 		}
 	}
 }
+
+// SP11: Stop keeps the turn's final answer, and the next UserPromptSubmit
+// sends it to /turn as previous_answer.
+func TestNextTurnCarriesThePreviousAnswer(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	f, c := newFakeGateway(t,
+		map[string]any{"tier": "fast", "group": "group/mb-fast"},
+		map[string]any{"tier": "performance", "group": "group/mb-perf"})
+	turn := func(id, prompt string) {
+		in := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"` + id + `","prompt":"` + prompt + `","model":"group/mbridge"}`)
+		if _, err := UserPrompt(context.Background(), in, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	turn("t1", "CI 还要吗？")
+	stop := []byte(`{"hook_event_name":"Stop","session_id":"s1","turn_id":"t1","last_assistant_message":"提议：改三个工作流"}`)
+	if _, err := Stop(context.Background(), stop, c); err != nil {
+		t.Fatal(err)
+	}
+	turn("t2", "按这个思路修改")
+
+	turns := f.at("/v1/bridge/turn")
+	if len(turns) != 2 {
+		t.Fatalf("turns: %d", len(turns))
+	}
+	if _, ok := turns[0]["previous_answer"]; ok {
+		t.Fatalf("first turn sent a previous answer: %v", turns[0])
+	}
+	if turns[1]["previous_answer"] != "提议：改三个工作流" {
+		t.Fatalf("second turn: %v", turns[1])
+	}
+
+	// another session never reads s1's answer
+	in := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s2","turn_id":"u1","prompt":"hi","model":"group/mbridge"}`)
+	f.turns = append(f.turns, map[string]any{"tier": "fast", "group": "group/mb-fast"})
+	if _, err := UserPrompt(context.Background(), in, c); err != nil {
+		t.Fatal(err)
+	}
+	if last := f.at("/v1/bridge/turn"); last[len(last)-1]["previous_answer"] != nil {
+		t.Fatalf("s2 got s1's answer: %v", last[len(last)-1])
+	}
+}
+
+// A long answer is cut to 4000 characters before it is sent.
+func TestPreviousAnswerSentIsBounded(t *testing.T) {
+	long := ""
+	for len([]rune(long)) < 9000 {
+		long += "改动说明。"
+	}
+	if got := []rune(clientCut(long)); len(got) > 4010 {
+		t.Fatalf("sent %d runes", len(got))
+	}
+}

@@ -77,6 +77,10 @@ func UserPrompt(ctx context.Context, stdin []byte, c *harness.Client) ([]byte, e
 	if m := forkedFrom.FindSubmatch(stdin); m != nil {
 		body["parent_session"] = string(m[1])
 	}
+	// SP11: the reply before this prompt, which Stop kept
+	if prev, ok := readAnswerState(in.SessionID); ok {
+		body["previous_answer"] = prev
+	}
 	// SP7 §3.5: Stop gets no prompt of its own, so leave this turn's words
 	// where Stop looks for them.
 	writePromptState(promptState{Session: in.SessionID, TurnID: in.TurnID, Prompt: in.Prompt})
@@ -146,6 +150,8 @@ func Stop(ctx context.Context, stdin []byte, c *harness.Client) ([]byte, error) 
 	if in.SessionID == "" || in.LastAssistantMessage == "" {
 		return nil, nil
 	}
+	// SP11: keep the answer for the next prompt's /turn, routed or not
+	writeAnswerState(in.SessionID, in.LastAssistantMessage)
 	prompt, ok := readPromptState(in.SessionID, in.TurnID)
 	if !ok {
 		return nil, nil
@@ -233,4 +239,47 @@ func PostBash(ctx context.Context, stdin []byte, c *harness.Client) ([]byte, err
 		"value":   string(m),
 	})
 	return nil, nil
+}
+
+// answerStatePath is $TMPDIR/mbridge-codex-<session>-answer.json: the last
+// answer Stop saw, for the next UserPromptSubmit (SP11).
+func answerStatePath(session string) string {
+	return filepath.Join(os.TempDir(), "mbridge-codex-"+session+"-answer.json")
+}
+
+type answerState struct {
+	Session string `json:"session"`
+	Answer  string `json:"answer"`
+}
+
+func writeAnswerState(session, answer string) {
+	b, err := json.Marshal(answerState{Session: session, Answer: clientCut(answer)})
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(answerStatePath(session), b, 0o600)
+}
+
+// readAnswerState is the session's last answer; a missing or unreadable
+// file, or another session's, is a miss.
+func readAnswerState(session string) (string, bool) {
+	b, err := os.ReadFile(answerStatePath(session))
+	if err != nil {
+		return "", false
+	}
+	var st answerState
+	if json.Unmarshal(b, &st) != nil || st.Session != session || st.Answer == "" {
+		return "", false
+	}
+	return st.Answer, true
+}
+
+// clientCut bounds what a client sends as previous_answer (SP11): at most
+// 4000 characters, the first 1000 and the last 3000; mbridge cuts further.
+func clientCut(s string) string {
+	const head, tail = 1000, 3000
+	if rs := []rune(s); len(rs) > head+tail {
+		return string(rs[:head]) + "\n…\n" + string(rs[len(rs)-tail:])
+	}
+	return s
 }
