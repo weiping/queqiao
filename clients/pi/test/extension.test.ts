@@ -90,6 +90,20 @@ describe("mbridge extension (SP7 end-of-turn review)", () => {
     })
   })
 
+  it("the next /turn carries the previous answer, a performance turn's too (SP11)", async () => {
+    const f = fakePi()
+    gw(fetchMock, [{ tier: "performance", group: "group/mb-balanced" }])
+    ;(await import("../extensions/mbridge.js")).default(f.pi as never)
+    f.fire("session_start", { type: "session_start", reason: "startup" })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "CI 还要吗？" })
+    await f.fire("agent_end", { type: "agent_end", messages: [{ role: "assistant", content: [{ type: "text", text: "提议：改三个工作流" }] }] })
+    await f.fire("before_agent_start", { type: "before_agent_start", prompt: "按这个思路修改" })
+    const turns = bodies(fetchMock, "/v1/bridge/turn")
+    expect(turns.length).toBe(2)
+    expect(turns[0].previous_answer).toBeUndefined()
+    expect(turns[1].previous_answer).toBe("提议：改三个工作流")
+  })
+
   it("a manually pinned session posts no review", async () => {
     const f = fakePi()
     gw(fetchMock, [{ tier: "fast", group: "group/mb-fast" }])

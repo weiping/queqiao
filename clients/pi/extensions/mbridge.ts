@@ -51,6 +51,7 @@ export default function (pi: ExtensionAPI): void {
   let parentSent = false
   let lastTier: string | null = null
   let lastPrompt = "" // this turn's words, for the end-of-turn review (SP7)
+  let lastAnswer: string | null = null // the previous final answer, for the next /turn (SP11)
   let lastAutoModel = "" // our own setModel, told apart from a manual switch
   let manualPinned = false
   // SP8: the main session's tool results since the last /turn; mbridge no
@@ -74,6 +75,7 @@ export default function (pi: ExtensionAPI): void {
     void client.learnBudget() // SP10: how long a turn may wait
     lastTier = null
     lastPrompt = ""
+    lastAnswer = null
     lastAutoModel = ""
     manualPinned = false
     tools = null
@@ -95,6 +97,7 @@ export default function (pi: ExtensionAPI): void {
       parentSession: parent !== null && !parentSent ? parent : undefined,
       toolCalls: tools?.calls,
       toolFailures: tools?.failures,
+      previousAnswer: lastAnswer ?? undefined, // SP11
     })
     tools = { calls: 0, failures: 0 }
     if (parent !== null) parentSent = true
@@ -119,8 +122,9 @@ export default function (pi: ExtensionAPI): void {
   // ask the gateway to judge whether the answer left the request open.
   // Fire and forget: nothing here waits on the gateway.
   pi.on("agent_end", (event) => {
-    if (manualPinned || session === "" || lastTier === null || lastTier === "performance") return
     const answer = lastAssistantText((event as { messages?: AgentMessageLite[] }).messages ?? [])
+    if (answer !== null) lastAnswer = answer // SP11: for the next /turn, whatever this turn was
+    if (manualPinned || session === "" || lastTier === null || lastTier === "performance") return
     if (answer === null) return
     client.review({ session, prompt: lastPrompt, answer })
   })
