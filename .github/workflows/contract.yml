@@ -1,16 +1,15 @@
 name: magpie contract
 
 # mbridge relies on official magpie's CLI and HTTP surfaces (SP8 §2.2).
-# Every day, and on every change here, the contract and end-to-end tests
-# run against the newest magpie release. A scheduled run that fails opens
-# an issue (label: contract) for that magpie version, or comments on the
-# one already open.
+# Every day the contract and end-to-end tests run against the newest magpie
+# release on all three platforms; a pull request runs the same tests on
+# ubuntu only, so a change gets a fast answer about what magpie serves. A
+# scheduled run that fails opens an issue (label: contract) for that magpie
+# version, or comments on the one already open.
 
 on:
   schedule:
     - cron: '17 1 * * *' # 09:17 Beijing
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -24,7 +23,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Every day, and by hand, on all three; a pull request on ubuntu only.
+        os: >-
+          ${{ github.event_name == 'pull_request'
+          && fromJSON('["ubuntu-latest"]')
+          || fromJSON('["ubuntu-latest","macos-latest","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
