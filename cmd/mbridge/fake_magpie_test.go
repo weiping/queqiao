@@ -26,8 +26,9 @@ type fakeMag struct {
 	groups    map[string][]string
 	groupsErr bool
 	order     []string
-	served    []string       // provider/model ids
-	contexts  map[string]int // model or group id → context window
+	served    []string          // provider/model ids
+	unserved  map[string]string // provider/model → magpie's "not served" reason
+	contexts  map[string]int    // model or group id → context window
 	usageCSV  string
 	version   string
 	agentErr  string
@@ -44,7 +45,7 @@ func withFakeMagpie(t *testing.T, served ...string) *fakeMag {
 	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("MBRIDGE_CONFIG_DIR", filepath.Join(home, ".config", "magpie-bridge"))
-	f := &fakeMag{groups: map[string][]string{}, served: served, contexts: map[string]int{}, agents: map[string]string{}, version: "magpie v0.1.1100"}
+	f := &fakeMag{groups: map[string][]string{}, unserved: map[string]string{}, served: served, contexts: map[string]int{}, agents: map[string]string{}, version: "magpie v0.1.1100"}
 	f.srv = httptest.NewServer(http.HandlerFunc(f.serveHTTP))
 	t.Cleanup(f.srv.Close)
 	old := newMagpie
@@ -73,6 +74,9 @@ func (f *fakeMag) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			data = append(data, map[string]any{"id": id, "context_window": f.contexts[id]})
 		}
 		for _, g := range f.order {
+			if !f.groupServed(g) {
+				continue // magpie leaves a group with no member served out
+			}
 			data = append(data, map[string]any{"id": "group/" + g, "context_window": f.contexts["group/"+g]})
 		}
 		json.NewEncoder(w).Encode(map[string]any{"data": data})
@@ -104,6 +108,25 @@ func (f *fakeMag) run(_ context.Context, name string, args ...string) ([]byte, e
 			fmt.Fprintf(&b, "  %s  group/%s  order  %s\n", id, id, strings.Join(f.groups[id], ", "))
 		}
 		return []byte(b.String()), nil
+	case len(args) == 2 && args[0] == "group":
+		members, ok := f.groups[args[1]]
+		if !ok {
+			return []byte(fmt.Sprintf("magpie: no group %q (groups: %s)\n", args[1], strings.Join(f.order, ", "))), errors.New("exit status 1")
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "  %s  group/%s\n  routing   order\n  stays     auto\n", args[1], args[1])
+		for i, m := range members {
+			lead := "            "
+			if i == 0 {
+				lead = "  models    "
+			}
+			note := m
+			if why, off := f.unserved[m]; off {
+				note = "not served: " + why
+			}
+			fmt.Fprintf(&b, "%s%d %s  %s\n", lead, i+1, m, note)
+		}
+		return []byte(b.String()), nil
 	case len(args) >= 2 && args[0] == "usage":
 		return []byte(f.usageCSV), nil
 	case len(args) == 1 && args[0] == "version":
@@ -116,6 +139,16 @@ func (f *fakeMag) run(_ context.Context, name string, args ...string) ([]byte, e
 		return []byte("✓ " + args[0] + " model " + args[1]), nil
 	}
 	return nil, fmt.Errorf("fake magpie: %v", args)
+}
+
+// groupServed is whether magpie serves any of the group's members.
+func (f *fakeMag) groupServed(g string) bool {
+	for _, m := range f.groups[g] {
+		if _, off := f.unserved[m]; !off {
+			return true
+		}
+	}
+	return len(f.groups[g]) == 0
 }
 
 func (f *fakeMag) called(args ...string) bool {

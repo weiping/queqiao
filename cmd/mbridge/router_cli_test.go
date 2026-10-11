@@ -491,3 +491,30 @@ func TestRouterCalibrateText(t *testing.T) {
 		t.Fatal("--score nope was accepted")
 	}
 }
+
+// A group init keeps but magpie can't serve (every member skipped) is said
+// so, with why: keeping it quietly leaves that tier failing.
+func TestRouterInitWarnsOfAKeptGroupItCantServe(t *testing.T) {
+	f := routerHome(t)
+	if err := routerInit([]string{"--preset", "cn", "--groups-only"}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.groups["mb-perf"] = []string{"copilot/claude-opus-5.5"}
+	f.unserved["copilot/claude-opus-5.5"] = "Copilot is off now, skipped"
+	f.mu.Unlock()
+	out, err := captureStdout(t, func() error {
+		return routerInit([]string{"--preset", "cn", "--groups-only"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"group/mb-perf: magpie serves none of its models", "copilot/claude-opus-5.5: Copilot is off now, skipped"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("init lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "group/mb-fast: magpie serves none") {
+		t.Fatalf("a served group warned about:\n%s", out)
+	}
+}

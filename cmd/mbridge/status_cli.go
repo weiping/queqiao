@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/weiping/magpie-bridge/internal/magpie"
 	"net/http"
 	"slices"
 	"time"
@@ -39,9 +40,19 @@ func statusCmd(args []string) error {
 		for _, tier := range []router.Tier{router.TierFast, router.TierBalanced, router.TierPerformance} {
 			want = append(want, cfg.Tiers[tier].Group)
 		}
+		// a group magpie has but doesn't serve (every member skipped) is as
+		// broken as a missing one: /v1/models leaves it out
+		listed := map[string]bool{}
+		models, lerr := mc.ModelList(ctx)
+		for _, m := range models {
+			listed[m.ID] = true
+		}
 		for _, g := range want {
-			if err == nil && !slices.Contains(groups, g) {
+			switch {
+			case err == nil && !slices.Contains(groups, g):
 				fmt.Println(amber.Render("✗"), "group/"+g, "missing in magpie", muted.Render("· mbridge router init --groups-only --force"))
+			case lerr == nil && !listed[magpie.GroupPrefix+g]:
+				explainUnlisted(ctx, mc, "", g)
 			}
 		}
 	}
