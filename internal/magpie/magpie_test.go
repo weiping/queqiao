@@ -3,6 +3,7 @@ package magpie
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -228,5 +229,74 @@ func TestModelListReadsContextWindow(t *testing.T) {
 	ms, err := New(f.URL).ModelList(context.Background())
 	if err != nil || len(ms) != 2 || ms[0] != (Model{ID: "group/mb-fast", Context: 200000}) || ms[1].Context != 0 {
 		t.Fatalf("%+v %v", ms, err)
+	}
+}
+
+// `magpie group <id>` as a user's magpie 0.1.1157 printed it (10-11), with
+// the plugin log line the CLI writes first: both members are Copilot's and
+// Copilot was switched off, so magpie served neither and dropped the group
+// from /v1/models.
+const groupShowCopilotOff = "2026/10/11 10:16:45 plugin [info]: [github-sync] GitHub sync setup: http://127.0.0.1:3437/\n" +
+	"  mb-perf  group/mb-perf\n" +
+	"  routing   order\n" +
+	"  stays     auto\n" +
+	"  models    1 copilot/gpt-6-astra:low  not served: Copilot is off now, skipped\n" +
+	"            2 copilot/claude-opus-5.5  not served: Copilot is off now, skipped\n"
+
+// the same from magpie 0.1.1175 with a served member
+const groupShowServed = "  mb-fast  group/mb-fast\n" +
+	"  routing   order\n" +
+	"  stays     auto\n" +
+	"  models    1 fake/m1  fake · m1\n"
+
+func TestGroupReadsMembersAndWhyNotServed(t *testing.T) {
+	var got []string
+	c := New("http://127.0.0.1:1")
+	c.Bin = "magpie"
+	out := groupShowCopilotOff
+	c.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		got = append([]string{name}, args...)
+		return []byte(out), nil
+	}
+	g, err := c.Group(context.Background(), "mb-perf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, " ") != "magpie group mb-perf" {
+		t.Fatalf("args %q", got)
+	}
+	want := []GroupMember{
+		{Model: "copilot/gpt-6-astra:low", NotServed: "Copilot is off now, skipped"},
+		{Model: "copilot/claude-opus-5.5", NotServed: "Copilot is off now, skipped"},
+	}
+	if len(g.Members) != 2 || g.Members[0] != want[0] || g.Members[1] != want[1] {
+		t.Fatalf("members %+v", g.Members)
+	}
+	if g.Served() {
+		t.Fatal("a group with no member served reads as served")
+	}
+
+	out = groupShowServed
+	g, err = c.Group(context.Background(), "mb-fast")
+	if err != nil || len(g.Members) != 1 || g.Members[0] != (GroupMember{Model: "fake/m1"}) || !g.Served() {
+		t.Fatalf("%+v %v", g, err)
+	}
+}
+
+// A group magpie doesn't have is ErrNoGroup; output it can't read is an
+// error, never a group with no members.
+func TestGroupMissingOrUnreadable(t *testing.T) {
+	c := New("http://127.0.0.1:1")
+	c.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return []byte(`magpie: no group "mb-perf" (groups: mb-fast)` + "\n"), errors.New("exit status 1")
+	}
+	if _, err := c.Group(context.Background(), "mb-perf"); !errors.Is(err, ErrNoGroup) {
+		t.Fatalf("err %v", err)
+	}
+	c.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return []byte("  mb-perf  group/mb-perf\n  routing   order\n"), nil
+	}
+	if g, err := c.Group(context.Background(), "mb-perf"); err == nil {
+		t.Fatalf("no models line read as %+v", g)
 	}
 }
