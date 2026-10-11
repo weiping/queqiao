@@ -156,3 +156,18 @@ func TestParseRejectsTruncatedBody(t *testing.T) {
 		t.Fatal("truncated body parsed")
 	}
 }
+
+// SP11: the reply before the user's latest message, from recorded turn-2
+// requests of the three protocols.
+func TestPreviousAnswerFromRecordedRequests(t *testing.T) {
+	for name, want := range map[string]string{
+		"anthropic-cc-turn2.json":    "No response requested.",
+		"responses-codex-turn2.json": "done",
+		"chat-turn2.json":            "ok",
+		"anthropic-cc-turn1.json":    "", // the first turn has none
+	} {
+		if got := wire.PreviousAnswer(parseFixture(t, name)); got != want {
+			t.Errorf("%s: %q, want %q", name, got, want)
+		}
+	}
+}

@@ -13,6 +13,31 @@ import (
 	"github.com/weiping/magpie-bridge/internal/harness"
 )
 
+// The hooks keep per-session state in os.TempDir(), which reads TMPDIR on
+// Unix and TMP/TEMP on Windows. Every test gets the package's own temp dir
+// from TestMain, and a test that reads state another test may have written
+// under the same session id takes a fresh one with isolateTemp.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "mbridge-codex-test-")
+	if err != nil {
+		panic(err)
+	}
+	for _, k := range []string{"TMPDIR", "TMP", "TEMP"} {
+		os.Setenv(k, dir)
+	}
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
+func isolateTemp(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	for _, k := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(k, dir)
+	}
+}
+
 // fakeGateway records every path+body and answers /turn with scripted
 // tiers, one per call.
 type fakeGateway struct {
@@ -219,7 +244,7 @@ func TestPostBashFindsPRLinkAnywhere(t *testing.T) {
 // TestStopPostsReview: UserPrompt leaves this turn's prompt behind, Stop
 // pairs it with the final answer and posts the review.
 func TestStopPostsReview(t *testing.T) {
-	t.Setenv("TMPDIR", t.TempDir())
+	isolateTemp(t)
 	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/mb-fast"})
 	prompt := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"t9","prompt":"read ./no-such-file.md and summarise","model":"group/mbridge"}`)
 	if _, err := UserPrompt(context.Background(), prompt, c); err != nil {
@@ -250,7 +275,7 @@ func TestStopPostsReview(t *testing.T) {
 // TestStopWithoutPromptStateIsSilent: no state file (gateway mode, a
 // pinned turn), no answer, or a different turn — nothing is posted.
 func TestStopWithoutPromptStateIsSilent(t *testing.T) {
-	t.Setenv("TMPDIR", t.TempDir())
+	isolateTemp(t)
 	f, c := newFakeGateway(t, map[string]any{"tier": "fast", "group": "group/mb-fast"})
 	for _, stdin := range []string{
 		`{"hook_event_name":"Stop","session_id":"nobody","turn_id":"t1","last_assistant_message":"ok"}`,
@@ -274,7 +299,7 @@ func TestStopWithoutPromptStateIsSilent(t *testing.T) {
 // TestStopGatewayDownExitsQuietly: an unreachable gateway costs less than
 // the 1s review budget and never errors.
 func TestStopGatewayDownExitsQuietly(t *testing.T) {
-	t.Setenv("TMPDIR", t.TempDir())
+	isolateTemp(t)
 	c := &harness.Client{Base: "http://127.0.0.1:1", HTTP: http.DefaultClient}
 	if _, err := UserPrompt(context.Background(), []byte(`{"session_id":"s1","turn_id":"t1","prompt":"hi","model":"group/mbridge"}`), c); err != nil {
 		t.Fatal(err)
@@ -345,5 +370,110 @@ func TestCodexTurnHooksOutliveTheTurnBudget(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// SP11: Stop keeps the turn's final answer, and the next UserPromptSubmit
+// sends it to /turn as previous_answer.
+func TestNextTurnCarriesThePreviousAnswer(t *testing.T) {
+	isolateTemp(t)
+	f, c := newFakeGateway(t,
+		map[string]any{"tier": "fast", "group": "group/mb-fast"},
+		map[string]any{"tier": "performance", "group": "group/mb-perf"})
+	turn := func(id, prompt string) {
+		in := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"` + id + `","prompt":"` + prompt + `","model":"group/mbridge"}`)
+		if _, err := UserPrompt(context.Background(), in, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	turn("t1", "CI 还要吗？")
+	stop := []byte(`{"hook_event_name":"Stop","session_id":"s1","turn_id":"t1","last_assistant_message":"提议：改三个工作流"}`)
+	if _, err := Stop(context.Background(), stop, c); err != nil {
+		t.Fatal(err)
+	}
+	turn("t2", "按这个思路修改")
+
+	turns := f.at("/v1/bridge/turn")
+	if len(turns) != 2 {
+		t.Fatalf("turns: %d", len(turns))
+	}
+	if _, ok := turns[0]["previous_answer"]; ok {
+		t.Fatalf("first turn sent a previous answer: %v", turns[0])
+	}
+	if turns[1]["previous_answer"] != "提议：改三个工作流" {
+		t.Fatalf("second turn: %v", turns[1])
+	}
+
+	// another session never reads s1's answer
+	in := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s2","turn_id":"u1","prompt":"hi","model":"group/mbridge"}`)
+	f.turns = append(f.turns, map[string]any{"tier": "fast", "group": "group/mb-fast"})
+	if _, err := UserPrompt(context.Background(), in, c); err != nil {
+		t.Fatal(err)
+	}
+	if last := f.at("/v1/bridge/turn"); last[len(last)-1]["previous_answer"] != nil {
+		t.Fatalf("s2 got s1's answer: %v", last[len(last)-1])
+	}
+}
+
+// A long answer is cut to 4000 characters before it is sent.
+func TestPreviousAnswerSentIsBounded(t *testing.T) {
+	long := ""
+	for len([]rune(long)) < 9000 {
+		long += "改动说明。"
+	}
+	if got := []rune(clientCut(long)); len(got) > 4010 {
+		t.Fatalf("sent %d runes", len(got))
+	}
+}
+
+// An answer is good for one prompt. A turn that ends without a Stop
+// (interrupted) or with an empty answer leaves none for the turn after it:
+// the answer before is not what the user now points at.
+func TestPreviousAnswerIsOnlyForTheNextPrompt(t *testing.T) {
+	isolateTemp(t)
+	fast := map[string]any{"tier": "fast", "group": "group/mb-fast"}
+	f, c := newFakeGateway(t, fast, fast, fast, fast)
+	turn := func(id, prompt string) {
+		in := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","turn_id":"` + id + `","prompt":"` + prompt + `","model":"group/mbridge"}`)
+		if _, err := UserPrompt(context.Background(), in, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := func(id, answer string) {
+		in := []byte(`{"hook_event_name":"Stop","session_id":"s1","turn_id":"` + id + `","last_assistant_message":"` + answer + `"}`)
+		if _, err := Stop(context.Background(), in, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	turn("t1", "重构方案？")
+	stop("t1", "方案 A：大重构")
+	turn("t2", "先看下 B") // interrupted: no Stop
+	turn("t3", "按这个思路做")
+	stop("t3", "") // ended with no answer
+	turn("t4", "继续")
+
+	turns := f.at("/v1/bridge/turn")
+	if len(turns) != 4 {
+		t.Fatalf("turns: %d", len(turns))
+	}
+	if turns[1]["previous_answer"] != "方案 A：大重构" {
+		t.Fatalf("t2: %v", turns[1])
+	}
+	for _, i := range []int{2, 3} {
+		if v, ok := turns[i]["previous_answer"]; ok {
+			t.Fatalf("t%d got a stale answer %v", i+1, v)
+		}
+	}
+}
+
+// A file that names another session is never sent, even at this session's
+// path.
+func TestAnswerStateOfAnotherSessionIsIgnored(t *testing.T) {
+	isolateTemp(t)
+	if err := os.WriteFile(answerStatePath("s1"), []byte(`{"session":"s9","answer":"别人的"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := readAnswerState("s1"); ok {
+		t.Fatalf("read %q", got)
 	}
 }

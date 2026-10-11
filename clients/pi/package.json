@@ -1,6 +1,6 @@
 {
   "name": "@weiping/pi-magpie-bridge",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Route every Pi turn across mbridge's fast/balanced/performance tiers via the mbridge gateway.",
   "keywords": [
     "pi-package"

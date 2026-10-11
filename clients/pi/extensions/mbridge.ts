@@ -14,7 +14,7 @@ const PROVIDER = "magpie"
 const PR_LINK = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/
 const SUBAGENT_TOOLS = new Set(["subagent", "dispatch_agent"]) // S12
 
-type AgentMessageLite = { role?: string; content?: unknown }
+type AgentMessageLite = { role?: string; content?: unknown; stopReason?: string }
 
 // lastAssistantText is S14's reading of the turn's final assistant text:
 // a plain string, or the text parts of a content array joined.
@@ -36,6 +36,20 @@ function lastAssistantText(messages: AgentMessageLite[]): string | null {
   return null
 }
 
+// finalAnswer is SP11's previous answer: the turn's final assistant text, or
+// null when the turn ended without one (interrupted, an error, a last
+// message with no text). The answer before it is not what the user now
+// points at.
+function finalAnswer(messages: AgentMessageLite[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m?.role !== "assistant") continue
+    if (m.stopReason === "aborted" || m.stopReason === "error") return null
+    return lastAssistantText([m])
+  }
+  return null
+}
+
 export default function (pi: ExtensionAPI): void {
   const client = new MbridgeClient(process.env.MBRIDGE_URL ?? "http://127.0.0.1:3426")
   // SP10: learn how long a turn may wait before the first one, when the
@@ -51,6 +65,7 @@ export default function (pi: ExtensionAPI): void {
   let parentSent = false
   let lastTier: string | null = null
   let lastPrompt = "" // this turn's words, for the end-of-turn review (SP7)
+  let lastAnswer: string | null = null // the previous final answer, for the next /turn (SP11)
   let lastAutoModel = "" // our own setModel, told apart from a manual switch
   let manualPinned = false
   // SP8: the main session's tool results since the last /turn; mbridge no
@@ -74,6 +89,7 @@ export default function (pi: ExtensionAPI): void {
     void client.learnBudget() // SP10: how long a turn may wait
     lastTier = null
     lastPrompt = ""
+    lastAnswer = null
     lastAutoModel = ""
     manualPinned = false
     tools = null
@@ -95,6 +111,7 @@ export default function (pi: ExtensionAPI): void {
       parentSession: parent !== null && !parentSent ? parent : undefined,
       toolCalls: tools?.calls,
       toolFailures: tools?.failures,
+      previousAnswer: lastAnswer ?? undefined, // SP11
     })
     tools = { calls: 0, failures: 0 }
     if (parent !== null) parentSent = true
@@ -119,8 +136,10 @@ export default function (pi: ExtensionAPI): void {
   // ask the gateway to judge whether the answer left the request open.
   // Fire and forget: nothing here waits on the gateway.
   pi.on("agent_end", (event) => {
-    if (manualPinned || session === "" || lastTier === null || lastTier === "performance") return
     const answer = lastAssistantText((event as { messages?: AgentMessageLite[] }).messages ?? [])
+    // SP11: for the next /turn, whatever tier this turn was; none if it ended without one
+    lastAnswer = finalAnswer((event as { messages?: AgentMessageLite[] }).messages ?? [])
+    if (manualPinned || session === "" || lastTier === null || lastTier === "performance") return
     if (answer === null) return
     client.review({ session, prompt: lastPrompt, answer })
   })

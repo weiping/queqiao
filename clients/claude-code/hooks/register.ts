@@ -28,6 +28,7 @@ const stStored = atom({ plugin: 'magpie-bridge', key: 'stored' }, false)
 // SP7 §3.5: this turn's user words, kept for the end-of-turn review
 const stPrompt = atom({ plugin: 'magpie-bridge', key: 'prompt' }, null as string | null)
 const stTurnBudget = atom({ plugin: 'magpie-bridge', key: 'turnBudget' }, null as number | null)
+const stLastAnswer = atom({ plugin: 'magpie-bridge', key: 'lastAnswer' }, null as string | null)
 
 // §5.8: the same hash on both the storing side and the looking-up side
 function fnv1a(s: string): string {
@@ -132,6 +133,7 @@ export const register: Register = (on, options) => {
       const stats = await read($, stToolStats)
       const planMode = await read($, stPlanMode)
       const cwd = await read($, stCwd)
+      const lastAnswer = await read($, stLastAnswer)
       // a derived session looks its parent up once (§5.8)
       let parentSession: string | undefined
       const derived = await read($, stDerived)
@@ -151,6 +153,8 @@ export const register: Register = (on, options) => {
         tool_calls: stats.calls,
         tool_failures: stats.failures,
         store_hint: false,
+        // SP11: the reply before this prompt
+        ...(lastAnswer !== null ? { previous_answer: lastAnswer } : {}),
       })
       if (decided !== null) {
         await update($, stTurn, () => ({ turnId: e.turnId, tier: decided.tier, group: decided.group }))
@@ -228,6 +232,16 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.complete', async ($, e, next) => {
+    // SP11: keep the main session's final answer for the next /turn. A main
+    // turn that ends without one (interrupted, refused, an API error) clears
+    // it: the answer before is not what the user now points at.
+    if (e.agentId === undefined) {
+      const answer =
+        e.reason === 'answer' && !e.isAborted && typeof e.answer === 'string' && e.answer !== ''
+          ? clientCut(e.answer)
+          : null
+      await update($, stLastAnswer, () => answer)
+    }
     // SP7 §3.5: the review goes out after a routed main turn that did not
     // end on performance. Fire and forget: the answer is already delivered,
     // and a review that never arrives just means no R3-review next turn.
@@ -379,4 +393,11 @@ async function learnBudget($: any, gateway: string): Promise<number | null> {
  *  probe failed, or /clear and the like reset $.state, ask again here. */
 async function turnBudget($: any, gateway: string): Promise<number> {
   return (await read($, stTurnBudget)) ?? (await learnBudget($, gateway)) ?? TURN_BUDGET_MS
+}
+
+/** SP11: at most 4000 characters of a previous answer, the first 1000 and
+ *  the last 3000; mbridge cuts further. */
+function clientCut(s: string): string {
+  const cs = Array.from(s)
+  return cs.length > 4000 ? cs.slice(0, 1000).join('') + '\n…\n' + cs.slice(-3000).join('') : s
 }

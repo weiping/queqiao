@@ -698,3 +698,55 @@ test('aborted, performance, subagent and gateway-mode turns post no review', asy
   await $.turn.complete({ turnId: 't4', answer: 'ok', durationMs: 1, isAborted: false, usage: null })
   expect(reviews.length).toBe(0)
 })
+
+// SP11: the main session's final answer goes with the next /turn as
+// previous_answer, whatever tier the turn was on; a subagent's does not.
+test('the next /turn carries the previous main answer', async ($, on) => {
+  const calls = fakeGateway(on, [
+    { tier: 'performance', group: 'group/mb-perf', reason: 'R6-adopt' },
+    { tier: 'performance', group: 'group/mb-perf', reason: 'R6-adopt' },
+  ])
+  stubBasics(on)
+  mock.clock(on)
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+
+  await $.turn.start({ turnId: 't1', text: 'CI 还要吗？' })
+  await $.turn.complete({ turnId: 't1', answer: '提议：改三个工作流', durationMs: 10, isAborted: false, usage: null, reason: 'answer' })
+  await $.turn.complete({ turnId: 'sub', answer: '子 agent 的回答', durationMs: 10, isAborted: false, usage: null, agentId: 'a1', reason: 'answer' })
+  await $.turn.start({ turnId: 't2', text: '按这个思路修改' })
+
+  const turns = calls.filter((c) => c.url.endsWith('/v1/bridge/turn')).map((c) => JSON.parse(c.body ?? '{}'))
+  expect(turns.length).toBe(2)
+  expect(turns[0].previous_answer).toBeUndefined()
+  expect(turns[1].previous_answer).toBe('提议：改三个工作流')
+})
+
+// A turn that ends without a full answer (interrupted, an API error) leaves
+// no previous answer: the one before it is not what the user now points at.
+test('an interrupted or failed turn leaves no previous answer', async ($, on) => {
+  const calls = fakeGateway(on, [
+    { tier: 'fast', group: 'group/mb-fast', reason: 'R6-adopt' },
+    { tier: 'fast', group: 'group/mb-fast', reason: 'R6-adopt' },
+    { tier: 'fast', group: 'group/mb-fast', reason: 'R6-adopt' },
+    { tier: 'fast', group: 'group/mb-fast', reason: 'R6-adopt' },
+  ])
+  stubBasics(on)
+  mock.clock(on)
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+
+  await $.turn.start({ turnId: 't1', text: '重构方案？' })
+  await $.turn.complete({ turnId: 't1', answer: '方案 A：大重构', durationMs: 10, isAborted: false, usage: null, reason: 'answer' })
+  await $.turn.start({ turnId: 't2', text: '先看下 B' })
+  await $.turn.complete({ turnId: 't2', answer: 'B 的半截', durationMs: 10, isAborted: true, usage: null, reason: 'aborted' })
+  await $.turn.start({ turnId: 't3', text: '按这个思路做' })
+  await $.turn.complete({ turnId: 't3', answer: 'API Error: 500', durationMs: 10, isAborted: false, usage: null, reason: 'error' })
+  await $.turn.start({ turnId: 't4', text: '继续' })
+
+  const turns = calls.filter((c) => c.url.endsWith('/v1/bridge/turn')).map((c) => JSON.parse(c.body ?? '{}'))
+  expect(turns.length).toBe(4)
+  expect(turns[1].previous_answer).toBe('方案 A：大重构')
+  expect(turns[2].previous_answer).toBeUndefined()
+  expect(turns[3].previous_answer).toBeUndefined()
+})

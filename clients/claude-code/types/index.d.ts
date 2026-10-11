@@ -25,6 +25,8 @@ declare module 'claude-code' {
       stored: boolean
       /** How long /turn may take (SP10), from mbridge at session.start; null: 1500 ms. */
       turnBudget: number | null
+      /** The main session's last final answer (SP11), sent as previous_answer. */
+      lastAnswer: string | null
     }
   }
 }

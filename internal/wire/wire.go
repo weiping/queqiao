@@ -389,6 +389,35 @@ func UserText(r *Request) string {
 	return text
 }
 
+// PreviousAnswer is the assistant's reply before the user's latest message
+// (SP11): the text of the nearest assistant message with text, looking back
+// past the user messages that end the request. "" when there is none.
+func PreviousAnswer(r *Request) string {
+	i := len(r.Messages) - 1
+	for i >= 0 && r.Messages[i].Role == "user" {
+		i--
+	}
+	for ; i >= 0; i-- {
+		m := r.Messages[i]
+		if m.Role == "user" {
+			return "" // an earlier turn: the reply before this one had no text
+		}
+		if m.Role != "assistant" {
+			continue
+		}
+		var parts []string
+		for _, p := range m.Parts {
+			if p.Kind == Text {
+				parts = append(parts, p.Text)
+			}
+		}
+		if t := strings.TrimSpace(strings.Join(parts, "\n")); t != "" {
+			return t
+		}
+	}
+	return ""
+}
+
 // TurnOf counts the user's turns, and says whether the request goes on
 // within the last one: its last user message hands back tool results
 // (magpie: gateway/affinity.go turnIn).

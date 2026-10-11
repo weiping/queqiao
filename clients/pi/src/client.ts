@@ -13,6 +13,8 @@ export interface TurnRequest {
   /** The main session's tool results since the last turn (SP8). */
   toolCalls?: number
   toolFailures?: number
+  /** The assistant's reply before this prompt (SP11). */
+  previousAnswer?: string
 }
 
 export interface TurnResponse {
@@ -97,6 +99,7 @@ export class MbridgeClient {
     if (req.parentSession !== undefined) body.parent_session = req.parentSession
     if (req.toolCalls !== undefined) body.tool_calls = req.toolCalls
     if (req.toolFailures !== undefined) body.tool_failures = req.toolFailures
+    if (req.previousAnswer !== undefined && req.previousAnswer !== "") body.previous_answer = clientCut(req.previousAnswer)
     const out = (await this.post("/v1/bridge/turn", body, this.turnBudgetMs)) as TurnResponse | null
     if (out === null || typeof out.tier !== "string" || typeof out.group !== "string") return null
     return out
@@ -171,4 +174,11 @@ export class MbridgeClient {
       body: JSON.stringify(body),
     }
   }
+}
+
+/** SP11: at most 4000 characters of a previous answer, the first 1000 and
+ *  the last 3000; mbridge cuts further. */
+export function clientCut(s: string): string {
+  const cs = Array.from(s)
+  return cs.length > 4000 ? cs.slice(0, 1000).join("") + "\n…\n" + cs.slice(-3000).join("") : s
 }

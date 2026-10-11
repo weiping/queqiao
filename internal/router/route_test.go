@@ -153,3 +153,19 @@ func TestRouteForkSharesKeyWithParent(t *testing.T) {
 		t.Fatal("fork did not share the parent's state key")
 	}
 }
+
+// SP11: gateway mode and Codex's proxy take the previous answer from the
+// conversation the request carries.
+func TestRoutePassesThePreviousAnswer(t *testing.T) {
+	d, fc, _ := testDeps(t, &Verdict{Tier: TierPerformance, TierConfidence: 0.9})
+	h := NewRouter(d)
+	req := &wire.Request{Messages: []wire.Message{
+		{Role: "user", Parts: []wire.Part{{Kind: wire.Text, Text: "CI 还要吗？"}}},
+		{Role: "assistant", Parts: []wire.Part{{Kind: wire.Text, Text: "提议：改三个工作流"}}},
+		{Role: "user", Parts: []wire.Part{{Kind: wire.Text, Text: "按这个思路修改"}}},
+	}}
+	route(h, hdr("s1"), req, "codex")
+	if len(fc.questions) != 1 || fc.questions[0].PreviousAnswer != "提议：改三个工作流" {
+		t.Fatalf("questions: %+v", fc.questions)
+	}
+}

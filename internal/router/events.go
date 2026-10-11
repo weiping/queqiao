@@ -37,6 +37,8 @@ type Event struct {
 	Unresolved       *float64 `json:"unresolved,omitempty"`
 	ReviewConfidence *float64 `json:"review_confidence,omitempty"`
 	Classifier       string   `json:"classifier,omitempty"`
+	// SP11: the classifier was given the reply before the prompt.
+	PreviousAnswer bool `json:"previous_answer,omitempty"`
 }
 
 var (
