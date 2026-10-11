@@ -186,6 +186,7 @@ func (d *Deps) Decide(ctx context.Context, in DecideInput) Decided {
 		Tier: decision.Tier, Reason: decision.Reason, Source: source,
 		Arm: arm, Confidence: res.Confidence, LatencyMs: res.LatencyMs,
 		TurnID: turnID, WouldReview: decision.WouldReview,
+		PreviousAnswer: classified != nil && in.PreviousAnswer != "",
 	}
 	if classified != nil {
 		ev.ClassifiedTier, ev.Classifier = classified.Tier, classified.Source

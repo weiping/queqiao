@@ -499,7 +499,7 @@ func TestStatusReportsTurnBudget(t *testing.T) {
 
 // SP11: the reply before this turn reaches the classifier.
 func TestTurnPassesThePreviousAnswer(t *testing.T) {
-	d, fc, _ := testDeps(t, &Verdict{Tier: TierPerformance, TierConfidence: 0.9})
+	d, fc, events := testDeps(t, &Verdict{Tier: TierPerformance, TierConfidence: 0.9})
 	srv := testServer(d)
 	defer srv.Close()
 	res := postJSON(t, srv.URL+"/v1/bridge/turn", map[string]any{
@@ -511,5 +511,16 @@ func TestTurnPassesThePreviousAnswer(t *testing.T) {
 	}
 	if len(fc.questions) != 1 || fc.questions[0].PreviousAnswer != "提议：改三个工作流" {
 		t.Fatalf("questions: %+v", fc.questions)
+	}
+	// the decide record says the classifier saw an answer, so calibrate can
+	// tell SP11's scores from the ones before it
+	var marked bool
+	for _, ev := range *events {
+		if ev.Kind == "decide" && ev.PreviousAnswer {
+			marked = true
+		}
+	}
+	if !marked {
+		t.Fatalf("decide not marked previous_answer: %+v", *events)
 	}
 }
