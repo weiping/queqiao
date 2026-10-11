@@ -698,3 +698,26 @@ test('aborted, performance, subagent and gateway-mode turns post no review', asy
   await $.turn.complete({ turnId: 't4', answer: 'ok', durationMs: 1, isAborted: false, usage: null })
   expect(reviews.length).toBe(0)
 })
+
+// SP11: the main session's final answer goes with the next /turn as
+// previous_answer, whatever tier the turn was on; a subagent's does not.
+test('the next /turn carries the previous main answer', async ($, on) => {
+  const calls = fakeGateway(on, [
+    { tier: 'performance', group: 'group/mb-perf', reason: 'R6-adopt' },
+    { tier: 'performance', group: 'group/mb-perf', reason: 'R6-adopt' },
+  ])
+  stubBasics(on)
+  mock.clock(on)
+  on('turn.start', (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+
+  await $.turn.start({ turnId: 't1', text: 'CI 还要吗？' })
+  await $.turn.complete({ turnId: 't1', answer: '提议：改三个工作流', durationMs: 10, isAborted: false, usage: null })
+  await $.turn.complete({ turnId: 'sub', answer: '子 agent 的回答', durationMs: 10, isAborted: false, usage: null, agentId: 'a1' })
+  await $.turn.start({ turnId: 't2', text: '按这个思路修改' })
+
+  const turns = calls.filter((c) => c.url.endsWith('/v1/bridge/turn')).map((c) => JSON.parse(c.body ?? '{}'))
+  expect(turns.length).toBe(2)
+  expect(turns[0].previous_answer).toBeUndefined()
+  expect(turns[1].previous_answer).toBe('提议：改三个工作流')
+})
